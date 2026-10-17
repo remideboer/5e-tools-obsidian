@@ -85,6 +85,11 @@ function search (term) {
 	if (!ent) throw new Error("failed to load goblin JSON");
 	const html = Renderer.hover.getFnRenderCompact(page, {isStatic: true})(ent);
 	console.log("html length", String(html).length, "sample", String(html).slice(0, 120).replace(/\s+/g, " "));
+	const crPart = Renderer.monster.getChallengeRatingPart(ent);
+	if (!crPart || crPart === "\u2014") throw new Error(`goblin CR missing: ${crPart}`);
+	if (!String(html).includes(String(ent.cr?.cr ?? ent.cr))) throw new Error("compact HTML missing CR");
+	if (!/XP/i.test(String(html))) throw new Error("compact HTML missing XP");
+	console.log("cr", crPart);
 	const tokenUrl = Renderer.monster.getTokenUrl(ent);
 	console.log("tokenUrl", tokenUrl);
 	if (!/^https:\/\/5e\.tools\/img\//i.test(String(tokenUrl))) throw new Error(`expected remote token URL, got ${tokenUrl}`);

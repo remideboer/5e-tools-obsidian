@@ -24,7 +24,10 @@ if (typeof globalThis.BrewUtil2 === "undefined") {
 
 if (typeof globalThis.ScaleCreature === "undefined") {
 	globalThis.ScaleCreature = {
-		isCrInScaleRange () { return false; },
+		isCrInScaleRange (mon) {
+			if ([VeCt.CR_UNKNOWN, VeCt.CR_CUSTOM].includes(Parser.crToNumber(mon.cr))) return false;
+			return Parser.XP_CHART_ALT[mon.cr?.cr ?? mon.cr] != null;
+		},
 		async scale (mon) { return mon; },
 	};
 }
