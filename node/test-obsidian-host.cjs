@@ -136,12 +136,26 @@ function search (term) {
 	if (!sneak) throw new Error(`sneak attack JSON miss via ${sneakPage} ${sneakDoc.u}`);
 	console.log("classFeature", sneak && {name: sneak.name, source: sneak.source, page: sneakPage});
 
-	const loot = JSON.parse(fs.readFileSync(path.join(pluginDir, "data", "loot.json"), "utf8"));
-	const table = loot.individual.find(it => it.source === "DMG" && it.crMin === 0);
-	const rowRoll = globalThis.RollerUtil.randomise(100);
-	const row = table.table.find(it => rowRoll >= it.min && rowRoll <= it.max);
-	const coins = Object.fromEntries(Object.entries(row.coins).map(([type, formula]) => [type, Renderer.dice.parseRandomise2(String(formula))]));
-	console.log("loot roll", {rowRoll, coins, bands: loot.hoard.filter(it => it.source === "DMG").map(it => it.name)});
+	if (typeof host.listLootTables !== "function" || typeof host.rollSelectedTables !== "function") {
+		throw new Error("loot table helpers missing from host");
+	}
+	const lootTables = host.listLootTables();
+	const groups = [...new Set(lootTables.map(it => it.group))];
+	for (const group of ["Individual", "Hoard", "Dragon", "Gems", "Art objects", "Magic items", "Dragon mundane"]) {
+		if (!groups.includes(group)) throw new Error(`loot group missing: ${group}`);
+	}
+	const tableA = lootTables.find(it => it.id === "magicItems:DMG:Magic Item Table A");
+	const tableB = lootTables.find(it => it.id === "magicItems:DMG:Magic Item Table B");
+	if (!tableA || !tableB) throw new Error("expected Magic Item Tables A and B");
+	const lootRolls = host.rollSelectedTables([tableA.id, tableB.id], 5);
+	if (lootRolls.items?.length !== 5) throw new Error(`expected 5 loot items, got ${lootRolls.items?.length}`);
+	if (lootRolls.items.some(it => !it.label || !it.tableLabel)) throw new Error("loot item missing label or table");
+	if (!lootRolls.items.some(it => it.name)) throw new Error("loot items missing linkable names");
+	console.log("loot roll", {
+		tables: lootTables.length,
+		count: lootRolls.items.length,
+		sample: lootRolls.items.map(it => `${it.label} [${it.tableLabel}]`),
+	});
 
 	const books = packed.filter(it => it.c === 44);
 	if (books.length) throw new Error(`filtered index still has ${books.length} book docs`);

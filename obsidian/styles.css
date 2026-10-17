@@ -178,11 +178,20 @@
 	min-width: 0;
 }
 
+.fiveetools-loot {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
+}
+
 .fiveetools-loot__form {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	margin: 8px 0 12px;
+	min-height: 0;
+	flex: 1;
 }
 
 .fiveetools-loot__row {
@@ -192,8 +201,39 @@
 	gap: 8px;
 }
 
-.fiveetools-loot__row select {
+.fiveetools-loot__count {
+	width: 4.5em;
+}
+
+.fiveetools-loot__tables {
 	flex: 1;
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding-right: 4px;
+}
+
+.fiveetools-loot__grouphead {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 600;
+	font-size: 0.85em;
+	margin-bottom: 4px;
+}
+
+.fiveetools-loot__opt {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	font-size: 12px;
+	line-height: 1.3;
+	margin: 2px 0;
+}
+
+.fiveetools-loot__hit {
+	margin: 0 0 8px;
 }
 
 .fiveetools-loot__item {
@@ -206,7 +246,9 @@
 }
 
 .fiveetools-loot h3,
-.fiveetools-loot h4 {
+.fiveetools-loot h4,
+.fiveetools-loot__result h3,
+.fiveetools-loot__result h4 {
 	margin: 8px 0 4px;
 }
 
