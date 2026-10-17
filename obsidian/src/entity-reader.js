@@ -1,7 +1,8 @@
 import {loadEntity} from "./entity-loader.js";
-import {isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
+import {escapeHtml, isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {insertEntityNote} from "./note-writer.js";
+import {printEntityCard} from "./print-card.js";
 import {docFromHref} from "./search-index.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc) {
@@ -22,6 +23,8 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 
 	const actions = header.createDiv({cls: "fiveetools-view__actions"});
 	const insertBtn = actions.createEl("button", {text: "Insert note", cls: "fiveetools-btn"});
+	const printBtn = actions.createEl("button", {text: "Print card", cls: "fiveetools-btn fiveetools-btn--ghost"});
+	printBtn.setAttr("disabled", "true");
 	const openBtn = actions.createEl("button", {text: "Open on 5e.tools", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	openBtn.addEventListener("click", () => {
 		window.open(siteUrlForDoc(doc, plugin.settings.imageBaseUrl), "_blank", "noopener");
@@ -52,9 +55,11 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 				}
 			}
 
+			let compactHtml = "";
 			if (!isCorpusPage(page)) {
+				compactHtml = renderCompactHtml(loaded.ent, page);
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
-				statWrap.innerHTML = renderCompactHtml(loaded.ent, page);
+				statWrap.innerHTML = compactHtml;
 				bindInternalLinks(statWrap, plugin);
 			}
 
@@ -65,6 +70,13 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 				} finally {
 					insertBtn.removeAttribute("disabled");
 				}
+			});
+			printBtn.removeAttribute("disabled");
+			printBtn.addEventListener("click", () => {
+				printEntityCard({
+					html: compactHtml || `<p><strong>${escapeHtml(loaded.ent.name || doc.n || "")}</strong></p>`,
+					imageSrc: images[0] ? toPreviewSrc(images[0]) : "",
+				});
 			});
 		} else {
 			insertBtn.setAttr("disabled", "true");
