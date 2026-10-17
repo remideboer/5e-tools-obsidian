@@ -21,6 +21,7 @@ export const CATEGORY_CHIPS = [
 	{id: "background", label: "Background", aliases: ["background", "bg"]},
 	{id: "optionalfeature", label: "Options", aliases: ["optional feature", "invocation", "metamagic", "maneuver", "fighting style", "pact boon", "infusion"]},
 	{id: "condition", label: "Condition", aliases: ["condition", "con", "disease", "status"]},
+	{id: "rule", label: "Rule", aliases: ["rule"]},
 ];
 
 export const LIBRARY_NAV = [
@@ -41,6 +42,7 @@ export const LIBRARY_NAV = [
 			{id: "spell", label: "Spells", categories: ["spell"]},
 			{id: "item", label: "Items", categories: ["item"]},
 			{id: "condition", label: "Conditions", categories: ["condition", "disease", "status"]},
+			{id: "rule", label: "Rules", categories: ["rule"]},
 		],
 	},
 	{

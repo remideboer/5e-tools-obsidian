@@ -2,6 +2,7 @@ import {loadEntity} from "./entity-loader.js";
 import {isCorpusPage, pageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {insertEntityNote} from "./note-writer.js";
+import {docFromHref} from "./search-index.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc) {
 	containerEl.empty();
@@ -54,6 +55,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 			if (!isCorpusPage(page)) {
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
 				statWrap.innerHTML = renderCompactHtml(loaded.ent, page);
+				bindInternalLinks(statWrap, plugin);
 			}
 
 			insertBtn.addEventListener("click", async () => {
@@ -73,4 +75,18 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 		body.empty();
 		body.createEl("p", {text: `Failed to load: ${e.message}`});
 	}
+}
+
+function bindInternalLinks (el, plugin) {
+	el.addEventListener("click", (evt) => {
+		const a = evt.target.closest?.("a");
+		if (!a || !el.contains(a)) return;
+		const href = a.getAttribute("href") || "";
+		if (/^https?:\/\//i.test(href)) return;
+		const next = docFromHref(href, {linkText: (a.textContent || "").trim()});
+		if (!next) return;
+		evt.preventDefault();
+		evt.stopPropagation();
+		plugin.openLibrary({doc: next});
+	});
 }

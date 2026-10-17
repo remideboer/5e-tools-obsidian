@@ -108,6 +108,13 @@ function search (term) {
 	const itemHtml = Renderer.hover.getFnRenderCompact(UrlUtil.CAT_TO_PAGE[itemDoc.c], {isStatic: true})(item);
 	console.log("item html length", String(itemHtml).length);
 
+	if (!fs.existsSync(path.join(pluginDir, "data", "variantrules.json"))) throw new Error("variantrules.json missing from plugin");
+	const rules = search("advantage").filter(d => String(d.cf).toLowerCase() === "rule");
+	const ruleDoc = rules.find(d => /^advantage$/i.test(d.n)) || rules[0];
+	if (!ruleDoc) throw new Error("no advantage rule in filtered index");
+	const rule = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[ruleDoc.c], ruleDoc.s, ruleDoc.u, {isSilent: true});
+	console.log("rule", rule && {name: rule.name, source: rule.source});
+
 	const loot = JSON.parse(fs.readFileSync(path.join(pluginDir, "data", "loot.json"), "utf8"));
 	const table = loot.individual.find(it => it.source === "DMG" && it.crMin === 0);
 	const rowRoll = globalThis.RollerUtil.randomise(100);

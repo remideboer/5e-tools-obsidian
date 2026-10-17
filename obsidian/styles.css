@@ -240,7 +240,10 @@
 }
 
 .fiveetools-view a {
-	pointer-events: none;
+	pointer-events: auto;
+	color: var(--text-accent);
+	text-decoration: underline;
+	cursor: pointer;
 }
 
 .fiveetools-view .ve-stats {

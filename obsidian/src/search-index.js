@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
 import {decompressIndex} from "./decompress-index.js";
-import {MAX_LIBRARY_RESULTS, MAX_SEARCH_RESULTS} from "./constants.js";
-import {getElasticlunr, getParser, getSearchUtil} from "./fiveetools-host.js";
+import {CORPUS_PAGES, MAX_LIBRARY_RESULTS, MAX_SEARCH_RESULTS} from "./constants.js";
+import {getElasticlunr, getParser, getSearchUtil, getUrlUtil} from "./fiveetools-host.js";
 
 const CATEGORY_ALIAS = {
 	creature: ["bestiary"],
@@ -23,6 +23,7 @@ const CATEGORY_ALIAS = {
 	tbl: ["table"],
 	cf: ["class feature"],
 	scf: ["subclass feature"],
+	rule: ["rule"],
 };
 
 let loadedRoot = "";
@@ -165,4 +166,69 @@ export function findEntityDoc (name, {categoriesExact = []} = {}) {
 	if (!needle || !searchIndex) return null;
 	const hits = searchEntities(name, {categoriesExact, limit: 20});
 	return hits.find(doc => String(doc.n || "").toLowerCase() === needle) || hits[0] || null;
+}
+
+export function docFromHref (href, {linkText = ""} = {}) {
+	if (!href || /^https?:\/\//i.test(href) || href.startsWith("mailto:")) return null;
+	const parsed = parseInternalHref(href);
+	if (!parsed || CORPUS_PAGES.has(parsed.page)) return null;
+
+	const hash = parsed.hash.toLowerCase();
+	const page = parsed.page;
+	if (searchIndex) {
+		const UrlUtil = getUrlUtil();
+		const docs = Object.values(searchIndex.documentStore.docs);
+		const matchPage = (doc) => {
+			const docPage = UrlUtil.CAT_TO_PAGE[doc.c];
+			const hoverPage = UrlUtil.CAT_TO_HOVER_PAGE?.[doc.c];
+			return docPage === page || hoverPage === page;
+		};
+		const byHash = docs.filter(doc => doc && String(doc.u || "").toLowerCase() === hash);
+		const hit = byHash.find(matchPage) || byHash[0];
+		if (hit) return hit;
+	}
+
+	return synthesizeDoc(page, hash, linkText);
+}
+
+function parseInternalHref (href) {
+	const raw = String(href || "").replace(/\\/g, "/");
+	const hashIdx = raw.indexOf("#");
+	if (hashIdx === -1) return null;
+	let hash = raw.slice(hashIdx + 1);
+	const amp = hash.indexOf("&");
+	if (amp !== -1) hash = hash.slice(0, amp);
+	const comma = hash.indexOf(",");
+	if (comma !== -1) hash = hash.slice(0, comma);
+	try { hash = decodeURIComponent(hash); } catch (_) { /* keep raw */ }
+	hash = hash.trim();
+	if (!hash) return null;
+
+	const before = raw.slice(0, hashIdx).replace(/\/+$/, "");
+	const last = before.split("/").pop() || "";
+	if (!last) return null;
+	return {page: last, hash};
+}
+
+function synthesizeDoc (page, hash, linkText) {
+	const UrlUtil = getUrlUtil();
+	const Parser = getParser();
+	const decoded = UrlUtil.autoDecodeHash(hash, {page});
+	const cat = catIdForPage(page);
+	const name = (linkText || decoded?.name || hash).trim();
+	return {
+		n: name,
+		u: hash,
+		s: decoded?.source || "PHB",
+		c: cat,
+		cf: cat != null ? Parser.pageCategoryToFull(cat) : page.replace(/\.html$/, ""),
+	};
+}
+
+function catIdForPage (page) {
+	const UrlUtil = getUrlUtil();
+	const hover = Object.entries(UrlUtil.CAT_TO_HOVER_PAGE || {}).find(([, value]) => value === page);
+	if (hover) return Number(hover[0]);
+	const mapped = Object.entries(UrlUtil.CAT_TO_PAGE || {}).find(([, value]) => value === page);
+	return mapped ? Number(mapped[0]) : null;
 }
