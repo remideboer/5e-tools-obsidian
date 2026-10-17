@@ -1,3 +1,4 @@
+import {Modal} from "obsidian";
 import {searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
 
@@ -64,6 +65,7 @@ export function adjustHp (current, max, delta) {
 
 export function renderEncounterComposer (formEl, resultEl, {
 	session,
+	app,
 	onOpenDoc,
 	onSessionChange,
 } = {}) {
@@ -139,6 +141,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		}
 		for (const combatant of combatants) {
 			renderCombatantRow(rosterEl, combatant, {
+				app,
 				selected: !previewKey && combatant.id === selectedId,
 				onSelect: () => {
 					previewKey = null;
@@ -229,7 +232,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	else showPlaceholder();
 }
 
-function renderCombatantRow (parent, combatant, {selected, onSelect, onHp, onRemove}) {
+function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, onRemove}) {
 	const row = parent.createDiv({
 		cls: `fiveetools-encounter__combatant${selected ? " is-selected" : ""}${combatant.hpCurrent <= 0 ? " is-down" : ""}`,
 	});
@@ -270,8 +273,43 @@ function renderCombatantRow (parent, combatant, {selected, onSelect, onHp, onRem
 	});
 	remove.addEventListener("click", (evt) => {
 		evt.stopPropagation();
-		onRemove();
+		confirmRemove(app, combatant.label, onRemove);
 	});
+}
+
+class ConfirmRemoveModal extends Modal {
+	constructor (app, label, onConfirm) {
+		super(app);
+		this.label = label;
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen () {
+		const {contentEl} = this;
+		contentEl.empty();
+		contentEl.createEl("h2", {text: "Remove creature"});
+		contentEl.createEl("p", {text: `Remove ${this.label} from the encounter?`});
+		const actions = contentEl.createDiv({cls: "fiveetools-encounter__row"});
+		const cancel = actions.createEl("button", {text: "Cancel", cls: "fiveetools-btn fiveetools-btn--ghost"});
+		const ok = actions.createEl("button", {text: "Remove", cls: "fiveetools-btn"});
+		cancel.addEventListener("click", () => this.close());
+		ok.addEventListener("click", () => {
+			this.close();
+			this.onConfirm?.();
+		});
+	}
+
+	onClose () {
+		this.contentEl.empty();
+	}
+}
+
+function confirmRemove (app, label, onConfirm) {
+	if (!app) {
+		if (typeof window !== "undefined" && window.confirm(`Remove ${label} from the encounter?`)) onConfirm?.();
+		return;
+	}
+	new ConfirmRemoveModal(app, label, onConfirm).open();
 }
 
 function nextLabel (name, combatants) {
