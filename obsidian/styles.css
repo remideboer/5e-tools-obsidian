@@ -260,6 +260,131 @@
 	margin: 8px 0 4px;
 }
 
+.fiveetools-encounter {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
+}
+
+.fiveetools-encounter h3 {
+	margin: 8px 0 4px;
+}
+
+.fiveetools-encounter__add,
+.fiveetools-encounter__roster {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-height: 0;
+}
+
+.fiveetools-encounter__roster {
+	flex: 1;
+	overflow: auto;
+	padding-right: 4px;
+}
+
+.fiveetools-encounter__row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 4px 0;
+}
+
+.fiveetools-encounter__search {
+	flex: 1;
+	min-width: 0;
+}
+
+.fiveetools-encounter__count {
+	width: 3.2em;
+}
+
+.fiveetools-encounter__hits {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 9em;
+	overflow: auto;
+}
+
+.fiveetools-encounter__hit {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 4px 6px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	background: var(--background-secondary);
+	cursor: pointer;
+}
+
+.fiveetools-encounter__hit.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-encounter__hitmeta {
+	min-width: 0;
+	flex: 1;
+}
+
+.fiveetools-encounter__combatant {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 4px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.fiveetools-encounter__combatant.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-encounter__combatant.is-down .fiveetools-modal__name {
+	text-decoration: line-through;
+	opacity: 0.65;
+}
+
+.fiveetools-encounter__who {
+	min-width: 0;
+}
+
+.fiveetools-encounter__hp {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.fiveetools-encounter__hpbtn {
+	width: 1.6em;
+	height: 1.6em;
+	padding: 0;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+	line-height: 1;
+}
+
+.fiveetools-encounter__hpinput {
+	width: 3.2em;
+	text-align: center;
+}
+
+.fiveetools-encounter__hpmax {
+	font-size: 12px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
 .fiveetools-view__header {
 	display: flex;
 	flex-direction: column;

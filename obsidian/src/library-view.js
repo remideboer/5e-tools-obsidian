@@ -4,6 +4,7 @@ import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
 import {renderLootGenerator} from "./loot-view.js";
+import {renderEncounterComposer} from "./encounter-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -195,6 +196,18 @@ export class FiveEToolsLibraryView extends ItemView {
 				results: session.results,
 				onOpenItem: (doc) => this.navigateToDoc(doc),
 				onSessionChange: (next) => { this.plugin._lootSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "encounter") {
+			this.searchEl.style.display = "none";
+			const session = this.plugin._encounterSession || {combatants: [], selectedId: null};
+			renderEncounterComposer(this.listEl, this.readerEl, {
+				session,
+				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
+				onSessionChange: (next) => { this.plugin._encounterSession = next; },
 			});
 			this.docs = [];
 			return;

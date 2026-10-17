@@ -191,6 +191,22 @@ function search (term) {
 		sample: lootRolls.items.map(it => `${it.label} [${it.tableLabel}]`),
 	});
 
+	if (typeof host.addCombatants !== "function" || typeof host.hpMaxFromEnt !== "function") {
+		throw new Error("encounter helpers missing from host");
+	}
+	const enc = await host.addCombatants({combatants: [], selectedId: null}, doc, 2);
+	if (enc.added?.length !== 2) throw new Error(`expected 2 combatants, got ${enc.added?.length}`);
+	if (enc.added[0].label === enc.added[1].label) throw new Error("combatant labels should be distinct");
+	const expectedHp = host.hpMaxFromEnt(ent);
+	if (!expectedHp || enc.added[0].hpMax !== expectedHp || enc.added[1].hpCurrent !== expectedHp) {
+		throw new Error(`goblin HP should be average ${expectedHp}, got ${enc.added[0].hpMax}`);
+	}
+	if (host.adjustHp(expectedHp, expectedHp, 1) !== expectedHp) throw new Error("HP + should clamp to max");
+	if (host.adjustHp(0, expectedHp, -1) !== 0) throw new Error("HP - should clamp to 0");
+	const encEnt = await DataLoader.pCacheAndGet(page, enc.added[0].doc.s, enc.added[0].doc.u, {isSilent: true});
+	if (!encEnt) throw new Error(`encounter combatant JSON miss via ${enc.added[0].doc.u}`);
+	console.log("encounter", {labels: enc.added.map(it => it.label), hp: expectedHp, cr: enc.added[0].cr});
+
 	const books = packed.filter(it => it.c === 44);
 	if (books.length) throw new Error(`filtered index still has ${books.length} book docs`);
 	const advHits = search("lost mine").filter(d => String(d.cf).toLowerCase() === "adventure");
