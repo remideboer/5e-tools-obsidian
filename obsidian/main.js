@@ -2,6 +2,7 @@ import {Notice, Plugin} from "obsidian";
 import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./src/constants.js";
 import {FiveEToolsView} from "./src/entity-view.js";
 import {configureFiveEToolsRoot, setStyleHint} from "./src/fiveetools-host.js";
+import {ICON_ID, registerFiveEToolsIcon} from "./src/icon.js";
 import {FiveEToolsLibraryView} from "./src/library-view.js";
 import {validateRoot} from "./src/local-fs.js";
 import {getPluginDir} from "./src/plugin-dir.js";
@@ -17,6 +18,7 @@ export default class FiveEToolsPlugin extends Plugin {
 			await this.saveSettings();
 		}
 		setStyleHint(this.settings.style);
+		registerFiveEToolsIcon();
 
 		this.registerView(
 			VIEW_TYPE_FIVEETOOLS,
@@ -38,7 +40,7 @@ export default class FiveEToolsPlugin extends Plugin {
 			callback: () => this.openSearch(),
 		});
 
-		this.addRibbonIcon("library", "Open 5etools library", () => this.openLibrary());
+		this.addRibbonIcon(ICON_ID, "Open 5etools library", () => this.openLibrary());
 		this.addSettingTab(new FiveEToolsSettingTab(this.app, this));
 	}
 

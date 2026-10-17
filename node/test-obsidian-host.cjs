@@ -11,6 +11,7 @@ Module._load = function (request, parent, isMain) {
 			FileSystemAdapter: class FileSystemAdapter {},
 			Setting: class Setting { constructor () { return this; } setName () { return this; } setDesc () { return this; } addText () { return this; } addDropdown () { return this; } },
 			Notice: class Notice { constructor (msg) { console.log("Notice:", msg); } },
+			addIcon () {},
 			requestUrl: async () => ({arrayBuffer: new ArrayBuffer(0)}),
 		};
 	}

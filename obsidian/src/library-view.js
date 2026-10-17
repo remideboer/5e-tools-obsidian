@@ -1,5 +1,6 @@
 import {ItemView} from "obsidian";
 import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
+import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities} from "./search-index.js";
 import {renderLootGenerator} from "./loot-view.js";
@@ -27,7 +28,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	getIcon () {
-		return "library";
+		return ICON_ID;
 	}
 
 	async onOpen () {
