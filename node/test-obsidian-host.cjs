@@ -1,20 +1,27 @@
 const path = require("path");
 const Module = require("module");
 const origLoad = Module._load;
+const obsidianMock = {
+	Plugin: class Plugin {},
+	ItemView: class ItemView {},
+	Modal: class Modal {},
+	PluginSettingTab: class PluginSettingTab {},
+	FileSystemAdapter: class FileSystemAdapter {},
+	Setting: class Setting {
+		constructor () { return this; }
+		setName () { return this; }
+		setDesc () { return this; }
+		addText () { return this; }
+		addDropdown () { return this; }
+		addButton () { return this; }
+	},
+	Notice: class Notice { constructor (msg) { console.log("Notice:", msg); } },
+	addIcon () {},
+	normalizePath: (p) => String(p || "").replace(/\\/g, "/"),
+	requestUrl: async ({url}) => ({arrayBuffer: Buffer.from(`img:${url}`)}),
+};
 Module._load = function (request, parent, isMain) {
-	if (request === "obsidian") {
-		return {
-			Plugin: class Plugin {},
-			ItemView: class ItemView {},
-			Modal: class Modal {},
-			PluginSettingTab: class PluginSettingTab {},
-			FileSystemAdapter: class FileSystemAdapter {},
-			Setting: class Setting { constructor () { return this; } setName () { return this; } setDesc () { return this; } addText () { return this; } addDropdown () { return this; } },
-			Notice: class Notice { constructor (msg) { console.log("Notice:", msg); } },
-			addIcon () {},
-			requestUrl: async () => ({arrayBuffer: new ArrayBuffer(0)}),
-		};
-	}
+	if (request === "obsidian") return obsidianMock;
 	return origLoad.apply(this, arguments);
 };
 
@@ -144,7 +151,49 @@ function search (term) {
 	const advPack = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[advDoc.c], advDoc.s, advDoc.u, {isSilent: true});
 	const chapters = advPack?.adventureData?.data;
 	if (!Array.isArray(chapters) || !chapters.length) throw new Error("LMoP chapters missing");
-	console.log("adventure", {name: advPack.adventure?.name, chapters: chapters.length});
+	globalThis.BookUtil = {
+		curRender: {
+			data: chapters,
+			fromIndex: advPack.adventure,
+			curBookId: String(advPack.adventure.id).toLowerCase(),
+			chapter: 1,
+			headerMap: Renderer.adventureBook.getEntryIdLookup(chapters, {isSilent: true}),
+		},
+	};
+	const areaHtml = Renderer.get().setFirstSection(true).render(chapters[1] || chapters[0]);
+	const areaHref = String(areaHtml).match(/href="#([^"]+)"/i)?.[1];
+	if (!areaHref || !/,/.test(areaHref)) throw new Error("adventure chapter missing in-text area links");
+	const areaParts = areaHref.split(",");
+	if (areaParts.length < 3) throw new Error(`area href too short: ${areaHref}`);
+	console.log("adventure", {name: advPack.adventure?.name, chapters: chapters.length, areaHref});
+
+	if (typeof host.cachedMediaSrc !== "function") throw new Error("cachedMediaSrc missing from host");
+	const os = require("os");
+	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "fiveetools-cache-"));
+	try {
+		const adapter = new obsidianMock.FileSystemAdapter();
+		adapter.getBasePath = () => tmpRoot;
+		adapter.getResourcePath = (p) => `app://local/${String(p).replace(/\\/g, "/")}`;
+		const cachePlugin = {
+			settings: {imageBaseUrl: "https://5e.tools"},
+			manifest: {id: "5etools"},
+			app: {vault: {configDir: ".obsidian", adapter}},
+		};
+		const localSrc = await host.cachedMediaSrc(cachePlugin, tokenUrl);
+		if (!String(localSrc).startsWith("app://local/")) throw new Error(`expected cached resource path, got ${localSrc}`);
+		const vaultRel = String(localSrc).replace(/^app:\/\/local\//, "");
+		const cachedFile = path.join(tmpRoot, ...vaultRel.split("/").filter(Boolean));
+		if (!fs.existsSync(cachedFile)) throw new Error(`cache file missing: ${cachedFile}`);
+		const again = await host.cachedMediaSrc(cachePlugin, tokenUrl);
+		if (again !== localSrc) throw new Error("second cache lookup returned a different path");
+		console.log("image cache", {file: cachedFile, hits: 2});
+		host.clearMediaCache(cachePlugin);
+		if (fs.existsSync(path.join(tmpRoot, ".obsidian", "plugins", "5etools", "cache"))) {
+			throw new Error("cache folder still present after clear");
+		}
+	} finally {
+		fs.rmSync(tmpRoot, {recursive: true, force: true});
+	}
 
 	console.log("ok");
 })().catch(err => {

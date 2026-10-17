@@ -1,9 +1,10 @@
 import {loadEntity} from "./entity-loader.js";
 import {escapeHtml, isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
+import {cachedMediaSrc} from "./media-cache.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
-import {renderAdventurePanel} from "./adventure-reader.js";
+import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
 import {docFromHref} from "./search-index.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc) {
@@ -53,7 +54,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 						insertBtn.removeAttribute("disabled");
 					}
 				});
-				renderAdventurePanel(body, plugin, loaded.ent, {bindInternalLinks});
+				await renderAdventurePanel(body, plugin, loaded.ent, {bindInternalLinks});
 				return;
 			}
 
@@ -62,11 +63,13 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 			});
 			if (images.length) {
 				const imgWrap = body.createDiv({cls: "fiveetools-view__images"});
-				for (const image of images.slice(0, 2)) {
-					const src = toPreviewSrc(image);
-					if (!src) continue;
+				const preview = images.slice(0, 2);
+				const srcs = await Promise.all(preview.map(image => cachedMediaSrc(plugin, toPreviewSrc(image))));
+				preview.forEach((image, i) => {
+					const src = srcs[i];
+					if (!src) return;
 					imgWrap.createEl("img", {attr: {src, alt: loaded.ent.name || doc.n || ""}});
-				}
+				});
 			}
 
 			let compactHtml = "";
@@ -86,10 +89,10 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 				}
 			});
 			printBtn.removeAttribute("disabled");
-			printBtn.addEventListener("click", () => {
+			printBtn.addEventListener("click", async () => {
 				printEntityCard({
 					html: compactHtml || `<p><strong>${escapeHtml(loaded.ent.name || doc.n || "")}</strong></p>`,
-					imageSrc: images[0] ? toPreviewSrc(images[0]) : "",
+					imageSrc: images[0] ? await cachedMediaSrc(plugin, toPreviewSrc(images[0])) : "",
 				});
 			});
 		} else {
@@ -108,6 +111,17 @@ export function bindInternalLinks (el, plugin) {
 		const a = evt.target.closest?.("a");
 		if (!a || !el.contains(a)) return;
 		const href = a.getAttribute("href") || "";
+		if (/^https?:\/\//i.test(href) && !/adventure\.html/i.test(href)) return;
+		const loc = parseAdventureHref(href);
+		if (loc) {
+			const next = docFromHref(`adventure.html#${loc.id}`, {linkText: (a.textContent || "").trim()});
+			if (!next) return;
+			evt.preventDefault();
+			evt.stopPropagation();
+			plugin._adventureJump = loc;
+			plugin.openLibrary({doc: next});
+			return;
+		}
 		if (/^https?:\/\//i.test(href)) return;
 		const next = docFromHref(href, {linkText: (a.textContent || "").trim()});
 		if (!next) return;

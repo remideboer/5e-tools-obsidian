@@ -1,8 +1,8 @@
 import path from "path";
-import {requestUrl} from "obsidian";
 import {renderCompactMarkdown, pageForDoc} from "./compact-render.js";
 import {getAdventureChapters, renderAdventureChapterMarkdown} from "./adventure-reader.js";
 import {resolveEntityImages} from "./image-resolver.js";
+import {readCachedBytes} from "./media-cache.js";
 
 export async function insertEntityNote (plugin, {doc, ent}) {
 	if (ent?.__prop === "adventure") return insertAdventureNotes(plugin, {doc, ent});
@@ -32,7 +32,7 @@ export async function insertEntityNote (plugin, {doc, ent}) {
 		const imageName = `${name}${extensionFor(first)}`;
 		const imagePath = `${imageFolder}/${imageName}`;
 		if (!plugin.app.vault.getAbstractFileByPath(imagePath)) {
-			const bytes = await readImageBytes(first);
+			const bytes = await readCachedBytes(plugin, first.url);
 			if (bytes) await plugin.app.vault.createBinary(imagePath, bytes);
 		}
 		if (plugin.app.vault.getAbstractFileByPath(imagePath)) {
@@ -114,11 +114,6 @@ async function insertAdventureNotes (plugin, {doc, ent}) {
 	const file = await plugin.app.vault.create(indexPath, index);
 	await plugin.app.workspace.getLeaf(false).openFile(file);
 	return file;
-}
-
-async function readImageBytes (resolved) {
-	const res = await requestUrl({url: resolved.url});
-	return res.arrayBuffer;
 }
 
 function extensionFor (resolved) {

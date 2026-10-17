@@ -7,6 +7,7 @@ import "../../js/render-dice.js";
 import "../../js/render-markdown.js";
 import "../../js/utils-dataloader.js";
 import {toPosixRoot, urlToLocalPath} from "./local-fs.js";
+import {cachedMediaSrc, clearMediaCache} from "./media-cache.js";
 
 export {setStyleHint, getStyleHint};
 
@@ -86,4 +87,6 @@ globalThis.FiveEToolsObsidian = {
 	getRenderer,
 	getElasticlunr,
 	getSearchUtil,
+	cachedMediaSrc,
+	clearMediaCache,
 };

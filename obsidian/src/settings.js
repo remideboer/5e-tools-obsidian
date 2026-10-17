@@ -1,5 +1,6 @@
-import {PluginSettingTab, Setting} from "obsidian";
+import {Notice, PluginSettingTab, Setting} from "obsidian";
 import {setStyleHint} from "./fiveetools-host.js";
+import {clearMediaCache} from "./media-cache.js";
 
 export class FiveEToolsSettingTab extends PluginSettingTab {
 	constructor (app, plugin) {
@@ -32,6 +33,20 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.imageBaseUrl = value.trim() || "https://5e.tools";
 					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Image cache")
+			.setDesc("Tokens, art, covers, and maps are stored in the plugin folder after first download.")
+			.addButton(btn => btn
+				.setButtonText("Clear image cache")
+				.onClick(() => {
+					try {
+						clearMediaCache(this.plugin);
+						new Notice("5etools image cache cleared.");
+					} catch (e) {
+						new Notice(`Could not clear image cache: ${e.message}`);
+					}
 				}));
 
 		new Setting(containerEl)
