@@ -3,6 +3,7 @@ import {escapeHtml, isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForD
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
+import {renderAdventurePanel} from "./adventure-reader.js";
 import {docFromHref} from "./search-index.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc) {
@@ -43,6 +44,19 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 		}
 
 		if (loaded.ent) {
+			if (loaded.ent.__prop === "adventure") {
+				insertBtn.addEventListener("click", async () => {
+					insertBtn.setAttr("disabled", "true");
+					try {
+						await insertEntityNote(plugin, {doc, ent: loaded.ent});
+					} finally {
+						insertBtn.removeAttribute("disabled");
+					}
+				});
+				renderAdventurePanel(body, plugin, loaded.ent, {bindInternalLinks});
+				return;
+			}
+
 			const images = await resolveEntityImages(loaded.ent, {
 				imageBaseUrl: plugin.settings.imageBaseUrl,
 			});
@@ -89,7 +103,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 	}
 }
 
-function bindInternalLinks (el, plugin) {
+export function bindInternalLinks (el, plugin) {
 	el.addEventListener("click", (evt) => {
 		const a = evt.target.closest?.("a");
 		if (!a || !el.contains(a)) return;

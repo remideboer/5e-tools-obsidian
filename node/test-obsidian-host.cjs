@@ -73,7 +73,8 @@ function search (term) {
 (async () => {
 	if (!fs.existsSync(path.join(pluginDir, "data", "loot.json"))) throw new Error("loot.json missing from plugin");
 	if (!fs.existsSync(path.join(pluginDir, "data", "bestiary"))) throw new Error("bestiary missing from plugin");
-	if (fs.existsSync(path.join(pluginDir, "data", "adventure"))) throw new Error("adventures should not be bundled");
+	if (!fs.existsSync(path.join(pluginDir, "data", "adventure"))) throw new Error("adventure data missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "adventures.json"))) throw new Error("adventures.json missing from plugin");
 
 	const goblins = search("goblin").filter(d => String(d.cf).toLowerCase() === "bestiary");
 	console.log("search hits", goblins.slice(0, 5).map(d => `${d.n} [${d.s}] ${d.cf}`));
@@ -135,8 +136,15 @@ function search (term) {
 	const coins = Object.fromEntries(Object.entries(row.coins).map(([type, formula]) => [type, Renderer.dice.parseRandomise2(String(formula))]));
 	console.log("loot roll", {rowRoll, coins, bands: loot.hoard.filter(it => it.source === "DMG").map(it => it.name)});
 
-	const adventures = packed.filter(it => it.c === 13 || it.c === 44);
-	if (adventures.length) throw new Error(`filtered index still has ${adventures.length} adventure/book docs`);
+	const books = packed.filter(it => it.c === 44);
+	if (books.length) throw new Error(`filtered index still has ${books.length} book docs`);
+	const advHits = search("lost mine").filter(d => String(d.cf).toLowerCase() === "adventure");
+	const advDoc = advHits.find(d => /phandelver/i.test(d.n)) || advHits[0];
+	if (!advDoc) throw new Error("no Lost Mine adventure in filtered index");
+	const advPack = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[advDoc.c], advDoc.s, advDoc.u, {isSilent: true});
+	const chapters = advPack?.adventureData?.data;
+	if (!Array.isArray(chapters) || !chapters.length) throw new Error("LMoP chapters missing");
+	console.log("adventure", {name: advPack.adventure?.name, chapters: chapters.length});
 
 	console.log("ok");
 })().catch(err => {

@@ -367,3 +367,48 @@
 .fiveetools-view .ve-rd__b { margin-bottom: 6px; }
 .fiveetools-view .ve-rd__list { margin: 0 0 6px 1.2em; }
 .fiveetools-view .ve-print__hidden { display: none !important; }
+
+.fiveetools-adventure__toc {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 8px 0 12px;
+}
+
+.fiveetools-adventure__chapbtn {
+	padding: 4px 10px;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.fiveetools-adventure__chapbtn.is-active,
+.fiveetools-adventure__chapbtn:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.fiveetools-adventure__chapter h3 {
+	margin: 0 0 8px;
+}
+
+.fiveetools-adventure__prose {
+	line-height: 1.45;
+}
+
+.fiveetools-adventure__prose img {
+	max-width: 100%;
+	height: auto;
+}
+
+.fiveetools-view .rd__b--inset,
+.fiveetools-view .ve-rd__b--inset,
+.fiveetools-adventure__prose .rd__b--inset {
+	border-left: 3px solid var(--interactive-accent);
+	padding: 6px 10px;
+	margin: 8px 0;
+	background: var(--background-secondary);
+}

@@ -62,8 +62,9 @@ export function renderCompactMarkdown (ent, page) {
 	return `# ${ent.name || "Unknown"}\n`;
 }
 
-function htmlToPlain (html) {
+export function htmlToMarkdown (html) {
 	return String(html || "")
+		.replace(/<img[^>]*src="([^"]+)"[^>]*>/gi, "\n![]($1)\n")
 		.replace(/<br\s*\/?>/gi, "\n")
 		.replace(/<\/(p|tr|h[1-6]|li|div)>/gi, "\n")
 		.replace(/<h[1-6][^>]*>/gi, "\n## ")
@@ -76,6 +77,10 @@ function htmlToPlain (html) {
 		.replace(/&quot;/g, "\"")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
+}
+
+function htmlToPlain (html) {
+	return htmlToMarkdown(html);
 }
 
 export function escapeHtml (value) {

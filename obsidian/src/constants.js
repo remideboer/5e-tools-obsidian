@@ -22,6 +22,7 @@ export const CATEGORY_CHIPS = [
 	{id: "optionalfeature", label: "Options", aliases: ["optional feature", "invocation", "metamagic", "maneuver", "fighting style", "pact boon", "infusion"]},
 	{id: "condition", label: "Condition", aliases: ["condition", "con", "disease", "status"]},
 	{id: "rule", label: "Rule", aliases: ["rule"]},
+	{id: "adventure", label: "Adventure", aliases: ["adventure", "adv"]},
 ];
 
 export const LIBRARY_NAV = [
@@ -43,6 +44,7 @@ export const LIBRARY_NAV = [
 			{id: "item", label: "Items", categories: ["item"]},
 			{id: "condition", label: "Conditions", categories: ["condition", "disease", "status"]},
 			{id: "rule", label: "Rules", categories: ["rule"]},
+			{id: "adventure", label: "Adventures", categories: ["adventure"]},
 		],
 	},
 	{
@@ -54,8 +56,6 @@ export const LIBRARY_NAV = [
 ];
 
 export const CORPUS_PAGES = new Set([
-	"adventure.html",
-	"adventures.html",
 	"book.html",
 	"books.html",
 ]);

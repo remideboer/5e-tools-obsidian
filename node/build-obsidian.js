@@ -76,7 +76,7 @@ installToDevVaults();
 console.log(`Wrote ${outDir}`);
 
 function copyBundledData () {
-	const dirs = ["data/class", "data/bestiary", "data/spells"];
+	const dirs = ["data/class", "data/bestiary", "data/spells", "data/adventure"];
 	const files = [
 		"data/races.json",
 		"data/fluff-races.json",
@@ -96,6 +96,7 @@ function copyBundledData () {
 		"data/skills.json",
 		"data/senses.json",
 		"data/actions.json",
+		"data/adventures.json",
 		"data/variantrules.json",
 		"data/generated/gendata-spell-source-lookup.json",
 		"data/generated/gendata-subclass-lookup.json",
@@ -126,7 +127,7 @@ function writeFilteredSearchIndex () {
 	}
 
 	const categoryIds = new Set([
-		1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 21, 22, 23, 26, 27, 28, 29, 30, 32, 33, 34, 37, 38, 39, 40, 41, 42, 49, 50, 51,
+		1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 21, 22, 23, 26, 27, 28, 29, 30, 32, 33, 34, 37, 38, 39, 40, 41, 42, 49, 50, 51,
 	]);
 	const docs = decompressIndex(JSON.parse(fs.readFileSync(src, "utf8")))
 		.filter(doc => doc && categoryIds.has(doc.c));
