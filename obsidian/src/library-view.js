@@ -9,6 +9,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.navigation = true;
 		this.navId = "bestiary";
 		this.query = "";
 		this.docs = [];
@@ -17,6 +18,8 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listEl = null;
 		this.readerEl = null;
 		this.searchEl = null;
+		this._restoring = false;
+		this._pendingState = null;
 	}
 
 	getViewType () {
@@ -29,6 +32,28 @@ export class FiveEToolsLibraryView extends ItemView {
 
 	getIcon () {
 		return ICON_ID;
+	}
+
+	getState () {
+		return {
+			navId: this.navId,
+			query: this.query,
+			doc: serializeDoc(this.selectedDoc),
+		};
+	}
+
+	async setState (state, result) {
+		this._pendingState = state || null;
+		if (state?.doc && result) result.history = true;
+		await super.setState(state, result);
+		if (!this.readerEl) return;
+		if (!await this.plugin.ensureReady()) return;
+		this._restoring = true;
+		try {
+			await this.applyState(state);
+		} finally {
+			this._restoring = false;
+		}
 	}
 
 	async onOpen () {
@@ -53,6 +78,11 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
+		if (this._pendingState?.doc || this._pendingState?.navId) {
+			await this.applyState(this._pendingState);
+			return;
+		}
+
 		this.renderNav();
 		this.refreshList();
 		this.readerEl.createEl("p", {text: "Choose a category, then an entry to read."});
@@ -62,11 +92,40 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.contentEl.empty();
 	}
 
+	async applyState (state) {
+		if (!state) return;
+		if (state.navId) this.navId = state.navId;
+		if (state.query != null) {
+			this.query = state.query;
+			if (this.searchEl) this.searchEl.value = state.query;
+		}
+		if (state.doc) {
+			await this.showDoc(state.doc);
+			return;
+		}
+		this.selectedDoc = null;
+		this.renderNav();
+		this.refreshList();
+	}
+
 	selectNav (navId) {
 		this.navId = navId;
 		this.selectedDoc = null;
 		this.renderNav();
 		this.refreshList();
+	}
+
+	async navigateToDoc (doc) {
+		if (!doc) return;
+		if (this._restoring || sameDoc(this.selectedDoc, doc)) {
+			await this.showDoc(doc);
+			return;
+		}
+		await this.leaf.setViewState({
+			type: VIEW_TYPE_FIVEETOOLS_LIBRARY,
+			active: true,
+			state: libraryStateFromDoc(doc, {query: this.query, navId: this.navId}),
+		});
 	}
 
 	async showDoc (doc) {
@@ -106,7 +165,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (item?.tool === "loot") {
 			this.searchEl.style.display = "none";
 			renderLootGenerator(this.listEl, this.readerEl, {
-				onOpenItem: (doc) => this.openDoc(doc),
+				onOpenItem: (doc) => this.navigateToDoc(doc),
 			});
 			this.docs = [];
 			return;
@@ -134,7 +193,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				cls: "fiveetools-modal__sub",
 				text: [doc.cf, doc.sA || doc.s].filter(Boolean).join(" · "),
 			});
-			row.addEventListener("click", () => this.openDoc(doc));
+			row.addEventListener("click", () => this.navigateToDoc(doc));
 		}
 	}
 
@@ -146,6 +205,31 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (idx >= 0) this.listEl.children[idx]?.classList.add("is-selected");
 		await renderEntityPanel(this.readerEl, this.plugin, doc);
 	}
+}
+
+export function libraryStateFromDoc (doc, {query = "", navId = ""} = {}) {
+	const item = navItemForDoc(doc);
+	return {
+		navId: item?.id || navId || "bestiary",
+		query,
+		doc: serializeDoc(doc),
+	};
+}
+
+function serializeDoc (doc) {
+	if (!doc) return null;
+	return {
+		n: doc.n,
+		u: doc.u,
+		s: doc.s,
+		c: doc.c,
+		cf: doc.cf,
+		sA: doc.sA,
+	};
+}
+
+function sameDoc (a, b) {
+	return !!(a && b && a.u === b.u && a.s === b.s && a.n === b.n);
 }
 
 function currentNavItem (navId) {

@@ -3,7 +3,7 @@ import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY} fr
 import {FiveEToolsView} from "./src/entity-view.js";
 import {configureFiveEToolsRoot, setStyleHint} from "./src/fiveetools-host.js";
 import {ICON_ID, registerFiveEToolsIcon} from "./src/icon.js";
-import {FiveEToolsLibraryView} from "./src/library-view.js";
+import {FiveEToolsLibraryView, libraryStateFromDoc} from "./src/library-view.js";
 import {validateRoot} from "./src/local-fs.js";
 import {getPluginDir} from "./src/plugin-dir.js";
 import {ensureSearchIndex} from "./src/search-index.js";
@@ -82,13 +82,17 @@ export default class FiveEToolsPlugin extends Plugin {
 		let leaf = workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_LIBRARY)[0];
 		if (!leaf) {
 			leaf = workspace.getLeaf(false) || workspace.getLeaf(true);
-			await leaf.setViewState({type: VIEW_TYPE_FIVEETOOLS_LIBRARY, active: true});
-		} else {
-			workspace.revealLeaf(leaf);
+			await leaf.setViewState({
+				type: VIEW_TYPE_FIVEETOOLS_LIBRARY,
+				active: true,
+				state: opts.doc ? libraryStateFromDoc(opts.doc) : {},
+			});
+			return;
 		}
+		workspace.revealLeaf(leaf);
 		const view = leaf.view;
 		if (view instanceof FiveEToolsLibraryView) {
-			if (opts.doc) await view.showDoc(opts.doc);
+			if (opts.doc) await view.navigateToDoc(opts.doc);
 			else if (opts.navId) view.selectNav(opts.navId);
 		}
 	}
