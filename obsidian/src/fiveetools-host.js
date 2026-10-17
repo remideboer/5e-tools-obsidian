@@ -22,6 +22,7 @@ export function configureFiveEToolsRoot (rootPath, {imageBaseUrl = "https://5e.t
 	renderer.setBaseUrl(posixRoot);
 	renderer.setBaseMediaUrl("img", `${String(imageBaseUrl || "https://5e.tools").replace(/\/+$/, "")}/img/`);
 	renderer.setAddHandlers(false);
+	bindObsidianLinkPlugin(renderer);
 
 	globalThis.DataUtil._pLoad_pGetJson_pGetOptionalJson = async function ({url}) {
 		const filePath = urlToLocalPath(url, posixRoot.replace(/\/+$/, ""));
@@ -75,6 +76,36 @@ export function getSearchUtil () {
 
 export function joinUnderRoot (rootPath, ...parts) {
 	return path.join(toPosixRoot(rootPath), ...parts);
+}
+
+let linkPluginBound = false;
+
+function bindObsidianLinkPlugin (renderer) {
+	if (linkPluginBound) return;
+	linkPluginBound = true;
+	renderer.addPlugin("link", (_common, pluginArgs) => {
+		const entry = pluginArgs?.input;
+		if (!entry?.href || entry.href.type !== "internal") return null;
+		const page = entry.href.hover?.page || entry.href.path;
+		if (!page) return null;
+		const UrlUtil = globalThis.UrlUtil;
+		const hover = entry.href.hover || {};
+		let hash;
+		if (hover.hash != null) {
+			hash = hover.hashPreEncoded ? hover.hash : UrlUtil.encodeForHash(hover.hash);
+		} else if (entry.href.hash != null) {
+			hash = entry.href.hashPreEncoded ? entry.href.hash : UrlUtil.encodeForHash(entry.href.hash);
+		}
+		if (hash == null || hash === "" || hash === globalThis.HASH_BLANK) return null;
+		const source = hover.source || "";
+		return {
+			attributes: [
+				`data-vet-page="${String(page).qq()}"`,
+				`data-vet-source="${String(source).qq()}"`,
+				`data-vet-hash="${String(hash).qq()}"`,
+			].join(" "),
+		};
+	});
 }
 
 globalThis.FiveEToolsObsidian = {

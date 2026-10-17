@@ -296,7 +296,8 @@
 	overflow: auto;
 }
 
-.fiveetools-view a {
+.fiveetools-view a,
+.fiveetools-view .ve-help {
 	pointer-events: auto;
 	color: var(--text-accent);
 	text-decoration: underline;

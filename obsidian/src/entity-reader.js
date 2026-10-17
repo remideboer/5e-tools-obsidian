@@ -5,7 +5,7 @@ import {cachedMediaSrc} from "./media-cache.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
-import {docFromHref} from "./search-index.js";
+import {docFromHref, docFromVetLink} from "./search-index.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc) {
 	containerEl.empty();
@@ -108,13 +108,14 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 
 export function bindInternalLinks (el, plugin) {
 	el.addEventListener("click", (evt) => {
-		const a = evt.target.closest?.("a");
+		const a = evt.target.closest?.("a, [data-vet-page]");
 		if (!a || !el.contains(a)) return;
 		const href = a.getAttribute("href") || "";
-		if (/^https?:\/\//i.test(href) && !/adventure\.html/i.test(href)) return;
+		const linkText = (a.textContent || "").trim();
+		if (/^https?:\/\//i.test(href) && !/adventure\.html/i.test(href) && !a.hasAttribute("data-vet-page")) return;
 		const loc = parseAdventureHref(href);
 		if (loc) {
-			const next = docFromHref(`adventure.html#${loc.id}`, {linkText: (a.textContent || "").trim()});
+			const next = docFromHref(`adventure.html#${loc.id}`, {linkText});
 			if (!next) return;
 			evt.preventDefault();
 			evt.stopPropagation();
@@ -122,11 +123,16 @@ export function bindInternalLinks (el, plugin) {
 			plugin.openLibrary({doc: next});
 			return;
 		}
-		if (/^https?:\/\//i.test(href)) return;
-		const next = docFromHref(href, {linkText: (a.textContent || "").trim()});
+		const next = docFromVetLink({
+			page: a.getAttribute("data-vet-page"),
+			source: a.getAttribute("data-vet-source"),
+			hash: a.getAttribute("data-vet-hash"),
+			linkText,
+		})
+			|| (!/^https?:\/\//i.test(href) ? docFromHref(href, {linkText}) : null);
 		if (!next) return;
 		evt.preventDefault();
 		evt.stopPropagation();
 		plugin.openLibrary({doc: next});
-	});
+	}, true);
 }

@@ -128,6 +128,34 @@ function search (term) {
 	const rule = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[ruleDoc.c], ruleDoc.s, ruleDoc.u, {isSilent: true});
 	console.log("rule", rule && {name: rule.name, source: rule.source});
 
+	if (typeof host.ensureSearchIndex !== "function" || typeof host.docFromVetLink !== "function") {
+		throw new Error("link helpers missing from host");
+	}
+	await host.ensureSearchIndex(pluginDir);
+	const speciesHits = search("elf").filter(d => String(d.cf).toLowerCase() === "species");
+	const elfDoc = speciesHits.find(d => /^elf$/i.test(d.n) && String(d.s).toUpperCase() === "XPHB") || speciesHits[0];
+	if (!elfDoc) throw new Error("no Elf species");
+	const elf = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[elfDoc.c], elfDoc.s, elfDoc.u, {isSilent: true});
+	if (!elf) throw new Error("failed to load Elf JSON");
+	const elfHtml = String(Renderer.hover.getFnRenderCompact(UrlUtil.CAT_TO_PAGE[elfDoc.c], {isStatic: true})(elf));
+	const senseAttrs = elfHtml.match(/data-vet-page="sense" data-vet-source="([^"]*)" data-vet-hash="([^"]+)"/);
+	if (!senseAttrs) throw new Error("Elf compact HTML missing sense link data");
+	const skillAttrs = elfHtml.match(/data-vet-page="skill" data-vet-source="([^"]*)" data-vet-hash="([^"]+)"/);
+	if (!skillAttrs) throw new Error("Elf compact HTML missing skill link data");
+	const senseDoc = host.docFromVetLink({page: "sense", source: senseAttrs[1], hash: senseAttrs[2], linkText: "Darkvision"});
+	if (!senseDoc || !/darkvision/i.test(senseDoc.n)) throw new Error(`Darkvision sense did not resolve: ${JSON.stringify(senseDoc)}`);
+	const senseEnt = await DataLoader.pCacheAndGet("sense", senseDoc.s, senseDoc.u, {isSilent: true});
+	if (!senseEnt) throw new Error(`Darkvision JSON miss via ${senseDoc.u}`);
+	const skillDoc = host.docFromVetLink({page: "skill", source: skillAttrs[1], hash: skillAttrs[2], linkText: "Perception"});
+	if (!skillDoc) throw new Error("species skill link did not resolve");
+	const skillEnt = await DataLoader.pCacheAndGet("skill", skillDoc.s, skillDoc.u, {isSilent: true});
+	if (!skillEnt) throw new Error(`skill JSON miss via ${skillDoc.u}`);
+	const restAttrs = elfHtml.match(/data-vet-page="variantrules.html" data-vet-source="([^"]*)" data-vet-hash="([^"]*long[^"]*)"/i);
+	if (!restAttrs) throw new Error("Elf compact HTML missing Long Rest rule link");
+	const restDoc = host.docFromVetLink({page: "variantrules.html", source: restAttrs[1], hash: restAttrs[2], linkText: "Long Rest"});
+	if (!restDoc || !/long rest/i.test(restDoc.n)) throw new Error(`Long Rest did not resolve: ${JSON.stringify(restDoc)}`);
+	console.log("species links", {sense: senseDoc.n, skill: skillDoc.n, rule: restDoc.n});
+
 	const sneakHits = search("sneak attack").filter(d => String(d.cf).toLowerCase() === "class feature");
 	const sneakDoc = sneakHits.find(d => /sneak attack/i.test(d.n)) || sneakHits[0];
 	if (!sneakDoc) throw new Error("no sneak attack class feature in filtered index");

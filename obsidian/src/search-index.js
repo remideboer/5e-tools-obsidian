@@ -171,24 +171,37 @@ export function findEntityDoc (name, {categoriesExact = []} = {}) {
 export function docFromHref (href, {linkText = ""} = {}) {
 	if (!href || /^https?:\/\//i.test(href) || href.startsWith("mailto:")) return null;
 	const parsed = parseInternalHref(href);
-	if (!parsed || CORPUS_PAGES.has(parsed.page)) return null;
+	if (!parsed) return null;
+	return lookupDoc(parsed.page, parsed.hash, linkText);
+}
 
-	const hash = parsed.hash.toLowerCase();
-	const page = parsed.page;
+export function docFromVetLink ({page, source, hash, linkText = ""} = {}) {
+	return lookupDoc(page, hash, linkText, source);
+}
+
+function lookupDoc (page, hash, linkText = "", source = "") {
+	const pageName = String(page || "").replace(/\\/g, "/").split("/").pop();
+	const hashLc = String(hash || "").split("&")[0].trim().toLowerCase();
+	if (!pageName || !hashLc || hashLc === "blankhash") return null;
+	if (CORPUS_PAGES.has(pageName)) return null;
+
 	if (searchIndex) {
 		const UrlUtil = getUrlUtil();
 		const docs = Object.values(searchIndex.documentStore.docs);
 		const matchPage = (doc) => {
 			const docPage = UrlUtil.CAT_TO_PAGE[doc.c];
 			const hoverPage = UrlUtil.CAT_TO_HOVER_PAGE?.[doc.c];
-			return docPage === page || hoverPage === page;
+			return docPage === pageName || hoverPage === pageName;
 		};
-		const byHash = docs.filter(doc => doc && String(doc.u || "").toLowerCase() === hash);
-		const hit = byHash.find(matchPage) || byHash[0];
+		const byHash = docs.filter(doc => doc && String(doc.u || "").toLowerCase() === hashLc);
+		const sourceLc = String(source || "").toLowerCase();
+		const hit = byHash.find(doc => matchPage(doc) && (!sourceLc || String(doc.s || "").toLowerCase() === sourceLc))
+			|| byHash.find(matchPage)
+			|| byHash[0];
 		if (hit) return hit;
 	}
 
-	return synthesizeDoc(page, hash, linkText);
+	return synthesizeDoc(pageName, hashLc, linkText);
 }
 
 function parseInternalHref (href) {
@@ -231,4 +244,11 @@ function catIdForPage (page) {
 	if (hover) return Number(hover[0]);
 	const mapped = Object.entries(UrlUtil.CAT_TO_PAGE || {}).find(([, value]) => value === page);
 	return mapped ? Number(mapped[0]) : null;
+}
+
+if (globalThis.FiveEToolsObsidian) {
+	globalThis.FiveEToolsObsidian.docFromHref = docFromHref;
+	globalThis.FiveEToolsObsidian.docFromVetLink = docFromVetLink;
+	globalThis.FiveEToolsObsidian.ensureSearchIndex = ensureSearchIndex;
+	globalThis.FiveEToolsObsidian.findEntityDoc = findEntityDoc;
 }
