@@ -1,5 +1,5 @@
 import {loadEntity} from "./entity-loader.js";
-import {isCorpusPage, pageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
+import {isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {insertEntityNote} from "./note-writer.js";
 import {docFromHref} from "./search-index.js";
@@ -32,7 +32,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 
 	try {
 		const loaded = await loadEntity(doc);
-		const page = pageForDoc(doc);
+		const page = loadPageForDoc(doc);
 		body.empty();
 
 		if (loaded.warning) {

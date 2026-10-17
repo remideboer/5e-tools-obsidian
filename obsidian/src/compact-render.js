@@ -6,6 +6,11 @@ export function pageForDoc (doc) {
 	return UrlUtil.CAT_TO_PAGE[doc.c] || null;
 }
 
+export function loadPageForDoc (doc) {
+	const UrlUtil = getUrlUtil();
+	return UrlUtil.CAT_TO_HOVER_PAGE?.[doc.c] || UrlUtil.CAT_TO_PAGE[doc.c] || null;
+}
+
 export function isCorpusPage (page) {
 	return CORPUS_PAGES.has(page);
 }

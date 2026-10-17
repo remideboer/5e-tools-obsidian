@@ -115,6 +115,14 @@ function search (term) {
 	const rule = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[ruleDoc.c], ruleDoc.s, ruleDoc.u, {isSilent: true});
 	console.log("rule", rule && {name: rule.name, source: rule.source});
 
+	const sneakHits = search("sneak attack").filter(d => String(d.cf).toLowerCase() === "class feature");
+	const sneakDoc = sneakHits.find(d => /sneak attack/i.test(d.n)) || sneakHits[0];
+	if (!sneakDoc) throw new Error("no sneak attack class feature in filtered index");
+	const sneakPage = UrlUtil.CAT_TO_HOVER_PAGE[sneakDoc.c] || UrlUtil.CAT_TO_PAGE[sneakDoc.c];
+	const sneak = await DataLoader.pCacheAndGet(sneakPage, sneakDoc.s, sneakDoc.u, {isSilent: true});
+	if (!sneak) throw new Error(`sneak attack JSON miss via ${sneakPage} ${sneakDoc.u}`);
+	console.log("classFeature", sneak && {name: sneak.name, source: sneak.source, page: sneakPage});
+
 	const loot = JSON.parse(fs.readFileSync(path.join(pluginDir, "data", "loot.json"), "utf8"));
 	const table = loot.individual.find(it => it.source === "DMG" && it.crMin === 0);
 	const rowRoll = globalThis.RollerUtil.randomise(100);

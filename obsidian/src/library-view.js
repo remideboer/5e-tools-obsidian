@@ -2,7 +2,7 @@ import {ItemView} from "obsidian";
 import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
-import {listEntities} from "./search-index.js";
+import {listEntities, searchEntities} from "./search-index.js";
 import {renderLootGenerator} from "./loot-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
@@ -12,12 +12,15 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.navigation = true;
 		this.navId = "bestiary";
 		this.query = "";
+		this.globalQuery = "";
 		this.docs = [];
 		this.selectedDoc = null;
 		this.navEl = null;
+		this.navGroupsEl = null;
 		this.listEl = null;
 		this.readerEl = null;
 		this.searchEl = null;
+		this.globalSearchEl = null;
 		this._restoring = false;
 		this._pendingState = null;
 	}
@@ -61,6 +64,15 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.contentEl.addClass("fiveetools-library");
 
 		this.navEl = this.contentEl.createDiv({cls: "fiveetools-library__nav"});
+		this.globalSearchEl = this.navEl.createEl("input", {
+			cls: "fiveetools-library__globalsearch",
+			attr: {type: "search", placeholder: "Search…"},
+		});
+		this.globalSearchEl.addEventListener("input", () => {
+			this.globalQuery = this.globalSearchEl.value;
+			this.refreshList();
+		});
+		this.navGroupsEl = this.navEl.createDiv({cls: "fiveetools-library__navgroups"});
 		const listCol = this.contentEl.createDiv({cls: "fiveetools-library__listcol"});
 		this.searchEl = listCol.createEl("input", {
 			cls: "fiveetools-library__search",
@@ -80,12 +92,18 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		if (this._pendingState?.doc || this._pendingState?.navId) {
 			await this.applyState(this._pendingState);
+			this.focusGlobalSearch();
 			return;
 		}
 
 		this.renderNav();
 		this.refreshList();
 		this.readerEl.createEl("p", {text: "Choose a category, then an entry to read."});
+		this.focusGlobalSearch();
+	}
+
+	focusGlobalSearch () {
+		this.globalSearchEl?.focus();
 	}
 
 	async onClose () {
@@ -111,6 +129,8 @@ export class FiveEToolsLibraryView extends ItemView {
 	selectNav (navId) {
 		this.navId = navId;
 		this.selectedDoc = null;
+		this.globalQuery = "";
+		if (this.globalSearchEl) this.globalSearchEl.value = "";
 		this.renderNav();
 		this.refreshList();
 	}
@@ -139,26 +159,30 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	renderNav () {
-		this.navEl.empty();
+		const el = this.navGroupsEl || this.navEl;
+		el.empty();
 		for (const group of LIBRARY_NAV) {
-			this.navEl.createEl("div", {cls: "fiveetools-library__group", text: group.group});
+			el.createEl("div", {cls: "fiveetools-library__group", text: group.group});
 			for (const item of group.items) {
-				const btn = this.navEl.createEl("button", {
+				const btn = el.createEl("button", {
 					cls: `fiveetools-library__navbtn${item.id === this.navId ? " is-active" : ""}`,
 					text: item.label,
 				});
-				btn.addEventListener("click", () => {
-					if (item.tool === "search") {
-						this.plugin.openSearch();
-						return;
-					}
-					this.selectNav(item.id);
-				});
+				btn.addEventListener("click", () => this.selectNav(item.id));
 			}
 		}
 	}
 
 	refreshList () {
+		const globalTerm = String(this.globalQuery || "").trim();
+		if (globalTerm.length >= 2) {
+			this.searchEl.style.display = "none";
+			this.listEl.empty();
+			this.docs = searchEntities(globalTerm);
+			this.renderDocRows();
+			return;
+		}
+
 		const item = currentNavItem(this.navId);
 		this.listEl.empty();
 
@@ -177,6 +201,10 @@ export class FiveEToolsLibraryView extends ItemView {
 			query: this.query,
 		});
 
+		this.renderDocRows();
+	}
+
+	renderDocRows () {
 		if (!this.docs.length) {
 			this.listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No entries."});
 			if (!this.selectedDoc) this.readerEl.empty();

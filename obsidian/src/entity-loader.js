@@ -1,8 +1,8 @@
-import {isCorpusPage, pageForDoc} from "./compact-render.js";
+import {isCorpusPage, loadPageForDoc} from "./compact-render.js";
 import {getDataLoader} from "./fiveetools-host.js";
 
 export async function loadEntity (doc) {
-	const page = pageForDoc(doc);
+	const page = loadPageForDoc(doc);
 	if (!page) return {ent: {name: doc.n, source: doc.s, __prop: "generic"}, warning: "This category has no dedicated page renderer."};
 	if (isCorpusPage(page)) {
 		return {

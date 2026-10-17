@@ -7,7 +7,6 @@ import {FiveEToolsLibraryView, libraryStateFromDoc} from "./src/library-view.js"
 import {validateRoot} from "./src/local-fs.js";
 import {getPluginDir} from "./src/plugin-dir.js";
 import {ensureSearchIndex} from "./src/search-index.js";
-import {FiveEToolsSearchModal} from "./src/search-modal.js";
 import {FiveEToolsSettingTab} from "./src/settings.js";
 
 export default class FiveEToolsPlugin extends Plugin {
@@ -72,8 +71,10 @@ export default class FiveEToolsPlugin extends Plugin {
 	}
 
 	async openSearch () {
-		if (!await this.ensureReady()) return;
-		new FiveEToolsSearchModal(this.app, this).open();
+		await this.openLibrary();
+		const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_LIBRARY)[0];
+		const view = leaf?.view;
+		if (view instanceof FiveEToolsLibraryView) view.focusGlobalSearch();
 	}
 
 	async openLibrary (opts = {}) {

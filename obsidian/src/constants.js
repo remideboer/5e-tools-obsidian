@@ -49,7 +49,6 @@ export const LIBRARY_NAV = [
 		group: "Tools",
 		items: [
 			{id: "loot", label: "Loot Generator", tool: "loot"},
-			{id: "search", label: "Search", tool: "search"},
 		],
 	},
 ];
