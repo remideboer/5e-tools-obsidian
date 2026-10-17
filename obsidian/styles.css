@@ -114,6 +114,20 @@
 	cursor: pointer;
 }
 
+.fiveetools-library__row {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 2px;
+	height: auto;
+	min-height: 3.25em;
+	line-height: 1.3;
+	padding: 8px 10px;
+	white-space: normal;
+	overflow: visible;
+}
+
 .fiveetools-library__navbtn.is-active,
 .fiveetools-library__navbtn:hover,
 .fiveetools-library__row.is-selected,
@@ -231,6 +245,7 @@
 
 .fiveetools-view .ve-stats {
 	width: 100%;
+	table-layout: fixed;
 	border-collapse: collapse;
 	background: #fdf1dc;
 	color: #1a1a1a;
@@ -242,6 +257,52 @@
 .fiveetools-view .ve-stats td {
 	padding: 2px 6px;
 	vertical-align: top;
+}
+
+.fiveetools-view .ve-w-100 { width: 100%; }
+.fiveetools-view .ve-col-2 { width: 16.6667%; }
+.fiveetools-view .ve-pt-0 { padding-top: 0; }
+.fiveetools-view .ve-pb-3 { padding-bottom: 1rem; }
+
+.fiveetools-view .ve-stats table {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
+}
+
+.fiveetools-view .ve-stats-tbl-ability-scores__lbl-abv,
+.fiveetools-view .ve-stats-tbl-ability-scores__lbl-score,
+.fiveetools-view .ve-stats-tbl-ability-scores__lbl-spacer {
+	padding: 2px 3px;
+	vertical-align: middle;
+}
+
+.fiveetools-view .ve-stats-tbl-ability-scores__lbl-abv {
+	width: 12.33333333%;
+}
+
+.fiveetools-view .ve-stats-tbl-ability-scores__lbl-score {
+	width: 7%;
+}
+
+.fiveetools-view .ve-stats-tbl-ability-scores__lbl-spacer {
+	padding: 0 4px;
+}
+
+.fiveetools-view .ve-stats__disp-as-score--physical {
+	background: rgba(102, 102, 102, 0.2);
+}
+
+.fiveetools-view .ve-stats__disp-as-score--mental {
+	background: rgba(153, 153, 153, 0.2);
+}
+
+.fiveetools-view .ve-stats__disp-as-bonus--physical {
+	background: rgba(122, 122, 122, 0.14);
+}
+
+.fiveetools-view .ve-stats__disp-as-bonus--mental {
+	background: rgba(173, 173, 173, 0.14);
 }
 
 .fiveetools-view .ve-stats__h-name,
@@ -284,8 +345,11 @@
 
 .fiveetools-view .ve-text-center { text-align: center; }
 .fiveetools-view .ve-text-left { text-align: left; }
+.fiveetools-view .ve-text-right { text-align: right; }
 .fiveetools-view .ve-bold { font-weight: 700; }
 .fiveetools-view .ve-small { font-size: 0.85em; }
+.fiveetools-view .ve-small-caps { font-variant: small-caps; }
+.fiveetools-view .ve-no-wrap { white-space: nowrap; }
 .fiveetools-view .ve-muted { opacity: 0.7; }
 .fiveetools-view .ve-help-subtle { text-decoration: underline dotted; }
 .fiveetools-view [class*="source-"] { color: #922610; font-weight: 700; }

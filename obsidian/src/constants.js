@@ -4,7 +4,7 @@ export const VIEW_TYPE_FIVEETOOLS_LIBRARY = "fiveetools-library";
 export const DEFAULT_SETTINGS = {
 	notesFolder: "5etools",
 	imageBaseUrl: "https://5e.tools",
-	style: "classic",
+	style: "one",
 };
 
 export const MAX_SEARCH_RESULTS = 40;
