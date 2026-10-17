@@ -188,8 +188,13 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		if (item?.tool === "loot") {
 			this.searchEl.style.display = "none";
+			const session = this.plugin._lootSession || {ids: [], count: 1, results: null};
 			renderLootGenerator(this.listEl, this.readerEl, {
+				selectedIds: session.ids,
+				count: session.count,
+				results: session.results,
 				onOpenItem: (doc) => this.navigateToDoc(doc),
+				onSessionChange: (next) => { this.plugin._lootSession = next; },
 			});
 			this.docs = [];
 			return;

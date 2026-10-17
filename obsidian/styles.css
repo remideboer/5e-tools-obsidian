@@ -124,15 +124,23 @@
 .fiveetools-library__row {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
+	align-items: stretch;
 	justify-content: center;
 	gap: 2px;
+	min-width: 0;
 	height: auto;
 	min-height: 3.25em;
 	line-height: 1.3;
 	padding: 8px 10px;
 	white-space: normal;
 	overflow: visible;
+}
+
+.fiveetools-library__row .fiveetools-modal__name,
+.fiveetools-library__row .fiveetools-modal__sub {
+	width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .fiveetools-library__navbtn.is-active,

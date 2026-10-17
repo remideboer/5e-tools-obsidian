@@ -146,7 +146,13 @@ function search (term) {
 	}
 	const tableA = lootTables.find(it => it.id === "magicItems:DMG:Magic Item Table A");
 	const tableB = lootTables.find(it => it.id === "magicItems:DMG:Magic Item Table B");
-	if (!tableA || !tableB) throw new Error("expected Magic Item Tables A and B");
+	const tableI = lootTables.find(it => it.id === "magicItems:DMG:Magic Item Table I");
+	if (!tableA || !tableB || !tableI) throw new Error("expected Magic Item Tables A, B, and I");
+	if (typeof host.lootTableRarityWeight !== "function") throw new Error("lootTableRarityWeight missing");
+	const wA = host.lootTableRarityWeight(tableA);
+	const wB = host.lootTableRarityWeight(tableB);
+	const wI = host.lootTableRarityWeight(tableI);
+	if (!(wA > wI) || !(wB > wI)) throw new Error(`rarity weights should favor A/B over I: A=${wA} B=${wB} I=${wI}`);
 	const lootRolls = host.rollSelectedTables([tableA.id, tableB.id], 5);
 	if (lootRolls.items?.length !== 5) throw new Error(`expected 5 loot items, got ${lootRolls.items?.length}`);
 	if (lootRolls.items.some(it => !it.label || !it.tableLabel)) throw new Error("loot item missing label or table");

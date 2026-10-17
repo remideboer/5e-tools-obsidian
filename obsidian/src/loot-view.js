@@ -12,6 +12,27 @@ const TABLE_GROUPS = [
 	{kind: "dragonMundaneItems", label: "Dragon mundane"},
 ];
 
+// Sum of XDMG Random Magic Items d100 bands (levels 1–4, 5–10, 11–16, 17–20).
+const RARITY_WEIGHT = {
+	common: 95,
+	uncommon: 111,
+	rare: 82,
+	"very rare": 69,
+	legendary: 43,
+};
+
+const MAGIC_TABLE_RARITY = {
+	A: "common",
+	B: "uncommon",
+	C: "rare",
+	D: "very rare",
+	E: "legendary",
+	F: "uncommon",
+	G: "rare",
+	H: "very rare",
+	I: "legendary",
+};
+
 let lootCache = null;
 
 export function listLootTables () {
@@ -32,6 +53,8 @@ export function listLootTables () {
 				group: group.label,
 				name,
 				source,
+				type: table.type,
+				crMin: table.crMin,
 				label: source ? `${name} (${source})` : name,
 			});
 		}
@@ -53,31 +76,60 @@ export function rollSelectedTables (ids, count = 1) {
 	const RollerUtil = globalThis.RollerUtil;
 	const items = [];
 	for (let i = 0; i < n; i++) {
-		const meta = tables[RollerUtil.randomise(tables.length) - 1];
+		const meta = pickWeightedTable(tables, RollerUtil);
 		items.push(rollOneItem(loot, meta));
 	}
 	return {count: n, items};
 }
 
-export function renderLootGenerator (formEl, resultEl, {onOpenItem} = {}) {
+export function lootTableRarityWeight (meta) {
+	return RARITY_WEIGHT[rarityForTable(meta)] || RARITY_WEIGHT.uncommon;
+}
+
+export function renderLootGenerator (formEl, resultEl, {
+	onOpenItem,
+	selectedIds = [],
+	count = 1,
+	results = null,
+	onSessionChange,
+} = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-loot");
 	formEl.createEl("h3", {text: "Loot Generator"});
 	formEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Select tables as a pool, choose how many items, then roll.",
+		text: "Select tables as a pool. Rarer tables are drawn less often (2024 treasure chances).",
 	});
 
+	const selected = new Set((selectedIds || []).map(id => String(id)));
+	let currentResults = results;
 	const form = formEl.createDiv({cls: "fiveetools-loot__form"});
 	const countWrap = form.createDiv({cls: "fiveetools-loot__row"});
 	countWrap.createEl("span", {text: "Items"});
 	const countInput = countWrap.createEl("input", {
 		cls: "fiveetools-loot__count",
-		attr: {type: "number", min: "1", max: "99", value: "1"},
+		attr: {type: "number", min: "1", max: "99", value: String(Math.max(1, Math.min(99, Number(count) || 1)))},
 	});
-	const rollBtn = form.createEl("button", {text: "Roll", cls: "fiveetools-btn"});
+	const actions = form.createDiv({cls: "fiveetools-loot__row"});
+	const rollBtn = actions.createEl("button", {text: "Roll", cls: "fiveetools-btn"});
+	const clearBtn = actions.createEl("button", {text: "Clear results", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const tablesEl = form.createDiv({cls: "fiveetools-loot__tables"});
 	const grouped = groupTables(listLootTables());
+
+	const selectedTableIds = () => [...formEl.querySelectorAll("input[data-loot-id]:checked")].map(el => el.getAttribute("data-loot-id"));
+	const emitSession = (nextResults = currentResults) => {
+		currentResults = nextResults;
+		clearBtn.toggleAttribute("disabled", !nextResults?.items?.length);
+		onSessionChange?.({
+			ids: selectedTableIds(),
+			count: Number(countInput.value) || 1,
+			results: nextResults,
+		});
+	};
+	const showPlaceholder = () => {
+		resultEl.empty();
+		resultEl.createEl("p", {cls: "fiveetools-view__meta", text: "Select tables and a count, then roll."});
+	};
 
 	for (const group of grouped) {
 		const wrap = tablesEl.createDiv({cls: "fiveetools-loot__group"});
@@ -88,6 +140,7 @@ export function renderLootGenerator (formEl, resultEl, {onOpenItem} = {}) {
 		for (const table of group.tables) {
 			const row = wrap.createEl("label", {cls: "fiveetools-loot__opt"});
 			const cb = row.createEl("input", {attr: {type: "checkbox", "data-loot-id": table.id}});
+			if (selected.has(table.id)) cb.checked = true;
 			row.createSpan({text: table.label});
 			checks.push(cb);
 		}
@@ -99,15 +152,25 @@ export function renderLootGenerator (formEl, resultEl, {onOpenItem} = {}) {
 		allCb.addEventListener("change", () => {
 			for (const cb of checks) cb.checked = allCb.checked;
 			allCb.indeterminate = false;
+			emitSession();
 		});
-		for (const cb of checks) cb.addEventListener("change", syncGroup);
+		for (const cb of checks) {
+			cb.addEventListener("change", () => {
+				syncGroup();
+				emitSession();
+			});
+		}
+		syncGroup();
 	}
 
-	resultEl.empty();
-	resultEl.createEl("p", {cls: "fiveetools-view__meta", text: "Select tables and a count, then roll."});
+	countInput.addEventListener("change", () => emitSession());
+
+	if (currentResults?.items?.length) renderLootResults(resultEl, currentResults, onOpenItem);
+	else showPlaceholder();
+	clearBtn.toggleAttribute("disabled", !currentResults?.items?.length);
 
 	rollBtn.addEventListener("click", () => {
-		const ids = [...formEl.querySelectorAll("input[data-loot-id]:checked")].map(el => el.getAttribute("data-loot-id"));
+		const ids = selectedTableIds();
 		if (!ids.length) {
 			resultEl.empty();
 			resultEl.createEl("p", {text: "Select at least one loot table."});
@@ -116,12 +179,19 @@ export function renderLootGenerator (formEl, resultEl, {onOpenItem} = {}) {
 		rollBtn.setAttr("disabled", "true");
 		resultEl.setText("Rolling…");
 		try {
-			renderLootResults(resultEl, rollSelectedTables(ids, countInput.value), onOpenItem);
+			const next = rollSelectedTables(ids, countInput.value);
+			emitSession(next);
+			renderLootResults(resultEl, next, onOpenItem);
 		} catch (e) {
 			resultEl.setText(`Failed to roll: ${e.message}`);
 		} finally {
 			rollBtn.removeAttribute("disabled");
 		}
+	});
+
+	clearBtn.addEventListener("click", () => {
+		emitSession(null);
+		showPlaceholder();
 	});
 }
 
@@ -384,7 +454,69 @@ function capitalize (value) {
 	return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
 }
 
+function rarityForTable (meta) {
+	const type = String(meta?.type || "");
+	const letter = MAGIC_TABLE_RARITY[type];
+	if (letter) return letter;
+
+	const typeTail = type.split(".").pop()?.toLowerCase().replace(/_/g, " ");
+	if (typeTail && RARITY_WEIGHT[typeTail]) return typeTail;
+	if (type.startsWith("byLevel.")) {
+		if (type.includes("1-4")) return "common";
+		if (type.includes("5-10")) return "uncommon";
+		if (type.includes("11-16")) return "rare";
+		return "very rare";
+	}
+
+	const name = String(meta?.name || "").toLowerCase();
+	if (name.includes("legendary") || name === "ancient") return "legendary";
+	if (name.includes("very rare")) return "very rare";
+	if (/\brare\b/.test(name)) return "rare";
+	if (name.includes("uncommon") || name === "young") return "uncommon";
+	if (name.includes("common") || name === "wyrmling" || name === "adult") {
+		if (name === "adult") return "rare";
+		return "common";
+	}
+	if (/table a\b/.test(name)) return "common";
+	if (/table [bf]\b/.test(name)) return "uncommon";
+	if (/table [cg]\b/.test(name)) return "rare";
+	if (/table [dh]\b/.test(name)) return "very rare";
+	if (/table [ei]\b/.test(name)) return "legendary";
+
+	if (meta?.kind === "gems" || meta?.kind === "artObjects") {
+		const gp = Number(meta.type);
+		if (gp >= 5000) return "legendary";
+		if (gp >= 1000) return "very rare";
+		if (gp >= 500) return "rare";
+		if (gp >= 100) return "uncommon";
+		return "common";
+	}
+
+	const cr = Number(meta?.crMin);
+	if (Number.isFinite(cr)) {
+		if (cr >= 17) return "very rare";
+		if (cr >= 11) return "rare";
+		if (cr >= 5) return "uncommon";
+		return "common";
+	}
+
+	if (meta?.kind === "dragonMundaneItems") return "common";
+	return "uncommon";
+}
+
+function pickWeightedTable (tables, RollerUtil) {
+	if (tables.length === 1) return tables[0];
+	const weights = tables.map(meta => lootTableRarityWeight(meta));
+	let tick = RollerUtil.randomise(weights.reduce((sum, w) => sum + w, 0));
+	for (let i = 0; i < tables.length; i++) {
+		tick -= weights[i];
+		if (tick <= 0) return tables[i];
+	}
+	return tables[tables.length - 1];
+}
+
 if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.listLootTables = listLootTables;
 	globalThis.FiveEToolsObsidian.rollSelectedTables = rollSelectedTables;
+	globalThis.FiveEToolsObsidian.lootTableRarityWeight = lootTableRarityWeight;
 }
