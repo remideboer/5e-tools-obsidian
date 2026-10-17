@@ -25,6 +25,9 @@ Thumbs.db
 sw.js
 sw-injector.js
 
+# Obsidian plugin build
+build/
+
 # Log files
 *.log
 

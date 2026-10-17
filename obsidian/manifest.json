@@ -1,0 +1,9 @@
+{
+	"id": "5etools",
+	"name": "5etools",
+	"version": "0.2.0",
+	"minAppVersion": "1.8.7",
+	"description": "Browse bundled 5etools Player and References data, search, generate loot, and insert notes. Images load from 5e.tools.",
+	"author": "5etools",
+	"isDesktopOnly": true
+}
