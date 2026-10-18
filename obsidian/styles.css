@@ -647,6 +647,23 @@
 	width: 100%;
 }
 
+.fiveetools-creatureform__picklist {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.fiveetools-creatureform__picklist select {
+	width: auto;
+	min-width: 9em;
+	flex: 0 0 auto;
+}
+
+.fiveetools-creatureform__picklist input {
+	flex: 1;
+	min-width: 0;
+}
+
 .fiveetools-homebrew__check {
 	display: flex;
 	align-items: center;

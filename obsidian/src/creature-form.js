@@ -54,6 +54,40 @@ const SPELL_ABILITIES = [
 	{id: "cha", label: "Charisma"},
 ];
 
+const DAMAGE_TYPES = [
+	{id: "acid", label: "Acid"},
+	{id: "bludgeoning", label: "Bludgeoning"},
+	{id: "cold", label: "Cold"},
+	{id: "fire", label: "Fire"},
+	{id: "force", label: "Force"},
+	{id: "lightning", label: "Lightning"},
+	{id: "necrotic", label: "Necrotic"},
+	{id: "piercing", label: "Piercing"},
+	{id: "poison", label: "Poison"},
+	{id: "psychic", label: "Psychic"},
+	{id: "radiant", label: "Radiant"},
+	{id: "slashing", label: "Slashing"},
+	{id: "thunder", label: "Thunder"},
+];
+
+const CONDITIONS = [
+	{id: "blinded", label: "Blinded"},
+	{id: "charmed", label: "Charmed"},
+	{id: "deafened", label: "Deafened"},
+	{id: "exhaustion", label: "Exhaustion"},
+	{id: "frightened", label: "Frightened"},
+	{id: "grappled", label: "Grappled"},
+	{id: "incapacitated", label: "Incapacitated"},
+	{id: "invisible", label: "Invisible"},
+	{id: "paralyzed", label: "Paralyzed"},
+	{id: "petrified", label: "Petrified"},
+	{id: "poisoned", label: "Poisoned"},
+	{id: "prone", label: "Prone"},
+	{id: "restrained", label: "Restrained"},
+	{id: "stunned", label: "Stunned"},
+	{id: "unconscious", label: "Unconscious"},
+];
+
 const TRAIT_TEMPLATES = [
 	{id: "pack-tactics", name: "Pack Tactics", text: "{name} has Advantage on an attack roll against a creature if at least one of {name}'s allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition."},
 	{id: "amphibious", name: "Amphibious", text: "{name} can breathe air and water."},
@@ -117,9 +151,9 @@ function monsterStatFields () {
 		{key: "skills", label: "Skills (perception +5)"},
 		{key: "passive", label: "Passive Perception"},
 		{key: "senses", label: "Senses"},
-		{key: "resist", label: "Resistances (fire, cold)"},
-		{key: "immune", label: "Immunities (poison, fire)"},
-		{key: "conditionImmune", label: "Condition immunities (charmed, frightened)"},
+		{key: "resist", label: "Resistances", input: "picklist", options: DAMAGE_TYPES, placeholder: "or type a custom resistance"},
+		{key: "immune", label: "Immunities", input: "picklist", options: DAMAGE_TYPES, placeholder: "or type a custom immunity"},
+		{key: "conditionImmune", label: "Condition immunities", input: "picklist", options: CONDITIONS, placeholder: "or type a custom condition"},
 		{kind: "grid", fields: [
 			{key: "languages", label: "Languages"},
 			{key: "cr", label: "Challenge rating", input: "select", options: CHALLENGE_RATINGS},
@@ -295,6 +329,10 @@ function renderSpellSection (parent, draft, emit) {
 function addField (parent, field, draft, emit) {
 	const wrap = parent.createDiv({cls: "fiveetools-homebrew__field"});
 	wrap.createEl("label", {text: field.label});
+	if (field.input === "picklist") {
+		addPickList(wrap, field, draft, emit);
+		return;
+	}
 	let el;
 	if (field.input === "select") {
 		el = wrap.createEl("select");
@@ -317,6 +355,39 @@ function addField (parent, field, draft, emit) {
 		draft[field.key] = el.value;
 		emit();
 	});
+}
+
+function addPickList (wrap, field, draft, emit) {
+	const row = wrap.createDiv({cls: "fiveetools-creatureform__picklist"});
+	const pick = row.createEl("select");
+	pick.createEl("option", {attr: {value: ""}, text: "Add…"});
+	for (const opt of field.options || []) pick.createEl("option", {attr: {value: opt.id}, text: opt.label});
+	const el = row.createEl("input", {
+		attr: {
+			type: "text",
+			value: draft[field.key] ?? "",
+			placeholder: field.placeholder || "or type a custom value",
+		},
+	});
+	pick.addEventListener("change", () => {
+		const token = pick.value;
+		pick.value = "";
+		if (!token) return;
+		draft[field.key] = appendToken(el.value, token);
+		el.value = draft[field.key];
+		emit();
+	});
+	el.addEventListener("input", () => {
+		draft[field.key] = el.value;
+		emit();
+	});
+}
+
+function appendToken (raw, token) {
+	const parts = String(raw || "").split(",").map(it => it.trim()).filter(Boolean);
+	if (parts.some(it => it.toLowerCase() === token.toLowerCase())) return parts.join(", ");
+	parts.push(token);
+	return parts.join(", ");
 }
 
 function fillName (text, name) {
