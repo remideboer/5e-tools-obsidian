@@ -52,6 +52,7 @@ export const LIBRARY_NAV = [
 		items: [
 			{id: "loot", label: "Loot Generator", tool: "loot"},
 			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
+			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
 		],
 	},
 ];

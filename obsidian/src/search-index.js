@@ -3,6 +3,7 @@ import path from "path";
 import {decompressIndex} from "./decompress-index.js";
 import {CORPUS_PAGES, MAX_LIBRARY_RESULTS, MAX_SEARCH_RESULTS} from "./constants.js";
 import {getElasticlunr, getParser, getSearchUtil, getUrlUtil} from "./fiveetools-host.js";
+import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
 
 const CATEGORY_ALIAS = {
 	creature: ["bestiary"],
@@ -28,6 +29,7 @@ const CATEGORY_ALIAS = {
 
 let loadedRoot = "";
 let searchIndex = null;
+let homebrewDocIds = new Set();
 
 export async function ensureSearchIndex (rootPath) {
 	const root = path.resolve(rootPath);
@@ -56,7 +58,48 @@ export async function ensureSearchIndex (rootPath) {
 
 	searchIndex = index;
 	loadedRoot = root;
+	homebrewDocIds.clear();
 	return searchIndex;
+}
+
+export function brewDocFromEntity (ent, type) {
+	const Parser = getParser();
+	const UrlUtil = getUrlUtil();
+	const source = ent.source || "HB";
+	const hashBuilder = UrlUtil.URL_TO_HASH_BUILDER[type.prop] || ((it) => UrlUtil.encodeForHash([it.name, source]));
+	const hash = hashBuilder(ent);
+	return {
+		id: `hb:${type.prop}:${hash}`,
+		n: ent.name,
+		u: hash,
+		s: source,
+		sA: "HB",
+		c: type.catId,
+		cf: Parser.pageCategoryToFull(type.catId),
+	};
+}
+
+export function indexHomebrewDocs () {
+	if (!searchIndex) return [];
+	const brew = getBrewJson();
+	const nextIds = new Set();
+	const docs = [];
+	for (const type of HOMEBREW_TYPES) {
+		for (const ent of brew[type.prop] || []) {
+			if (!ent?.name) continue;
+			const doc = brewDocFromEntity(ent, type);
+			nextIds.add(doc.id);
+			if (searchIndex.documentStore.hasDoc(doc.id)) searchIndex.updateDoc(doc);
+			else searchIndex.addDoc(doc);
+			docs.push(doc);
+		}
+	}
+	for (const id of homebrewDocIds) {
+		if (nextIds.has(id)) continue;
+		if (searchIndex.documentStore.hasDoc(id)) searchIndex.removeDocByRef(id);
+	}
+	homebrewDocIds = nextIds;
+	return docs;
 }
 
 function parseQuery (rawQuery, chipAliases) {
@@ -251,4 +294,6 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.docFromVetLink = docFromVetLink;
 	globalThis.FiveEToolsObsidian.ensureSearchIndex = ensureSearchIndex;
 	globalThis.FiveEToolsObsidian.findEntityDoc = findEntityDoc;
+	globalThis.FiveEToolsObsidian.indexHomebrewDocs = indexHomebrewDocs;
+	globalThis.FiveEToolsObsidian.brewDocFromEntity = brewDocFromEntity;
 }

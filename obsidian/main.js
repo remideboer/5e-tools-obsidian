@@ -6,7 +6,8 @@ import {ICON_ID, registerFiveEToolsIcon} from "./src/icon.js";
 import {FiveEToolsLibraryView, libraryStateFromDoc} from "./src/library-view.js";
 import {validateRoot} from "./src/local-fs.js";
 import {getPluginDir} from "./src/plugin-dir.js";
-import {ensureSearchIndex} from "./src/search-index.js";
+import {ensureSearchIndex, indexHomebrewDocs} from "./src/search-index.js";
+import {cacheBrewInDataLoader, loadHomebrewFromVault} from "./src/homebrew-store.js";
 import {FiveEToolsSettingTab} from "./src/settings.js";
 
 export default class FiveEToolsPlugin extends Plugin {
@@ -67,6 +68,9 @@ export default class FiveEToolsPlugin extends Plugin {
 		configureFiveEToolsRoot(check.root, {imageBaseUrl: this.settings.imageBaseUrl});
 		setStyleHint(this.settings.style);
 		await ensureSearchIndex(check.root);
+		await loadHomebrewFromVault(this);
+		cacheBrewInDataLoader();
+		indexHomebrewDocs();
 		return true;
 	}
 

@@ -5,6 +5,7 @@ import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
 import {renderLootGenerator} from "./loot-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
+import {renderHomebrewEditor} from "./homebrew-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -211,6 +212,20 @@ export class FiveEToolsLibraryView extends ItemView {
 				app: this.app,
 				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
 				onSessionChange: (next) => { this.plugin._encounterSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "homebrew") {
+			this.searchEl.style.display = "none";
+			const session = this.plugin._homebrewSession || {typeId: "spell"};
+			renderHomebrewEditor(this.listEl, this.readerEl, {
+				session,
+				plugin: this.plugin,
+				app: this.app,
+				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
+				onSessionChange: (next) => { this.plugin._homebrewSession = next; },
 			});
 			this.docs = [];
 			return;

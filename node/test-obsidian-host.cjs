@@ -207,6 +207,68 @@ function search (term) {
 	if (!encEnt) throw new Error(`encounter combatant JSON miss via ${enc.added[0].doc.u}`);
 	console.log("encounter", {labels: enc.added.map(it => it.label), hp: expectedHp, cr: enc.added[0].cr});
 
+	if (typeof host.hpAverageFromFormula !== "function" || typeof host.buildEntity !== "function") {
+		throw new Error("homebrew helpers missing from host");
+	}
+	if (host.hpAverageFromFormula("2d8+2") !== 11) {
+		throw new Error(`2d8+2 should average 11, got ${host.hpAverageFromFormula("2d8+2")}`);
+	}
+	const hbSpell = host.buildEntity("spell", {
+		name: "HB Spark",
+		level: "0",
+		school: "V",
+		timeNumber: "1",
+		timeUnit: "action",
+		range: "60 feet",
+		verbal: true,
+		somatic: true,
+		entries: "A spark leaps to a creature within range.",
+		classes: "Wizard",
+	});
+	const hbMon = host.buildEntity("monster", {
+		name: "HB Blob",
+		size: "M",
+		type: "ooze",
+		alignment: "U",
+		ac: "8",
+		hpFormula: "2d8+2",
+		speed: "20",
+		str: "10",
+		dex: "8",
+		con: "12",
+		int: "1",
+		wis: "6",
+		cha: "1",
+		cr: "1/4",
+		actions: "Pseudopod. {@atkr m} {@hit 2}, reach 5 ft. {@h}4 ({@damage 1d6 + 1}) Acid damage.",
+	});
+	if (hbMon.hp.average !== 11) throw new Error(`HB Blob HP average should be 11, got ${hbMon.hp.average}`);
+	const brew = host.emptyBrew();
+	brew.spell.push(hbSpell);
+	brew.monster.push(hbMon);
+	host.applyBrewJson(brew);
+	await host.ensureSearchIndex(pluginDir);
+	if (typeof host.indexHomebrewDocs !== "function") throw new Error("indexHomebrewDocs missing from host");
+	const hbDocs = host.indexHomebrewDocs();
+	if (!hbDocs.some(d => d.n === "HB Spark") || !hbDocs.some(d => d.n === "HB Blob")) {
+		throw new Error("homebrew search docs missing");
+	}
+	const spellPage = UrlUtil.CAT_TO_PAGE[Parser.CAT_ID_SPELL];
+	const monPage = UrlUtil.CAT_TO_PAGE[Parser.CAT_ID_CREATURE];
+	const spellHash = UrlUtil.encodeForHash([hbSpell.name, "HB"]);
+	const monHash = UrlUtil.encodeForHash([hbMon.name, "HB"]);
+	const loadedSpell = await DataLoader.pCacheAndGet(spellPage, "HB", spellHash, {isSilent: true});
+	if (!loadedSpell || loadedSpell.name !== "HB Spark") throw new Error(`HB spell miss via ${spellHash}`);
+	const loadedMon = await DataLoader.pCacheAndGet(monPage, "HB", monHash, {isSilent: true});
+	if (!loadedMon || loadedMon.hp.average !== 11) throw new Error(`HB creature miss or HP ${loadedMon?.hp?.average}`);
+	const foundSpell = host.findEntityDoc("HB Spark", {categoriesExact: ["spell"]});
+	if (!foundSpell || foundSpell.s !== "HB") throw new Error("HB Spark not in search index");
+	const foundMon = host.findEntityDoc("HB Blob", {categoriesExact: ["bestiary"]});
+	if (!foundMon || foundMon.s !== "HB") throw new Error("HB Blob not in search index");
+	const hbHtml = String(Renderer.hover.getFnRenderCompact(monPage, {isStatic: true})(loadedMon));
+	if (!hbHtml.includes("11") || !/XP/i.test(hbHtml)) throw new Error("HB creature compact HTML missing HP or XP");
+	console.log("homebrew", {spell: loadedSpell.name, monster: loadedMon.name, hp: loadedMon.hp.average, cr: loadedMon.cr});
+
 	const books = packed.filter(it => it.c === 44);
 	if (books.length) throw new Error(`filtered index still has ${books.length} book docs`);
 	const advHits = search("lost mine").filter(d => String(d.cf).toLowerCase() === "adventure");
