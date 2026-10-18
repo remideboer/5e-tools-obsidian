@@ -228,8 +228,14 @@
 	flex: 1;
 }
 
-.fiveetools-campaign-reader .workspace-tab-header-container {
-	display: none;
+.fiveetools-campaign-reader .workspace-tab-header-container,
+.fiveetools-campaign-reader .metadata-container,
+.fiveetools-campaign-reader .metadata-properties,
+.fiveetools-campaign-reader .metadata-properties-heading,
+.fiveetools-campaign__leaf .metadata-container,
+.fiveetools-campaign__leaf .metadata-properties,
+.fiveetools-campaign__leaf .metadata-properties-heading {
+	display: none !important;
 }
 
 .fiveetools-campaign-reader .workspace-split,

@@ -6,6 +6,7 @@ import {
 	createEntry,
 	deleteCampaign,
 	deleteEntry,
+	entryLabel,
 	entryFromSavedEncounter,
 	listCampaigns,
 	listEntries,
@@ -57,7 +58,6 @@ export function renderCampaignManager (formEl, resultEl, {
 		cls: "fiveetools-homebrew__search",
 		attr: {type: "search", placeholder: "Filter…"},
 	});
-	const listEl = catalogEl.createDiv({cls: "fiveetools-homebrew__list"});
 	const actions = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const noteNameEl = actions.createEl("input", {
 		cls: "fiveetools-campaign__select",
@@ -65,6 +65,7 @@ export function renderCampaignManager (formEl, resultEl, {
 	});
 	const newBtn = actions.createEl("button", {text: "New", cls: "fiveetools-btn"});
 	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
+	const listEl = catalogEl.createDiv({cls: "fiveetools-homebrew__list"});
 	const importRow = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const importSel = importRow.createEl("select", {cls: "fiveetools-campaign__select"});
 	const importBtn = importRow.createEl("button", {text: "Import from composer", cls: "fiveetools-btn fiveetools-btn--ghost"});
@@ -140,9 +141,11 @@ export function renderCampaignManager (formEl, resultEl, {
 		listEl.empty();
 		const isOverview = sectionId === "overview";
 		searchEl.style.display = isOverview ? "none" : "";
+		actions.style.display = isOverview ? "none" : "";
 		noteNameEl.style.display = isOverview ? "none" : "";
 		newBtn.style.display = isOverview ? "none" : "";
 		deleteBtn.style.display = isOverview ? "none" : "";
+		noteNameEl.setAttribute("placeholder", "Name (optional)");
 		deleteBtn.disabled = !selectedPath;
 		openComposerBtn.disabled = sectionId !== "encounters" || !currentSnapshot();
 		if (!slug) {
@@ -155,7 +158,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		}
 		const needle = String(searchEl.value || "").trim().toLowerCase();
 		const shown = entries.filter(it => {
-			const name = String(it.fields?.name || "").toLowerCase();
+			const name = entryLabel(it).toLowerCase();
 			return !needle || name.includes(needle);
 		});
 		if (!shown.length) {
@@ -166,7 +169,7 @@ export function renderCampaignManager (formEl, resultEl, {
 			const row = listEl.createEl("button", {
 				cls: `fiveetools-homebrew__hit${it.path === selectedPath ? " is-selected" : ""}`,
 			});
-			row.createEl("div", {cls: "fiveetools-modal__name", text: it.fields?.name || it.path});
+			row.createEl("div", {cls: "fiveetools-modal__name", text: entryLabel(it)});
 			row.addEventListener("click", () => { void openPath(it.path); });
 		}
 	};
@@ -336,14 +339,14 @@ export function renderCampaignManager (formEl, resultEl, {
 			noteNameEl.value = "";
 			entries = await listEntries(plugin, slug, sectionId);
 			await openPath(created.path);
-			new Notice(`Created ${created.fields?.name || "note"}.`);
+			new Notice(`Created ${entryLabel(created)}.`);
 		} catch (e) {
 			new Notice(e.message || "Could not create note.");
 		}
 	});
 	deleteBtn.addEventListener("click", async () => {
 		if (!selectedPath) return;
-		const label = parsed.fields?.name || "this entry";
+		const label = entryLabel({fields: parsed.fields, path: selectedPath});
 		if (typeof window !== "undefined" && !window.confirm(`Delete ${label}?`)) return;
 		closeCampaignNote(plugin);
 		await deleteEntry(plugin, selectedPath);

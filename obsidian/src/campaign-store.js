@@ -1,6 +1,7 @@
 export const CAMPAIGN_SECTIONS = [
 	{id: "overview", label: "Overview", folder: null},
 	{id: "players", label: "Players", folder: "players"},
+	{id: "sessions", label: "Sessions", folder: "sessions"},
 	{id: "encounters", label: "Encounters", folder: "encounters"},
 	{id: "scenes", label: "Scenes", folder: "scenes"},
 	{id: "maps", label: "Maps", folder: "maps"},
@@ -46,11 +47,21 @@ export function serializeCampaignMarkdown ({fields = {}, body = "", snapshot = n
 		if (value == null || value === "") continue;
 		lines.push(`${key}: ${yamlScalar(value)}`);
 	}
-	let out = `---\n${lines.join("\n")}\n---\n`;
+	let out = "";
+	if (lines.length) out = `---\n${lines.join("\n")}\n---\n`;
 	const text = String(body || "").replace(/^\s+/, "");
-	if (text) out += `\n${text.replace(/\s+$/, "")}\n`;
-	if (snapshot) out += `\n\`\`\`json\n${JSON.stringify(snapshot, null, "\t")}\n\`\`\`\n`;
+	if (text) out += `${out ? "\n" : ""}${text.replace(/\s+$/, "")}\n`;
+	if (snapshot) out += `${out ? "\n" : ""}\`\`\`json\n${JSON.stringify(snapshot, null, "\t")}\n\`\`\`\n`;
 	return out;
+}
+
+export function fileStem (path) {
+	return String(path || "").replace(/^.*\//, "").replace(/\.md$/i, "") || "note";
+}
+
+export function entryLabel (entry) {
+	const named = String(entry?.fields?.name || "").trim();
+	return named || fileStem(entry?.path);
 }
 
 export function slugify (name) {
@@ -177,6 +188,10 @@ export async function listEntries (plugin, slug, sectionId) {
 			out.push({path: child.path, ...parsed});
 		} catch (_) { /* skip */ }
 	}
+	if (section.id === "sessions") {
+		return out.sort((a, b) => sessionSortKey(a.path) - sessionSortKey(b.path)
+			|| String(a.fields?.name || a.path).localeCompare(String(b.fields?.name || b.path)));
+	}
 	return out.sort((a, b) => String(a.fields?.name || a.path).localeCompare(String(b.fields?.name || b.path)));
 }
 
@@ -215,13 +230,61 @@ export async function writeEntry (plugin, slug, sectionId, entry) {
 	return readEntry(plugin, nextPath);
 }
 
+const SECTION_CODE_PREFIX = {
+	players: "player",
+	sessions: "session",
+	encounters: "encounter",
+	scenes: "scene",
+	maps: "map",
+	notes: "note",
+	articles: "article",
+};
+
+export function nextNumberedCode (prefix, paths) {
+	const stem = String(prefix || "note").replace(/[^a-z0-9-]/gi, "") || "note";
+	const re = new RegExp(`(?:^|/)${stem}-(\\d+)(?:\\.md)?$`, "i");
+	let max = 0;
+	for (const path of paths || []) {
+		const m = String(path).match(re);
+		if (m) max = Math.max(max, Number(m[1]));
+	}
+	return `${stem}-${String(max + 1).padStart(2, "0")}`;
+}
+
+export function nextSessionCode (paths) {
+	return nextNumberedCode("session", paths);
+}
+
+export function dutchDate (date = new Date()) {
+	const d = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+	const dd = String(d.getDate()).padStart(2, "0");
+	const mm = String(d.getMonth() + 1).padStart(2, "0");
+	return `${dd}-${mm}-${d.getFullYear()}`;
+}
+
 export async function createEntry (plugin, slug, sectionId, name) {
 	const section = campaignSection(sectionId);
 	if (!section.folder) throw new Error("Overview is the campaign file.");
-	return writeEntry(plugin, slug, sectionId, {
-		fields: {name: String(name || "").trim(), type: section.id},
-		body: "",
-	});
+	const trimmed = String(name || "").trim();
+	const vault = plugin?.app?.vault;
+	if (!vault) throw new Error("Vault is unavailable.");
+	const folder = `${campaignPath(plugin, slug)}/${section.folder}`;
+	await ensureFolder(plugin.app, folder);
+	const existing = await listEntries(plugin, slug, section.id);
+	const prefix = SECTION_CODE_PREFIX[section.id] || "note";
+	const code = nextNumberedCode(prefix, existing.map(it => it.path));
+	const fileSlug = !trimmed
+		? code
+		: uniqueFileSlug(vault, folder, slugify(trimmed) || code);
+	const date = dutchDate();
+	const fields = section.id === "sessions" ? {date} : {};
+	const label = trimmed || fileSlug;
+	let body = "";
+	if (section.id === "sessions") body = `# ${label} - ${date}\n`;
+	else if (trimmed) body = `# ${trimmed}\n`;
+	const filePath = `${folder}/${fileSlug}.md`;
+	await writeFile(plugin, filePath, serializeCampaignMarkdown({fields, body}));
+	return readEntry(plugin, filePath);
 }
 
 export function planSaveEntryText (sectionId, folder, currentPath, text) {
@@ -318,6 +381,11 @@ async function uniqueCampaignSlug (plugin, base) {
 	return slug;
 }
 
+function sessionSortKey (path) {
+	const m = String(path || "").match(/session-(\d+)(?:\.md)?$/i);
+	return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+}
+
 function uniqueFileSlug (vault, folder, base, currentPath) {
 	let slug = base;
 	let n = 2;
@@ -355,4 +423,8 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.planSaveEntryText = planSaveEntryText;
 	globalThis.FiveEToolsObsidian.saveEntryText = saveEntryText;
 	globalThis.FiveEToolsObsidian.slugify = slugify;
+	globalThis.FiveEToolsObsidian.nextSessionCode = nextSessionCode;
+	globalThis.FiveEToolsObsidian.nextNumberedCode = nextNumberedCode;
+	globalThis.FiveEToolsObsidian.dutchDate = dutchDate;
+	globalThis.FiveEToolsObsidian.entryLabel = entryLabel;
 }

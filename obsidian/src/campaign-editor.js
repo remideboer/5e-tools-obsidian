@@ -12,6 +12,7 @@ export async function openCampaignNote (plugin, parentEl, file) {
 			state: {mode: "source", source: false},
 		});
 		existing.file = file;
+		hideNoteProperties(existing.leaf);
 		return existing;
 	}
 	closeCampaignNote(plugin);
@@ -33,9 +34,29 @@ export async function openCampaignNote (plugin, parentEl, file) {
 	});
 	parentEl.empty();
 	parentEl.appendChild(container);
+	hideNoteProperties(leaf);
 	const embed = {leaf, rootSplit, parentEl, file};
 	plugin._campaignEmbed = embed;
 	return embed;
+}
+
+function hideNoteProperties (leaf) {
+	const hide = () => {
+		const view = leaf?.view;
+		const nodes = [];
+		const meta = view?.metadataEditor;
+		if (meta?.containerEl) nodes.push(meta.containerEl);
+		if (meta?.contentEl) nodes.push(meta.contentEl);
+		view?.containerEl?.querySelectorAll?.(".metadata-container, .metadata-properties").forEach((el) => nodes.push(el));
+		leaf?.containerEl?.querySelectorAll?.(".metadata-container, .metadata-properties").forEach((el) => nodes.push(el));
+		for (const el of nodes) {
+			if (!el) continue;
+			el.hide?.();
+			el.style.display = "none";
+		}
+	};
+	hide();
+	if (typeof requestAnimationFrame === "function") requestAnimationFrame(hide);
 }
 
 export function closeCampaignNote (plugin) {

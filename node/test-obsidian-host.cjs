@@ -677,6 +677,29 @@ function search (term) {
 	if (savePlan.nextPath !== "5etools/_campaigns/foo/encounters/goblin-ambush.md") throw new Error("saveEntryText renamed unexpectedly");
 	const renamePlan = host.planSaveEntryText("players", "x/players", "x/players/old.md", playerMd);
 	if (renamePlan.nextPath !== "x/players/alice.md") throw new Error(`player save path ${renamePlan.nextPath}`);
+	if (typeof host.nextSessionCode !== "function") throw new Error("nextSessionCode missing");
+	if (host.nextSessionCode(["a/session-01.md", "a/session-02.md"]) !== "session-03") {
+		throw new Error(`next session ${host.nextSessionCode(["a/session-01.md", "a/session-02.md"])}`);
+	}
+	if (host.nextSessionCode([]) !== "session-01") throw new Error("first session should be session-01");
+	if (host.nextNumberedCode("scene", ["x/scene-01.md"]) !== "scene-02") {
+		throw new Error(`next scene ${host.nextNumberedCode("scene", ["x/scene-01.md"])}`);
+	}
+	if (host.dutchDate(new Date(2026, 9, 18)) !== "18-10-2026") {
+		throw new Error(`dutchDate ${host.dutchDate(new Date(2026, 9, 18))}`);
+	}
+	const sceneMd = host.serializeCampaignMarkdown({fields: {}, body: ""});
+	if (/name:|type:/.test(sceneMd)) throw new Error("new note frontmatter should omit name and type");
+	const sessionMd = host.serializeCampaignMarkdown({
+		fields: {date: "18-10-2026"},
+		body: "# session-01 - 18-10-2026",
+	});
+	if (/name:|type:/.test(sessionMd) || !/date: 18-10-2026/.test(sessionMd)) throw new Error("session frontmatter should be date only");
+	const sessionParsed = host.parseCampaignMarkdown(sessionMd);
+	if (!/^# session-01 - 18-10-2026/.test(String(sessionParsed.body || "").trim())) {
+		throw new Error("session heading should be name - date");
+	}
+	if (host.entryLabel({path: "x/scenes/scene-01.md", fields: {}}) !== "scene-01") throw new Error("list label should use filename");
 	console.log("campaign md", {player: playerParsed.fields.name, encounter: encParsed.fields.name});
 
 	if (typeof host.cachedMediaSrc !== "function") throw new Error("cachedMediaSrc missing from host");
