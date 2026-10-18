@@ -68,7 +68,7 @@ if (typeof globalThis.Hist === "undefined") {
 	};
 }
 
-let styleHint = "classic";
+let styleHint = "one";
 
 globalThis.VetoolsConfig = {
 	get (groupId, configId) {

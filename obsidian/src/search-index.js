@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import {decompressIndex} from "./decompress-index.js";
 import {CORPUS_PAGES, MAX_LIBRARY_RESULTS, MAX_SEARCH_RESULTS} from "./constants.js";
-import {getElasticlunr, getParser, getSearchUtil, getUrlUtil} from "./fiveetools-host.js";
+import {getElasticlunr, getParser, getSearchUtil, getStyleHint, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
 
 const CATEGORY_ALIAS = {
@@ -136,6 +136,36 @@ function expandCategory (category) {
 	return [key];
 }
 
+function sourcePriority (doc) {
+	const Parser = getParser();
+	const s = doc?.s;
+	const modern = s === Parser.SRC_XPHB || s === Parser.SRC_XDMG || s === Parser.SRC_XMM;
+	const legacy = !!globalThis.SourceUtil?.isLegacySourceWotc?.(s);
+	if (getStyleHint() === "one") {
+		if (modern) return 0;
+		if (legacy) return 2;
+		return 1;
+	}
+	if (s === Parser.SRC_PHB || s === Parser.SRC_DMG || s === Parser.SRC_MM) return 0;
+	if (modern) return 2;
+	return 1;
+}
+
+function preferModernDoc (hit, docs, matchPage, linkText = "") {
+	if (getStyleHint() !== "one" || !hit) return hit;
+	const Parser = getParser();
+	const modern = new Set([Parser.SRC_XPHB, Parser.SRC_XDMG, Parser.SRC_XMM]);
+	if (modern.has(hit.s)) return hit;
+	if (!globalThis.SourceUtil?.isLegacySourceWotc?.(hit.s)) return hit;
+	const name = String(linkText || hit.n || "").toLowerCase();
+	if (!name) return hit;
+	const upgrade = docs.find(doc => doc
+		&& matchPage(doc)
+		&& modern.has(doc.s)
+		&& String(doc.n || "").toLowerCase() === name);
+	return upgrade || hit;
+}
+
 function docMatchesFilters (doc, parsed, categoriesExact = []) {
 	const category = String(doc.cf || "").toLowerCase();
 	const sourceAbv = String(doc.sA || "").toLowerCase();
@@ -182,10 +212,14 @@ export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [
 	for (const result of results) {
 		const doc = result.doc;
 		if (!doc || !docMatchesFilters(doc, parsed, categoriesExact)) continue;
-		out.push(doc);
-		if (out.length >= limit) break;
+		out.push({doc, score: result.score || 0});
 	}
-	return out;
+	out.sort((a, b) => {
+		const bySource = sourcePriority(a.doc) - sourcePriority(b.doc);
+		if (bySource) return bySource;
+		return (b.score || 0) - (a.score || 0);
+	});
+	return out.slice(0, limit).map(it => it.doc);
 }
 
 export function listEntities ({categoriesExact = [], query = "", limit = MAX_LIBRARY_RESULTS} = {}) {
@@ -199,7 +233,11 @@ export function listEntities ({categoriesExact = [], query = "", limit = MAX_LIB
 	} else {
 		docs = Object.values(searchIndex.documentStore.docs)
 			.filter(doc => doc && (!cats.size || cats.has(String(doc.cf || "").toLowerCase())));
-		docs.sort((a, b) => String(a.n || "").localeCompare(String(b.n || "")));
+		docs.sort((a, b) => {
+			const byName = String(a.n || "").localeCompare(String(b.n || ""));
+			if (byName) return byName;
+			return sourcePriority(a) - sourcePriority(b);
+		});
 	}
 	return docs.slice(0, limit);
 }
@@ -241,7 +279,7 @@ function lookupDoc (page, hash, linkText = "", source = "") {
 		const hit = byHash.find(doc => matchPage(doc) && (!sourceLc || String(doc.s || "").toLowerCase() === sourceLc))
 			|| byHash.find(matchPage)
 			|| byHash[0];
-		if (hit) return hit;
+		if (hit) return preferModernDoc(hit, docs, matchPage, linkText);
 	}
 
 	return synthesizeDoc(pageName, hashLc, linkText);
@@ -275,7 +313,7 @@ function synthesizeDoc (page, hash, linkText) {
 	return {
 		n: name,
 		u: hash,
-		s: decoded?.source || "PHB",
+		s: decoded?.source || (getStyleHint() === "one" ? "XPHB" : "PHB"),
 		c: cat,
 		cf: cat != null ? Parser.pageCategoryToFull(cat) : page.replace(/\.html$/, ""),
 	};

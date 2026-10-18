@@ -34,6 +34,7 @@ const host = globalThis.FiveEToolsObsidian;
 if (!host) throw new Error("FiveEToolsObsidian host missing");
 
 host.configureFiveEToolsRoot(pluginDir, {imageBaseUrl: "https://5e.tools"});
+if (typeof host.setStyleHint === "function") host.setStyleHint("one");
 
 const elasticlunr = host.getElasticlunr();
 const Parser = host.getParser();
@@ -132,6 +133,10 @@ function search (term) {
 		throw new Error("link helpers missing from host");
 	}
 	await host.ensureSearchIndex(pluginDir);
+	const fireballDoc = host.findEntityDoc("Fireball", {categoriesExact: ["spell"]});
+	if (String(fireballDoc?.s || "").toUpperCase() !== "XPHB") {
+		throw new Error(`Fireball should prefer XPHB, got ${fireballDoc?.s}`);
+	}
 	const speciesHits = search("elf").filter(d => String(d.cf).toLowerCase() === "species");
 	const elfDoc = speciesHits.find(d => /^elf$/i.test(d.n) && String(d.s).toUpperCase() === "XPHB") || speciesHits[0];
 	if (!elfDoc) throw new Error("no Elf species");
@@ -144,16 +149,25 @@ function search (term) {
 	if (!skillAttrs) throw new Error("Elf compact HTML missing skill link data");
 	const senseDoc = host.docFromVetLink({page: "sense", source: senseAttrs[1], hash: senseAttrs[2], linkText: "Darkvision"});
 	if (!senseDoc || !/darkvision/i.test(senseDoc.n)) throw new Error(`Darkvision sense did not resolve: ${JSON.stringify(senseDoc)}`);
+	if (String(senseDoc.s || "").toUpperCase() !== "XPHB") {
+		throw new Error(`Darkvision should prefer XPHB, got ${senseDoc.s}`);
+	}
 	const senseEnt = await DataLoader.pCacheAndGet("sense", senseDoc.s, senseDoc.u, {isSilent: true});
 	if (!senseEnt) throw new Error(`Darkvision JSON miss via ${senseDoc.u}`);
 	const skillDoc = host.docFromVetLink({page: "skill", source: skillAttrs[1], hash: skillAttrs[2], linkText: "Perception"});
 	if (!skillDoc) throw new Error("species skill link did not resolve");
+	if (String(skillDoc.s || "").toUpperCase() !== "XPHB") {
+		throw new Error(`skill link should prefer XPHB, got ${skillDoc.s}`);
+	}
 	const skillEnt = await DataLoader.pCacheAndGet("skill", skillDoc.s, skillDoc.u, {isSilent: true});
 	if (!skillEnt) throw new Error(`skill JSON miss via ${skillDoc.u}`);
 	const restAttrs = elfHtml.match(/data-vet-page="variantrules.html" data-vet-source="([^"]*)" data-vet-hash="([^"]*long[^"]*)"/i);
 	if (!restAttrs) throw new Error("Elf compact HTML missing Long Rest rule link");
 	const restDoc = host.docFromVetLink({page: "variantrules.html", source: restAttrs[1], hash: restAttrs[2], linkText: "Long Rest"});
 	if (!restDoc || !/long rest/i.test(restDoc.n)) throw new Error(`Long Rest did not resolve: ${JSON.stringify(restDoc)}`);
+	if (!["XPHB", "XDMG"].includes(String(restDoc.s || "").toUpperCase())) {
+		throw new Error(`Long Rest should prefer 2024 rules, got ${restDoc.s}`);
+	}
 	console.log("species links", {sense: senseDoc.n, skill: skillDoc.n, rule: restDoc.n});
 
 	const sneakHits = search("sneak attack").filter(d => String(d.cf).toLowerCase() === "class feature");
