@@ -1,6 +1,13 @@
-import {Modal} from "obsidian";
+import {Modal, Notice} from "obsidian";
 import {searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
+import {
+	deleteSavedEncounter,
+	getSavedEncounter,
+	listSavedEncounters,
+	saveEncountersToVault,
+	upsertSavedEncounter,
+} from "./encounter-store.js";
 
 let nextCombatantId = 1;
 
@@ -94,6 +101,7 @@ export function adjustHp (current, max, delta) {
 
 export function renderEncounterComposer (formEl, resultEl, {
 	session,
+	plugin,
 	app,
 	onOpenDoc,
 	onSessionChange,
@@ -103,13 +111,28 @@ export function renderEncounterComposer (formEl, resultEl, {
 	formEl.createEl("h3", {text: "Encounter Composer"});
 	formEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Search the bestiary and click a result to preview its statblock, then Add.",
+		text: "Search the bestiary and click a result to preview its statblock, then Add. Save named encounters to load later.",
 	});
 
 	let combatants = cloneCombatants(session?.combatants);
 	let selectedId = session?.selectedId || null;
+	let name = session?.name || "";
+	let savedId = session?.savedId || null;
+	let pickedId = session?.pickedId || savedId || null;
 	let previewKey = null;
 	bumpIdCounter(combatants);
+
+	const nameRow = formEl.createDiv({cls: "fiveetools-encounter__row"});
+	const nameEl = nameRow.createEl("input", {
+		cls: "fiveetools-encounter__name",
+		attr: {type: "text", placeholder: "Encounter name", value: name},
+	});
+	const savesEl = formEl.createDiv({cls: "fiveetools-encounter__saves"});
+	const saveActions = formEl.createDiv({cls: "fiveetools-encounter__row"});
+	const newBtn = saveActions.createEl("button", {text: "New", cls: "fiveetools-btn"});
+	const saveBtn = saveActions.createEl("button", {text: "Save", cls: "fiveetools-btn"});
+	const loadBtn = saveActions.createEl("button", {text: "Load", cls: "fiveetools-btn fiveetools-btn--ghost"});
+	const deleteBtn = saveActions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
 
 	const addRow = formEl.createDiv({cls: "fiveetools-encounter__add"});
 	const searchRow = addRow.createDiv({cls: "fiveetools-encounter__row"});
@@ -128,9 +151,14 @@ export function renderEncounterComposer (formEl, resultEl, {
 
 	const emit = () => {
 		clearBtn.toggleAttribute("disabled", !combatants.length);
+		loadBtn.toggleAttribute("disabled", !pickedId);
+		deleteBtn.toggleAttribute("disabled", !pickedId);
 		onSessionChange?.({
 			combatants: cloneCombatants(combatants),
 			selectedId,
+			name,
+			savedId,
+			pickedId,
 		});
 	};
 
@@ -244,6 +272,125 @@ export function renderEncounterComposer (formEl, resultEl, {
 		}
 	};
 
+	const paintSaves = () => {
+		savesEl.empty();
+		const saved = listSavedEncounters();
+		if (!saved.some(it => it.id === pickedId)) pickedId = null;
+		loadBtn.toggleAttribute("disabled", !pickedId);
+		deleteBtn.toggleAttribute("disabled", !pickedId);
+		if (!saved.length) {
+			savesEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No saved encounters."});
+			return;
+		}
+		for (const it of saved) {
+			const count = it.combatants?.length || 0;
+			const row = savesEl.createEl("button", {
+				cls: `fiveetools-encounter__save${it.id === pickedId ? " is-selected" : ""}`,
+				attr: {type: "button"},
+			});
+			row.createEl("div", {cls: "fiveetools-modal__name", text: it.name});
+			row.createEl("div", {
+				cls: "fiveetools-modal__sub",
+				text: count === 1 ? "1 creature" : `${count} creatures`,
+			});
+			row.addEventListener("click", () => {
+				pickedId = it.id;
+				emit();
+				paintSaves();
+			});
+		}
+	};
+
+	const applySaved = (saved) => {
+		combatants = cloneCombatants(saved.combatants);
+		selectedId = saved.selectedId && combatants.some(it => it.id === saved.selectedId)
+			? saved.selectedId
+			: (combatants[combatants.length - 1]?.id || null);
+		name = saved.name;
+		savedId = saved.id;
+		pickedId = saved.id;
+		previewKey = null;
+		nameEl.value = name;
+		bumpIdCounter(combatants);
+		emit();
+		paintSaves();
+		paintHits();
+		paintRoster();
+		if (selectedId) openSelected();
+		else showPlaceholder();
+	};
+
+	nameEl.addEventListener("input", () => {
+		name = nameEl.value;
+		emit();
+	});
+	newBtn.addEventListener("click", () => {
+		combatants = [];
+		selectedId = null;
+		name = "";
+		savedId = null;
+		pickedId = null;
+		previewKey = null;
+		nameEl.value = "";
+		emit();
+		paintSaves();
+		paintHits();
+		paintRoster();
+		showPlaceholder();
+	});
+	saveBtn.addEventListener("click", async () => {
+		try {
+			const saved = upsertSavedEncounter({
+				id: savedId,
+				name,
+				combatants,
+				selectedId,
+			});
+			await saveEncountersToVault(plugin);
+			savedId = saved.id;
+			pickedId = saved.id;
+			name = saved.name;
+			nameEl.value = name;
+			emit();
+			paintSaves();
+			new Notice(`Saved ${saved.name}.`);
+		} catch (e) {
+			new Notice(e.message || "Could not save encounter.");
+		}
+	});
+	loadBtn.addEventListener("click", () => {
+		const saved = getSavedEncounter(pickedId);
+		if (!saved) return;
+		const replace = () => applySaved(saved);
+		if (combatants.length && savedId !== saved.id) {
+			confirmAction(app, {
+				title: "Load encounter",
+				message: `Replace the current roster with ${saved.name}?`,
+				confirmLabel: "Load",
+				onConfirm: replace,
+			});
+			return;
+		}
+		replace();
+	});
+	deleteBtn.addEventListener("click", () => {
+		const saved = getSavedEncounter(pickedId);
+		if (!saved) return;
+		confirmAction(app, {
+			title: "Delete encounter",
+			message: `Delete saved encounter ${saved.name}?`,
+			confirmLabel: "Delete",
+			onConfirm: async () => {
+				deleteSavedEncounter(saved.id);
+				await saveEncountersToVault(plugin);
+				if (savedId === saved.id) savedId = null;
+				pickedId = null;
+				emit();
+				paintSaves();
+				new Notice(`Deleted ${saved.name}.`);
+			},
+		});
+	});
 	searchEl.addEventListener("input", () => paintHits());
 	clearBtn.addEventListener("click", () => {
 		combatants = [];
@@ -255,6 +402,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		showPlaceholder();
 	});
 
+	paintSaves();
 	emit();
 	paintRoster();
 	if (selectedId) openSelected();
@@ -310,21 +458,23 @@ function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, 
 	});
 }
 
-class ConfirmRemoveModal extends Modal {
-	constructor (app, label, onConfirm) {
+class ConfirmActionModal extends Modal {
+	constructor (app, {title, message, confirmLabel, onConfirm}) {
 		super(app);
-		this.label = label;
+		this.titleText = title;
+		this.message = message;
+		this.confirmLabel = confirmLabel;
 		this.onConfirm = onConfirm;
 	}
 
 	onOpen () {
 		const {contentEl} = this;
 		contentEl.empty();
-		contentEl.createEl("h2", {text: "Remove creature"});
-		contentEl.createEl("p", {text: `Remove ${this.label} from the encounter?`});
+		contentEl.createEl("h2", {text: this.titleText});
+		contentEl.createEl("p", {text: this.message});
 		const actions = contentEl.createDiv({cls: "fiveetools-encounter__row"});
 		const cancel = actions.createEl("button", {text: "Cancel", cls: "fiveetools-btn fiveetools-btn--ghost"});
-		const ok = actions.createEl("button", {text: "Remove", cls: "fiveetools-btn"});
+		const ok = actions.createEl("button", {text: this.confirmLabel, cls: "fiveetools-btn"});
 		cancel.addEventListener("click", () => this.close());
 		ok.addEventListener("click", () => {
 			this.close();
@@ -337,12 +487,21 @@ class ConfirmRemoveModal extends Modal {
 	}
 }
 
-function confirmRemove (app, label, onConfirm) {
+function confirmAction (app, {title, message, confirmLabel, onConfirm}) {
 	if (!app) {
-		if (typeof window !== "undefined" && window.confirm(`Remove ${label} from the encounter?`)) onConfirm?.();
+		if (typeof window !== "undefined" && window.confirm(message)) onConfirm?.();
 		return;
 	}
-	new ConfirmRemoveModal(app, label, onConfirm).open();
+	new ConfirmActionModal(app, {title, message, confirmLabel, onConfirm}).open();
+}
+
+function confirmRemove (app, label, onConfirm) {
+	confirmAction(app, {
+		title: "Remove creature",
+		message: `Remove ${label} from the encounter?`,
+		confirmLabel: "Remove",
+		onConfirm,
+	});
 }
 
 function nextLabel (name, combatants) {

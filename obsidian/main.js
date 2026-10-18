@@ -8,6 +8,7 @@ import {validateRoot} from "./src/local-fs.js";
 import {getPluginDir} from "./src/plugin-dir.js";
 import {ensureSearchIndex, indexHomebrewDocs} from "./src/search-index.js";
 import {cacheBrewInDataLoader, loadHomebrewFromVault} from "./src/homebrew-store.js";
+import {loadEncountersFromVault} from "./src/encounter-store.js";
 import {FiveEToolsSettingTab} from "./src/settings.js";
 
 export default class FiveEToolsPlugin extends Plugin {
@@ -71,6 +72,7 @@ export default class FiveEToolsPlugin extends Plugin {
 		await loadHomebrewFromVault(this);
 		cacheBrewInDataLoader();
 		indexHomebrewDocs();
+		await loadEncountersFromVault(this);
 		return true;
 	}
 

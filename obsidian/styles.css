@@ -292,9 +292,33 @@
 	margin: 4px 0;
 }
 
+.fiveetools-encounter__name,
 .fiveetools-encounter__search {
 	flex: 1;
 	min-width: 0;
+}
+
+.fiveetools-encounter__saves {
+	overflow: auto;
+	max-height: 8em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+
+.fiveetools-encounter__save {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 6px 8px;
+	border: 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.fiveetools-encounter__save.is-selected {
+	background: var(--background-modifier-hover);
 }
 
 .fiveetools-encounter__count {

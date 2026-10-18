@@ -209,6 +209,37 @@ function search (term) {
 	if (!encEnt) throw new Error(`encounter combatant JSON miss via ${enc.added[0].doc.u}`);
 	console.log("encounter", {labels: enc.added.map(it => it.label), hp: expectedHp, cr: enc.added[0].cr});
 
+	if (typeof host.applyEncountersJson !== "function" || typeof host.upsertSavedEncounter !== "function") {
+		throw new Error("encounter save helpers missing from host");
+	}
+	host.applyEncountersJson({encounters: []});
+	const savedA = host.upsertSavedEncounter({
+		name: "Goblin ambush",
+		selectedId: enc.added[1].id,
+		combatants: enc.combatants,
+	});
+	const savedB = host.upsertSavedEncounter({name: "Owlbear nest", combatants: []});
+	if (!savedA.id || savedA.combatants?.length !== 2) throw new Error("saved encounter should keep combatants");
+	if (host.listSavedEncounters().length !== 2) throw new Error("should list both saved encounters");
+	const wounded = enc.combatants.map((it, i) => (i === 0 ? {...it, hpCurrent: 4} : it));
+	const savedAgain = host.upsertSavedEncounter({
+		name: "goblin ambush",
+		selectedId: enc.added[0].id,
+		combatants: wounded,
+	});
+	if (savedAgain.id !== savedA.id) throw new Error("same-name upsert should overwrite");
+	if (savedAgain.combatants[0].hpCurrent !== 4) throw new Error("overwrite should keep current HP");
+	if (host.listSavedEncounters().length !== 2) throw new Error("overwrite should not add a third encounter");
+	wounded[0].hpCurrent = 1;
+	if (host.getSavedEncounter(savedAgain.id).combatants[0].hpCurrent !== 4) {
+		throw new Error("catalog should clone combatants");
+	}
+	host.deleteSavedEncounter(savedB.id);
+	const afterDelete = host.listSavedEncounters();
+	if (afterDelete.length !== 1 || afterDelete[0].name.toLowerCase() !== "goblin ambush") {
+		throw new Error("delete should leave the overwritten goblin encounter");
+	}
+
 	if (typeof host.hpAverageFromFormula !== "function" || typeof host.buildEntity !== "function" || typeof host.entityToForm !== "function") {
 		throw new Error("homebrew helpers missing from host");
 	}

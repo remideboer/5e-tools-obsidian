@@ -209,6 +209,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			const session = this.plugin._encounterSession || {combatants: [], selectedId: null};
 			renderEncounterComposer(this.listEl, this.readerEl, {
 				session,
+				plugin: this.plugin,
 				app: this.app,
 				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
 				onSessionChange: (next) => { this.plugin._encounterSession = next; },
