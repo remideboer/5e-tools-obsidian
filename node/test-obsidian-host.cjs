@@ -5,6 +5,9 @@ const obsidianMock = {
 	Plugin: class Plugin {},
 	ItemView: class ItemView {},
 	Modal: class Modal {},
+	EditorSuggest: class EditorSuggest {
+		constructor (app) { this.app = app; }
+	},
 	PluginSettingTab: class PluginSettingTab {},
 	FileSystemAdapter: class FileSystemAdapter {},
 	Setting: class Setting {
@@ -194,6 +197,16 @@ function search (term) {
 	if (String(fireballDoc?.s || "").toUpperCase() !== "XPHB") {
 		throw new Error(`Fireball should prefer XPHB, got ${fireballDoc?.s}`);
 	}
+	const hatDoc = host.findEntityDoc("Hat of Wizardry", {categoriesExact: ["item"]});
+	if (!hatDoc || !/hat of wizardry/i.test(hatDoc.n)) throw new Error("Hat of Wizardry missing from search");
+	if (typeof host.entityNotePath !== "function" || typeof host.wikilinkForFile !== "function") {
+		throw new Error("entity note link helpers missing from host");
+	}
+	const hatPath = host.entityNotePath({settings: {notesFolder: "5etools"}}, hatDoc, {name: hatDoc.n, source: hatDoc.s});
+	if (!/Hat of Wizardry\.md$/.test(hatPath)) throw new Error(`unexpected hat note path: ${hatPath}`);
+	const hatLink = host.wikilinkForFile({path: hatPath}, hatDoc.n);
+	if (!/\[\[.*Hat of Wizardry/.test(hatLink)) throw new Error(`bad wikilink ${hatLink}`);
+	console.log("item link", {name: hatDoc.n, source: hatDoc.s, path: hatPath});
 	const speciesHits = search("elf").filter(d => String(d.cf).toLowerCase() === "species");
 	const elfDoc = speciesHits.find(d => /^elf$/i.test(d.n) && String(d.s).toUpperCase() === "XPHB") || speciesHits[0];
 	if (!elfDoc) throw new Error("no Elf species");

@@ -59,8 +59,14 @@
 	background: var(--background-modifier-hover);
 }
 
-.fiveetools-modal__name {
+.fiveetools-modal__name,
+.fiveetools-suggest__name {
 	font-weight: 600;
+}
+
+.fiveetools-suggest__sub {
+	color: var(--text-muted);
+	font-size: 12px;
 }
 
 .fiveetools-modal__sub,

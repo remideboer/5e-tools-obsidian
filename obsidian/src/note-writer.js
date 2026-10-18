@@ -4,18 +4,39 @@ import {getAdventureChapters, renderAdventureChapterMarkdown} from "./adventure-
 import {resolveEntityImages} from "./image-resolver.js";
 import {readCachedBytes} from "./media-cache.js";
 
-export async function insertEntityNote (plugin, {doc, ent}) {
-	if (ent?.__prop === "adventure") return insertAdventureNotes(plugin, {doc, ent});
+export function entityNotePath (plugin, doc, ent) {
+	const folder = sanitizePathPart(plugin.settings?.notesFolder || "5etools");
+	if (ent?.__prop === "adventure") {
+		const source = sanitizePathPart(ent.source || doc?.s || "Unknown");
+		const name = sanitizePathPart(ent.name || doc?.n || "Adventure");
+		return `${folder}/Adventure/${source}/${name}.md`;
+	}
+	const category = sanitizePathPart(doc?.cf || "Other");
+	const source = sanitizePathPart(ent?.source || doc?.s || "Unknown");
+	const name = sanitizePathPart(ent?.name || doc?.n || "Untitled");
+	return `${folder}/${category}/${source}/${name}.md`;
+}
 
-	const folder = sanitizePathPart(plugin.settings.notesFolder || "5etools");
-	const category = sanitizePathPart(doc.cf || "Other");
-	const source = sanitizePathPart(doc.s || "Unknown");
-	const name = sanitizePathPart(ent.name || doc.n || "Untitled");
-	const noteFolder = `${folder}/${category}/${source}`;
-	const notePath = `${noteFolder}/${name}.md`;
+export function wikilinkForFile (file, displayName) {
+	const path = String(file?.path || "").replace(/\.md$/i, "");
+	const label = String(displayName || file?.basename || path.replace(/^.*\//, "")).trim();
+	if (!path) return `[[${label}]]`;
+	if (label && label !== path.replace(/^.*\//, "")) return `[[${path}|${label}]]`;
+	return `[[${path}]]`;
+}
+
+export async function insertEntityNote (plugin, {doc, ent, open = true} = {}) {
+	if (ent?.__prop === "adventure") return insertAdventureNotes(plugin, {doc, ent, open});
+
+	const folder = sanitizePathPart(plugin.settings?.notesFolder || "5etools");
+	const category = sanitizePathPart(doc?.cf || "Other");
+	const source = sanitizePathPart(ent?.source || doc?.s || "Unknown");
+	const name = sanitizePathPart(ent?.name || doc?.n || "Untitled");
+	const notePath = entityNotePath(plugin, doc, ent);
+	const noteFolder = notePath.replace(/\/[^/]+$/, "");
 	const existing = plugin.app.vault.getAbstractFileByPath(notePath);
 	if (existing) {
-		await plugin.app.workspace.getLeaf(false).openFile(existing);
+		if (open) await plugin.app.workspace.getLeaf(false).openFile(existing);
 		return existing;
 	}
 
@@ -58,19 +79,16 @@ export async function insertEntityNote (plugin, {doc, ent}) {
 	].filter(it => it != null).join("\n");
 
 	const file = await plugin.app.vault.create(notePath, content);
-	await plugin.app.workspace.getLeaf(false).openFile(file);
+	if (open) await plugin.app.workspace.getLeaf(false).openFile(file);
 	return file;
 }
 
-async function insertAdventureNotes (plugin, {doc, ent}) {
-	const folder = sanitizePathPart(plugin.settings.notesFolder || "5etools");
-	const source = sanitizePathPart(ent.source || doc.s || "Unknown");
-	const name = sanitizePathPart(ent.name || doc.n || "Adventure");
-	const noteFolder = `${folder}/Adventure/${source}`;
-	const indexPath = `${noteFolder}/${name}.md`;
+async function insertAdventureNotes (plugin, {doc, ent, open = true} = {}) {
+	const indexPath = entityNotePath(plugin, doc, ent);
+	const noteFolder = indexPath.replace(/\/[^/]+$/, "");
 	const existing = plugin.app.vault.getAbstractFileByPath(indexPath);
 	if (existing) {
-		await plugin.app.workspace.getLeaf(false).openFile(existing);
+		if (open) await plugin.app.workspace.getLeaf(false).openFile(existing);
 		return existing;
 	}
 
@@ -112,7 +130,7 @@ async function insertAdventureNotes (plugin, {doc, ent}) {
 		"",
 	].join("\n");
 	const file = await plugin.app.vault.create(indexPath, index);
-	await plugin.app.workspace.getLeaf(false).openFile(file);
+	if (open) await plugin.app.workspace.getLeaf(false).openFile(file);
 	return file;
 }
 
@@ -144,4 +162,9 @@ function sanitizePathPart (value) {
 
 function yamlEscape (value) {
 	return String(value ?? "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+}
+
+if (globalThis.FiveEToolsObsidian) {
+	globalThis.FiveEToolsObsidian.entityNotePath = entityNotePath;
+	globalThis.FiveEToolsObsidian.wikilinkForFile = wikilinkForFile;
 }
