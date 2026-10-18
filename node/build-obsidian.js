@@ -98,6 +98,11 @@ function copyBundledData () {
 		"data/actions.json",
 		"data/adventures.json",
 		"data/variantrules.json",
+		"data/objects.json",
+		"data/fluff-objects.json",
+		"data/trapshazards.json",
+		"data/fluff-trapshazards.json",
+		"data/cultsboons.json",
 		"data/generated/gendata-spell-source-lookup.json",
 		"data/generated/gendata-subclass-lookup.json",
 		"data/generated/gendata-tag-redirects.json",
@@ -127,7 +132,7 @@ function writeFilteredSearchIndex () {
 	}
 
 	const categoryIds = new Set([
-		1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 21, 22, 23, 26, 27, 28, 29, 30, 32, 33, 34, 37, 38, 39, 40, 41, 42, 49, 50, 51,
+		1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 15, 16, 17, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30, 32, 33, 34, 37, 38, 39, 40, 41, 42, 49, 50, 51,
 	]);
 	const docs = decompressIndex(JSON.parse(fs.readFileSync(src, "utf8")))
 		.filter(doc => doc && categoryIds.has(doc.c));

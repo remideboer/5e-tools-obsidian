@@ -21,6 +21,9 @@ export const CATEGORY_CHIPS = [
 	{id: "background", label: "Background", aliases: ["background", "bg"]},
 	{id: "optionalfeature", label: "Options", aliases: ["optional feature", "invocation", "metamagic", "maneuver", "fighting style", "pact boon", "infusion"]},
 	{id: "condition", label: "Condition", aliases: ["condition", "con", "disease", "status"]},
+	{id: "trapshazards", label: "Traps", aliases: ["trap", "hazard"]},
+	{id: "objects", label: "Object", aliases: ["object", "obj"]},
+	{id: "cultsboons", label: "Cults", aliases: ["cult", "boon"]},
 	{id: "rule", label: "Rule", aliases: ["rule"]},
 	{id: "adventure", label: "Adventure", aliases: ["adventure", "adv"]},
 ];
@@ -40,6 +43,9 @@ export const LIBRARY_NAV = [
 		group: "References",
 		items: [
 			{id: "bestiary", label: "Bestiary", categories: ["bestiary"]},
+			{id: "trapshazards", label: "Traps & Hazards", categories: ["trap", "hazard"]},
+			{id: "objects", label: "Objects", categories: ["object"]},
+			{id: "cultsboons", label: "Cults & Boons", categories: ["cult", "boon"]},
 			{id: "spell", label: "Spells", categories: ["spell"]},
 			{id: "item", label: "Items", categories: ["item"]},
 			{id: "condition", label: "Conditions", categories: ["condition", "disease", "status"]},
