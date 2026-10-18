@@ -169,8 +169,8 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-library__listcol {
-	width: 280px;
-	min-width: 220px;
+	width: 300px;
+	min-width: 300px;
 	display: flex;
 	flex-direction: column;
 	border-right: 1px solid var(--background-modifier-border);
