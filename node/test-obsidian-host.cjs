@@ -103,7 +103,24 @@ function search (term) {
 	if (!object) throw new Error("failed to load ballista JSON");
 	const objectHtml = Renderer.hover.getFnRenderCompact(UrlUtil.CAT_TO_PAGE[objectDoc.c], {isStatic: true})(object);
 	if (!String(objectHtml).length) throw new Error("ballista compact HTML empty");
-	console.log("object", object && {name: object.name, source: object.source, html: String(objectHtml).length});
+	if (object.__prop == null) object.__prop = Parser.CAT_ID_TO_PROP[objectDoc.c];
+	if (typeof host.resolveEntityImages !== "function") throw new Error("resolveEntityImages missing from host");
+	const objectImages = await host.resolveEntityImages(object, {imageBaseUrl: "https://5e.tools"});
+	if (!objectImages.some(it => /\/objects\/tokens\//i.test(it.url))) {
+		throw new Error(`ballista token missing: ${JSON.stringify(objectImages)}`);
+	}
+	const boilers = search("boilerdrak").filter(d => String(d.cf).toLowerCase() === "object");
+	const boilerDoc = boilers.find(d => /^boilerdrak$/i.test(d.n)) || boilers[0];
+	if (!boilerDoc) throw new Error("no boilerdrak in filtered index");
+	const boiler = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[boilerDoc.c], boilerDoc.s, boilerDoc.u, {isSilent: true});
+	if (!boiler) throw new Error("failed to load boilerdrak JSON");
+	if (boiler.__prop == null) boiler.__prop = Parser.CAT_ID_TO_PROP[boilerDoc.c];
+	const boilerImages = await host.resolveEntityImages(boiler, {imageBaseUrl: "https://5e.tools"});
+	if (!boilerImages.some(it => /\/objects\//i.test(it.url))) {
+		throw new Error(`boilerdrak images missing: ${JSON.stringify(boilerImages)}`);
+	}
+	console.log("object", object && {name: object.name, source: object.source, html: String(objectHtml).length, token: objectImages[0]?.url});
+	console.log("object fluff", boiler && {name: boiler.name, images: boilerImages.map(it => it.url)});
 
 	const cults = search("cult of asmodeus").filter(d => String(d.cf).toLowerCase() === "cult");
 	const cultDoc = cults.find(d => /^cult of asmodeus$/i.test(d.n)) || cults[0];

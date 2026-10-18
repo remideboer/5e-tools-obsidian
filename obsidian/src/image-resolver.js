@@ -27,11 +27,21 @@ export async function resolveEntityImages (ent, {imageBaseUrl} = {}) {
 	return resolved;
 }
 
+const TOKEN_DIRS = {
+	monster: "bestiary/tokens",
+	object: "objects/tokens",
+	vehicle: "vehicles/tokens",
+};
+
 function getTokenUrl (ent, Renderer) {
 	const prop = ent?.__prop;
 	try {
 		const impl = prop && Renderer[prop];
 		if (impl?.getTokenUrl && (ent.hasToken || impl.hasToken?.(ent))) return impl.getTokenUrl(ent);
+		const dir = TOKEN_DIRS[prop];
+		if (dir && (ent.hasToken || ent.token || ent.tokenHref || ent.tokenUrl)) {
+			return Renderer.generic.getTokenUrl(ent, dir);
+		}
 		if (ent?.hasToken) return Renderer.generic.getTokenUrl(ent, "bestiary/tokens");
 	} catch (_) { /* no token */ }
 	return null;
@@ -58,4 +68,8 @@ function relativeImgPath (url) {
 
 export function toPreviewSrc (resolved) {
 	return resolved?.url || null;
+}
+
+if (globalThis.FiveEToolsObsidian) {
+	globalThis.FiveEToolsObsidian.resolveEntityImages = resolveEntityImages;
 }

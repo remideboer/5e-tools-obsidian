@@ -1,5 +1,5 @@
 import {isCorpusPage, loadPageForDoc} from "./compact-render.js";
-import {getDataLoader} from "./fiveetools-host.js";
+import {getDataLoader, getParser} from "./fiveetools-host.js";
 
 export async function loadEntity (doc) {
 	const page = loadPageForDoc(doc);
@@ -13,6 +13,10 @@ export async function loadEntity (doc) {
 
 	const DataLoader = getDataLoader();
 	const ent = await DataLoader.pCacheAndGet(page, doc.s, doc.u, {isSilent: true});
+	if (ent && ent.__prop == null && doc.c != null) {
+		const prop = getParser().CAT_ID_TO_PROP[doc.c];
+		if (prop) ent.__prop = prop;
+	}
 	if (ent?.adventure && ent?.adventureData) {
 		const adv = ent.adventure;
 		return {

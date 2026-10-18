@@ -1,7 +1,7 @@
 import {loadEntity} from "./entity-loader.js";
 import {escapeHtml, isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
-import {cachedMediaSrc} from "./media-cache.js";
+import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
@@ -78,6 +78,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
 				statWrap.innerHTML = compactHtml;
 				bindInternalLinks(statWrap, plugin);
+				await rewriteMediaUrls(plugin, statWrap);
 			}
 
 			insertBtn.addEventListener("click", async () => {
