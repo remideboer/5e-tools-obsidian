@@ -130,12 +130,19 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	selectNav (navId) {
+		const fromId = this.navId;
 		this.navId = navId;
 		this.selectedDoc = null;
 		this.globalQuery = "";
 		this.query = "";
 		if (this.globalSearchEl) this.globalSearchEl.value = "";
 		if (this.searchEl) this.searchEl.value = "";
+		const item = currentNavItem(navId);
+		if (item?.tool === "homebrew" && fromId !== navId) {
+			this.plugin._homebrewSession = {
+				typeId: this.plugin._homebrewSession?.typeId || "spell",
+			};
+		}
 		this.renderNav();
 		this.refreshList();
 	}
