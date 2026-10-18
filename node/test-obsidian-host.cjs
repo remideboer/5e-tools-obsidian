@@ -694,6 +694,14 @@ function search (term) {
 	if (encParsed.fields.sourceId !== "e1") throw new Error("encounter sourceId missing");
 	const composerSession = host.sessionFromCampaignEncounter(encParsed);
 	if (composerSession.combatants[0].label !== "Goblin 1") throw new Error("composer session lost combatants");
+	if (composerSession.combatants[0].hpCurrent !== 7) throw new Error("composer session lost current HP");
+	const hpSnap = host.encounterSnapshotFromSaved({
+		id: "e2",
+		name: "Wounded",
+		combatants: [{id: "c1", label: "Goblin", hpCurrent: 3, hpMax: 7}],
+	});
+	if (hpSnap.combatants[0].hp !== 3) throw new Error("snapshot should persist hpCurrent as hp");
+	if (host.combatantsFromSnapshot(hpSnap)[0].hpCurrent !== 3) throw new Error("pane combatants should map hp to hpCurrent");
 	if (typeof host.planSaveEntryText !== "function") throw new Error("planSaveEntryText missing");
 	const savePlan = host.planSaveEntryText(
 		"encounters",

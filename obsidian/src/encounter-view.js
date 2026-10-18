@@ -198,6 +198,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	app,
 	onOpenDoc,
 	onSessionChange,
+	onSaved,
 } = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-encounter");
@@ -596,6 +597,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			emit();
 			paintSaves();
 			new Notice(`Saved ${saved.name}.`);
+			await onSaved?.(saved);
 		} catch (e) {
 			new Notice(e.message || "Could not save encounter.");
 		}
@@ -653,7 +655,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	else showPlaceholder();
 }
 
-function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, onRemove}) {
+export function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, onRemove}) {
 	const row = parent.createDiv({
 		cls: `fiveetools-encounter__combatant${selected ? " is-selected" : ""}${combatant.hpCurrent <= 0 ? " is-down" : ""}`,
 	});

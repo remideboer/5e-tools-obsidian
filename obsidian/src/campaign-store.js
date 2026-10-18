@@ -75,22 +75,35 @@ export function slugify (name) {
 	return slug || "campaign";
 }
 
+export function snapshotCombatants (combatants) {
+	return (combatants || []).map(it => ({
+		id: it.id || "",
+		label: it.label || "",
+		hp: it.hpCurrent ?? it.hp ?? null,
+		hpMax: it.hpMax ?? null,
+		ac: it.ac ?? null,
+		cr: it.cr ?? "",
+		dex: it.dex ?? null,
+		initiative: it.initiative ?? null,
+		doc: it.doc ? {n: it.doc.n, u: it.doc.u, s: it.doc.s, c: it.doc.c, cf: it.doc.cf, sA: it.doc.sA} : null,
+	}));
+}
+
+export function combatantsFromSnapshot (snapshot) {
+	return (snapshot?.combatants || []).map((it, i) => ({
+		...it,
+		id: it.id || `c${i + 1}`,
+		hpMax: it.hpMax ?? 0,
+		hpCurrent: it.hpCurrent ?? it.hp ?? it.hpMax ?? 0,
+	}));
+}
+
 export function encounterSnapshotFromSaved (saved) {
 	if (!saved || typeof saved !== "object") return {party: null, combatants: [], sourceId: ""};
 	return {
 		sourceId: String(saved.id || ""),
 		party: saved.party ? {...saved.party} : null,
-		combatants: (saved.combatants || []).map(it => ({
-			id: it.id || "",
-			label: it.label || "",
-			hp: it.hp ?? null,
-			hpMax: it.hpMax ?? null,
-			ac: it.ac ?? null,
-			cr: it.cr ?? "",
-			dex: it.dex ?? null,
-			initiative: it.initiative ?? null,
-			doc: it.doc ? {n: it.doc.n, u: it.doc.u, s: it.doc.s, c: it.doc.c, cf: it.doc.cf} : null,
-		})),
+		combatants: snapshotCombatants(saved.combatants),
 	};
 }
 
@@ -115,7 +128,7 @@ export function sessionFromCampaignEncounter (entry) {
 		pickedId: snapshot.sourceId || null,
 		selectedId: null,
 		party: snapshot.party || undefined,
-		combatants: snapshot.combatants || [],
+		combatants: combatantsFromSnapshot(snapshot),
 		showBlank: false,
 		blankDraft: null,
 		saveToHomebrew: false,
@@ -423,6 +436,8 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.encounterSnapshotFromSaved = encounterSnapshotFromSaved;
 	globalThis.FiveEToolsObsidian.entryFromSavedEncounter = entryFromSavedEncounter;
 	globalThis.FiveEToolsObsidian.sessionFromCampaignEncounter = sessionFromCampaignEncounter;
+	globalThis.FiveEToolsObsidian.combatantsFromSnapshot = combatantsFromSnapshot;
+	globalThis.FiveEToolsObsidian.snapshotCombatants = snapshotCombatants;
 	globalThis.FiveEToolsObsidian.planSaveEntryText = planSaveEntryText;
 	globalThis.FiveEToolsObsidian.saveEntryText = saveEntryText;
 	globalThis.FiveEToolsObsidian.slugify = slugify;

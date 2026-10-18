@@ -226,6 +226,22 @@ a.fiveetools-inline-link {
 	overflow: hidden;
 }
 
+.fiveetools-library__listcol:has(.fiveetools-campaign--encounter) {
+	width: 560px;
+	min-width: 420px;
+}
+
+.fiveetools-library__list.fiveetools-campaign.fiveetools-campaign--encounter {
+	flex-direction: row;
+}
+
+.fiveetools-campaign--encounter > .fiveetools-homebrew__catalog {
+	flex: 1 1 50%;
+	min-width: 0;
+	overflow: auto;
+	border-right: 1px solid var(--background-modifier-border);
+}
+
 .fiveetools-campaign__editor {
 	display: flex;
 	flex-direction: column;

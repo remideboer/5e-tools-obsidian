@@ -1,4 +1,4 @@
-import {ItemView} from "obsidian";
+import {ItemView, Notice} from "obsidian";
 import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
@@ -8,6 +8,7 @@ import {renderLootGenerator} from "./loot-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
+import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -122,6 +123,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (this._closeBestiaryMenus) this.contentEl.removeEventListener("click", this._closeBestiaryMenus);
 		teardownCampaignManager(this.plugin);
 		this.readerEl?.removeClass("fiveetools-campaign-reader");
+		this.readerEl?.removeClass("fiveetools-campaign-encounter");
 		this.contentEl.empty();
 	}
 
@@ -143,6 +145,7 @@ export class FiveEToolsLibraryView extends ItemView {
 
 	selectNav (navId) {
 		const fromId = this.navId;
+		if (fromId === "encounter" && navId !== "encounter") this.plugin._campaignReturn = null;
 		this.navId = navId;
 		this.selectedDoc = null;
 		this.globalQuery = "";
@@ -206,6 +209,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (item?.tool !== "campaign" || globalTerm.length >= 2) {
 			teardownCampaignManager(this.plugin);
 			this.readerEl?.removeClass("fiveetools-campaign-reader");
+			this.readerEl?.removeClass("fiveetools-campaign-encounter");
 		}
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";
@@ -243,6 +247,25 @@ export class FiveEToolsLibraryView extends ItemView {
 				app: this.app,
 				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
 				onSessionChange: (next) => { this.plugin._encounterSession = next; },
+				onSaved: async (saved) => {
+					const ret = this.plugin._campaignReturn;
+					if (!ret?.slug) return;
+					try {
+						const written = await writeEntry(this.plugin, ret.slug, "encounters", {
+							...entryFromSavedEncounter(saved),
+							path: ret.selectedPath || undefined,
+						});
+						this.plugin._campaignReturn = null;
+						this.plugin._campaignSession = {
+							slug: ret.slug,
+							sectionId: "encounters",
+							selectedPath: written.path,
+						};
+						this.selectNav("campaign");
+					} catch (e) {
+						new Notice(e.message || "Could not import encounter.");
+					}
+				},
 			});
 			this.docs = [];
 			return;
@@ -273,8 +296,11 @@ export class FiveEToolsLibraryView extends ItemView {
 					plugin: this.plugin,
 					app: this.app,
 					onSessionChange: (next) => { this.plugin._campaignSession = next; },
-					onOpenComposer: (next) => {
+					onOpenComposer: (next, ret) => {
 						this.plugin._encounterSession = next;
+						this.plugin._campaignReturn = ret?.slug
+							? {slug: ret.slug, selectedPath: ret.selectedPath || ""}
+							: null;
 						this.selectNav("encounter");
 					},
 				});

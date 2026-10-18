@@ -2,20 +2,25 @@ import {Notice} from "obsidian";
 import {closeCampaignNote, openCampaignNote} from "./campaign-editor.js";
 import {
 	CAMPAIGN_SECTIONS,
+	combatantsFromSnapshot,
 	createCampaign,
 	createEntry,
 	deleteCampaign,
 	deleteEntry,
 	entryLabel,
 	entryFromSavedEncounter,
+	fileStem,
 	listCampaigns,
 	listEntries,
 	parseCampaignMarkdown,
 	readEntryText,
 	sessionFromCampaignEncounter,
+	snapshotCombatants,
 	writeEntry,
 } from "./campaign-store.js";
+import {renderEntityPanel} from "./entity-reader.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
+import {renderCombatantRow} from "./encounter-view.js";
 
 export function teardownCampaignManager (plugin) {
 	plugin?._campaignVaultOff?.();
@@ -75,13 +80,22 @@ export function renderCampaignManager (formEl, resultEl, {
 		onSessionChange?.({slug, sectionId, selectedPath});
 	};
 
+	const clearEncounterRoster = () => {
+		formEl.removeClass("fiveetools-campaign--encounter");
+		formEl.querySelector(".fiveetools-encounter__creatures")?.remove();
+	};
+
 	const showPlaceholder = (text) => {
 		closeCampaignNote(plugin);
+		clearEncounterRoster();
 		resultEl.empty();
 		resultEl.removeClass("fiveetools-campaign-reader");
+		resultEl.removeClass("fiveetools-campaign-encounter");
 		resultEl.createEl("p", {
 			cls: "fiveetools-view__meta",
-			text: text || "Create a campaign, then a note.",
+			text: text || (sectionId === "encounters"
+				? "Create or import an encounter."
+				: "Create a campaign, then a note."),
 		});
 	};
 
@@ -125,7 +139,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		importRow.style.display = show ? "" : "none";
 		importSel.empty();
 		const saved = listSavedEncounters();
-		openComposerBtn.disabled = !show || !currentSnapshot();
+		openComposerBtn.disabled = !show || !selectedPath;
 		if (!saved.length) {
 			importSel.createEl("option", {text: "No saved encounters", attr: {value: ""}});
 			importBtn.disabled = true;
@@ -147,7 +161,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		deleteBtn.style.display = isOverview ? "none" : "";
 		noteNameEl.setAttribute("placeholder", "Name (optional)");
 		deleteBtn.disabled = !selectedPath;
-		openComposerBtn.disabled = sectionId !== "encounters" || !currentSnapshot();
+		openComposerBtn.disabled = sectionId !== "encounters" || !selectedPath;
 		if (!slug) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "Create a campaign to begin."});
 			return;
@@ -175,6 +189,8 @@ export function renderCampaignManager (formEl, resultEl, {
 	};
 
 	const editorHost = () => {
+		clearEncounterRoster();
+		resultEl.removeClass("fiveetools-campaign-encounter");
 		resultEl.addClass("fiveetools-campaign-reader");
 		let wrap = resultEl.querySelector(".fiveetools-campaign__editor");
 		if (!wrap) {
@@ -185,9 +201,102 @@ export function renderCampaignManager (formEl, resultEl, {
 		return wrap;
 	};
 
+	const paintEncounterPane = () => {
+		closeCampaignNote(plugin);
+		resultEl.removeClass("fiveetools-campaign-reader");
+		resultEl.removeClass("fiveetools-campaign-encounter");
+		resultEl.empty();
+		formEl.addClass("fiveetools-campaign--encounter");
+		let creaturesEl = formEl.querySelector(".fiveetools-encounter__creatures");
+		if (!creaturesEl) {
+			creaturesEl = formEl.createDiv({cls: "fiveetools-encounter__creatures"});
+			creaturesEl.createEl("h3", {text: "Creatures"});
+			creaturesEl.createDiv({cls: "fiveetools-encounter__roster"});
+		}
+		const rosterEl = creaturesEl.querySelector(".fiveetools-encounter__roster");
+		let combatants = combatantsFromSnapshot(parsed.snapshot);
+		let selectedId = combatants[0]?.id || null;
+
+		const persist = async () => {
+			const snapshot = {
+				sourceId: parsed.snapshot?.sourceId || "",
+				party: parsed.snapshot?.party || null,
+				combatants: snapshotCombatants(combatants),
+			};
+			parsed = {...parsed, snapshot};
+			const written = await writeEntry(plugin, slug, "encounters", {
+				path: selectedPath,
+				fields: {
+					...parsed.fields,
+					name: parsed.fields?.name || fileStem(selectedPath),
+				},
+				body: parsed.body,
+				snapshot,
+			});
+			if (written?.path && written.path !== selectedPath) {
+				selectedPath = written.path;
+				emit();
+			}
+		};
+
+		const openSelected = () => {
+			const hit = combatants.find(it => it.id === selectedId);
+			if (!hit?.doc) {
+				resultEl.empty();
+				resultEl.createEl("p", {
+					cls: "fiveetools-view__meta",
+					text: combatants.length ? "Select a creature." : "No creatures yet.",
+				});
+				return;
+			}
+			void renderEntityPanel(resultEl, plugin, hit.doc);
+		};
+
+		const paintRoster = () => {
+			rosterEl.empty();
+			if (!combatants.length) {
+				rosterEl.createEl("p", {
+					cls: "fiveetools-view__meta",
+					text: "No creatures yet. Open in composer to add some.",
+				});
+				return;
+			}
+			for (const combatant of combatants) {
+				renderCombatantRow(rosterEl, combatant, {
+					app,
+					selected: combatant.id === selectedId,
+					onSelect: () => {
+						selectedId = combatant.id;
+						paintRoster();
+						openSelected();
+					},
+					onHp: (nextHp) => {
+						combatant.hpCurrent = nextHp;
+						paintRoster();
+						void persist().catch((e) => new Notice(e.message || "Could not save HP."));
+					},
+					onRemove: () => {
+						combatants = combatants.filter(it => it.id !== combatant.id);
+						if (selectedId === combatant.id) selectedId = combatants[combatants.length - 1]?.id || null;
+						paintRoster();
+						openSelected();
+						void persist().catch((e) => new Notice(e.message || "Could not save encounter."));
+					},
+				});
+			}
+		};
+
+		paintRoster();
+		openSelected();
+	};
+
 	const paintEditor = async () => {
 		if (!slug || !selectedPath) {
 			showPlaceholder();
+			return;
+		}
+		if (sectionId === "encounters") {
+			paintEncounterPane();
 			return;
 		}
 		const file = app?.vault?.getAbstractFileByPath?.(selectedPath);
@@ -335,6 +444,24 @@ export function renderCampaignManager (formEl, resultEl, {
 	searchEl.addEventListener("input", () => paintList());
 	newBtn.addEventListener("click", async () => {
 		try {
+			if (sectionId === "encounters") {
+				if (!slug) throw new Error("Create a campaign first.");
+				const name = String(noteNameEl.value || "").trim();
+				noteNameEl.value = "";
+				const next = {
+					combatants: [],
+					selectedId: null,
+					name,
+					savedId: null,
+					pickedId: null,
+					showBlank: false,
+					blankDraft: null,
+					saveToHomebrew: false,
+				};
+				setEncounterInstance(next);
+				onOpenComposer?.(next, {slug, selectedPath: ""});
+				return;
+			}
 			const created = await createEntry(plugin, slug, sectionId, noteNameEl.value);
 			noteNameEl.value = "";
 			entries = await listEntries(plugin, slug, sectionId);
@@ -371,16 +498,15 @@ export function renderCampaignManager (formEl, resultEl, {
 		}
 	});
 	openComposerBtn.addEventListener("click", async () => {
-		const text = selectedPath ? await readEntryText(plugin, selectedPath) : "";
+		if (!selectedPath) return;
+		const text = await readEntryText(plugin, selectedPath);
 		parsed = parseCampaignMarkdown(text);
-		const snapshot = currentSnapshot();
-		if (!snapshot) return;
 		const next = sessionFromCampaignEncounter({
-			fields: {name: parsed.fields?.name || ""},
-			snapshot,
+			fields: {name: parsed.fields?.name || fileStem(selectedPath)},
+			snapshot: currentSnapshot() || {combatants: []},
 		});
 		setEncounterInstance(next);
-		onOpenComposer?.(next);
+		onOpenComposer?.(next, {slug, selectedPath});
 	});
 
 	void reloadCampaigns().catch((e) => {
