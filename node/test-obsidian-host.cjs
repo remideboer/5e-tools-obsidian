@@ -16,6 +16,12 @@ const obsidianMock = {
 		addButton () { return this; }
 	},
 	Notice: class Notice { constructor (msg) { console.log("Notice:", msg); } },
+	MarkdownRenderer: {
+		render: async (_app, md, el) => {
+			if (el?.createEl) el.createEl("div", {text: md});
+			else if (el) el.textContent = String(md || "");
+		},
+	},
 	addIcon () {},
 	normalizePath: (p) => String(p || "").replace(/\\/g, "/"),
 	requestUrl: async ({url}) => ({arrayBuffer: Buffer.from(`img:${url}`)}),
@@ -628,6 +634,46 @@ function search (term) {
 		typeCr: typeCrHits.length,
 		cr30: cr30Hits.slice(0, 3).map(d => d.n),
 	});
+
+	if (typeof host.parseCampaignMarkdown !== "function") throw new Error("campaign markdown helpers missing");
+	const playerMd = host.serializeCampaignMarkdown({
+		fields: {name: "Alice", type: "player", class: "Fighter", level: 3},
+		body: "Lives in Phandalin.",
+	});
+	const playerParsed = host.parseCampaignMarkdown(playerMd);
+	if (playerParsed.fields.name !== "Alice" || playerParsed.fields.class !== "Fighter" || playerParsed.fields.level !== 3) {
+		throw new Error(`player round-trip fields ${JSON.stringify(playerParsed.fields)}`);
+	}
+	if (!/Phandalin/.test(playerParsed.body)) throw new Error("player body missing");
+	const savedEnc = {
+		id: "e1",
+		name: "Goblin Ambush",
+		party: {count: 4, level: 2},
+		combatants: [{label: "Goblin 1", hp: 7, hpMax: 7, ac: 15}],
+	};
+	const encEntry = host.entryFromSavedEncounter(savedEnc);
+	if (encEntry.fields.name !== "Goblin Ambush" || encEntry.snapshot.combatants[0].label !== "Goblin 1") {
+		throw new Error("encounter snapshot lost combatants");
+	}
+	const encMd = host.serializeCampaignMarkdown(encEntry);
+	const encParsed = host.parseCampaignMarkdown(encMd);
+	if (encParsed.snapshot?.combatants?.[0]?.label !== "Goblin 1") throw new Error("encounter markdown lost combatants");
+	if (encParsed.fields.sourceId !== "e1") throw new Error("encounter sourceId missing");
+	const composerSession = host.sessionFromCampaignEncounter(encParsed);
+	if (composerSession.combatants[0].label !== "Goblin 1") throw new Error("composer session lost combatants");
+	if (typeof host.planSaveEntryText !== "function") throw new Error("planSaveEntryText missing");
+	const savePlan = host.planSaveEntryText(
+		"encounters",
+		"5etools/_campaigns/foo/encounters",
+		"5etools/_campaigns/foo/encounters/goblin-ambush.md",
+		encMd,
+	);
+	if (savePlan.parsed.snapshot?.combatants?.[0]?.label !== "Goblin 1") throw new Error("saveEntryText lost combatants");
+	if (savePlan.text !== encMd) throw new Error("saveEntryText rewrote markdown");
+	if (savePlan.nextPath !== "5etools/_campaigns/foo/encounters/goblin-ambush.md") throw new Error("saveEntryText renamed unexpectedly");
+	const renamePlan = host.planSaveEntryText("players", "x/players", "x/players/old.md", playerMd);
+	if (renamePlan.nextPath !== "x/players/alice.md") throw new Error(`player save path ${renamePlan.nextPath}`);
+	console.log("campaign md", {player: playerParsed.fields.name, encounter: encParsed.fields.name});
 
 	if (typeof host.cachedMediaSrc !== "function") throw new Error("cachedMediaSrc missing from host");
 	const os = require("os");

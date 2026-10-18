@@ -7,6 +7,7 @@ import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js"
 import {renderLootGenerator} from "./loot-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
+import {renderCampaignManager} from "./campaign-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -210,6 +211,10 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		this.listEl.empty();
+		if (item?.tool !== "campaign" && this.readerEl?.querySelector(".fiveetools-campaign__editor")) {
+			this.readerEl.empty();
+			this.readerEl.removeClass("fiveetools-campaign-reader");
+		}
 
 		if (item?.tool === "loot") {
 			this.searchEl.style.display = "none";
@@ -252,6 +257,29 @@ export class FiveEToolsLibraryView extends ItemView {
 				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
 				onSessionChange: (next) => { this.plugin._homebrewSession = next; },
 			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "campaign") {
+			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._campaignSession || {sectionId: "overview"};
+			try {
+				renderCampaignManager(this.listEl, this.readerEl, {
+					session,
+					plugin: this.plugin,
+					app: this.app,
+					onSessionChange: (next) => { this.plugin._campaignSession = next; },
+					onOpenComposer: (next) => {
+						this.plugin._encounterSession = next;
+						this.selectNav("encounter");
+					},
+				});
+			} catch (e) {
+				this.listEl.empty();
+				this.listEl.createEl("p", {text: e.message || "Could not open Campaigns."});
+			}
 			this.docs = [];
 			return;
 		}
@@ -324,7 +352,7 @@ function sameDoc (a, b) {
 }
 
 function clearListToolClasses (el) {
-	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew");
+	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign");
 }
 
 function paintBestiaryFilters (hostEl, filters, onChange) {

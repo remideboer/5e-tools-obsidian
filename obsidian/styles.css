@@ -181,6 +181,67 @@
 	flex-direction: row;
 }
 
+.fiveetools-campaign__select {
+	flex: 1;
+	min-width: 0;
+}
+
+.fiveetools-library__list.fiveetools-campaign {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding: 0;
+}
+
+.fiveetools-campaign {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
+}
+
+.fiveetools-campaign > .fiveetools-homebrew__catalog {
+	flex: 1 1 auto;
+	border-right: none;
+}
+
+.fiveetools-library__reader.fiveetools-campaign-reader {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	padding: 12px 16px;
+}
+
+.fiveetools-campaign__editor {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	gap: 8px;
+	height: 100%;
+}
+
+.fiveetools-campaign__textarea {
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+	resize: none;
+	font-family: var(--font-text);
+	line-height: 1.5;
+	padding: 8px 10px;
+	box-sizing: border-box;
+}
+
+.fiveetools-campaign__map {
+	max-width: 100%;
+	max-height: 240px;
+	object-fit: contain;
+	display: block;
+	margin: 0;
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+
 .fiveetools-library__search {
 	margin: 10px 10px 6px;
 	width: calc(100% - 20px);
