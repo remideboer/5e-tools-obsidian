@@ -131,7 +131,9 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.navId = navId;
 		this.selectedDoc = null;
 		this.globalQuery = "";
+		this.query = "";
 		if (this.globalSearchEl) this.globalSearchEl.value = "";
+		if (this.searchEl) this.searchEl.value = "";
 		this.renderNav();
 		this.refreshList();
 	}
