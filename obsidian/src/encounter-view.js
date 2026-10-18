@@ -67,6 +67,32 @@ export function initiativeFromEnt (ent) {
 	return Math.floor((ent.dex - 10) / 2);
 }
 
+export function dexFromEnt (ent) {
+	const n = Number(ent?.dex);
+	return Number.isFinite(n) ? n : null;
+}
+
+export function kindKey (combatant) {
+	if (combatant?.doc?.u && combatant?.doc?.s) return `${combatant.doc.u}|${combatant.doc.s}`;
+	const custom = String(combatant?.ent?.name || "").trim();
+	if (custom) return `ent:${custom.toLowerCase()}`;
+	return String(combatant?.label || "").replace(/\s+\d+$/, "").trim().toLowerCase() || "creature";
+}
+
+export function groupCombatants (list) {
+	const groups = [];
+	const ix = new Map();
+	for (const combatant of list || []) {
+		const key = kindKey(combatant);
+		if (!ix.has(key)) {
+			ix.set(key, groups.length);
+			groups.push([]);
+		}
+		groups[ix.get(key)].push(combatant);
+	}
+	return groups.flat();
+}
+
 function formatBonus (n) {
 	if (n == null || !Number.isFinite(Number(n))) return "—";
 	const v = Number(n);
@@ -83,6 +109,7 @@ export async function addCombatants (session, doc, count = 1) {
 	const cr = crFromEnt(ent);
 	const ac = acFromEnt(ent);
 	const initiative = initiativeFromEnt(ent);
+	const dex = dexFromEnt(ent);
 	const combatants = [...(session?.combatants || [])];
 	bumpIdCounter(combatants);
 	const added = [];
@@ -96,12 +123,13 @@ export async function addCombatants (session, doc, count = 1) {
 			cr,
 			ac,
 			initiative,
+			dex,
 		};
 		combatants.push(combatant);
 		added.push(combatant);
 	}
 	return {
-		combatants,
+		combatants: groupCombatants(combatants),
 		selectedId: added[added.length - 1].id,
 		added,
 	};
@@ -116,6 +144,7 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 	const cr = crFromEnt(ent);
 	const ac = acFromEnt(ent);
 	const initiative = initiativeFromEnt(ent);
+	const dex = dexFromEnt(ent);
 	const combatants = [...(session?.combatants || [])];
 	bumpIdCounter(combatants);
 	const added = [];
@@ -132,12 +161,13 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 			cr,
 			ac,
 			initiative,
+			dex,
 		};
 		combatants.push(combatant);
 		added.push(combatant);
 	}
 	return {
-		combatants,
+		combatants: groupCombatants(combatants),
 		selectedId: added[added.length - 1].id,
 		added,
 	};
@@ -159,7 +189,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	formEl.empty();
 	formEl.addClass("fiveetools-encounter");
 
-	let combatants = cloneCombatants(session?.combatants);
+	let combatants = groupCombatants(cloneCombatants(session?.combatants));
 	let selectedId = session?.selectedId || null;
 	let name = session?.name || "";
 	let party = normalizeParty(session?.party);
@@ -304,6 +334,11 @@ export function renderEncounterComposer (formEl, resultEl, {
 	};
 
 	const paintRoster = () => {
+		const grouped = groupCombatants(combatants);
+		const changed = grouped.length !== combatants.length
+			|| grouped.some((it, i) => it.id !== combatants[i]?.id);
+		combatants = grouped;
+		if (changed) emit();
 		rosterEl.empty();
 		if (!combatants.length) {
 			rosterEl.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures yet."});
@@ -415,7 +450,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	};
 
 	const applySaved = (saved) => {
-		combatants = cloneCombatants(saved.combatants);
+		combatants = groupCombatants(cloneCombatants(saved.combatants));
 		selectedId = saved.selectedId && combatants.some(it => it.id === saved.selectedId)
 			? saved.selectedId
 			: (combatants[combatants.length - 1]?.id || null);
@@ -626,6 +661,8 @@ function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, 
 	stats.createEl("span", {text: `AC ${combatant.ac != null ? combatant.ac : "—"}`});
 	stats.createEl("span", {text: `HP ${combatant.hpCurrent}/${combatant.hpMax}`});
 	stats.createEl("span", {text: `Init ${formatBonus(combatant.initiative)}`});
+	const dex = combatant.dex ?? dexFromEnt(combatant.ent);
+	stats.createEl("span", {text: dex != null ? String(dex) : "—", attr: {title: "Passive initiative"}});
 
 	const hp = row.createDiv({cls: "fiveetools-encounter__hp"});
 	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
@@ -747,6 +784,8 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.hpMaxFromEnt = hpMaxFromEnt;
 	globalThis.FiveEToolsObsidian.acFromEnt = acFromEnt;
 	globalThis.FiveEToolsObsidian.initiativeFromEnt = initiativeFromEnt;
+	globalThis.FiveEToolsObsidian.dexFromEnt = dexFromEnt;
+	globalThis.FiveEToolsObsidian.groupCombatants = groupCombatants;
 	globalThis.FiveEToolsObsidian.adjustHp = adjustHp;
 	globalThis.FiveEToolsObsidian.encounterDifficulty = encounterDifficulty;
 	globalThis.FiveEToolsObsidian.normalizeParty = normalizeParty;

@@ -217,6 +217,18 @@ function search (term) {
 	}
 	if (enc.added[0].ac !== 15) throw new Error(`goblin AC should be 15, got ${enc.added[0].ac}`);
 	if (enc.added[0].initiative !== 2) throw new Error(`goblin Init should be +2, got ${enc.added[0].initiative}`);
+	if (enc.added[0].dex !== 14) throw new Error(`goblin Dex should be 14, got ${enc.added[0].dex}`);
+	const otherDocs = search("wolf").filter(d => String(d.cf).toLowerCase() === "bestiary");
+	const otherDoc = otherDocs.find(d => /^wolf$/i.test(d.n)) || goblins.find(d => d.u !== doc.u);
+	if (!otherDoc) throw new Error("no second creature for initiative grouping");
+	const withOther = await host.addCombatants({combatants: enc.combatants, selectedId: enc.selectedId}, otherDoc, 1);
+	const grouped = await host.addCombatants({combatants: withOther.combatants, selectedId: withOther.selectedId}, doc, 1);
+	const gobKeys = grouped.combatants
+		.map((it, i) => (it.doc?.u === doc.u && it.doc?.s === doc.s) ? i : -1)
+		.filter(i => i >= 0);
+	if (gobKeys.length !== 3 || gobKeys[2] - gobKeys[0] !== 2) {
+		throw new Error(`goblins should stay grouped, got ${grouped.combatants.map(it => it.label).join(", ")}`);
+	}
 	if (host.adjustHp(expectedHp, expectedHp, 1) !== expectedHp) throw new Error("HP + should clamp to max");
 	if (host.adjustHp(0, expectedHp, -1) !== 0) throw new Error("HP - should clamp to 0");
 	const encEnt = await DataLoader.pCacheAndGet(page, enc.added[0].doc.s, enc.added[0].doc.u, {isSilent: true});
