@@ -1,5 +1,6 @@
 import {searchEntities} from "./search-index.js";
 import {newNamedRow, normalizeMonsterForm} from "./homebrew-store.js";
+import {applyCalculatedCr, estimateCreatureCr} from "./creature-cr.js";
 
 const SIZES = [
 	{id: "T", label: "Tiny"},
@@ -154,10 +155,8 @@ function monsterStatFields () {
 		{key: "resist", label: "Resistances", input: "picklist", options: DAMAGE_TYPES, placeholder: "or type a custom resistance"},
 		{key: "immune", label: "Immunities", input: "picklist", options: DAMAGE_TYPES, placeholder: "or type a custom immunity"},
 		{key: "conditionImmune", label: "Condition immunities", input: "picklist", options: CONDITIONS, placeholder: "or type a custom condition"},
-		{kind: "grid", fields: [
-			{key: "languages", label: "Languages"},
-			{key: "cr", label: "Challenge rating", input: "select", options: CHALLENGE_RATINGS},
-		]},
+		{key: "languages", label: "Languages"},
+		{kind: "cr"},
 	];
 }
 
@@ -165,7 +164,12 @@ export function renderCreatureForm (parent, draft, {onChange} = {}) {
 	const next = normalizeMonsterForm(draft);
 	for (const key of Object.keys(next)) draft[key] = next[key];
 
-	const emit = () => onChange?.(draft);
+	let paintCr = () => {};
+	const emit = () => {
+		applyCalculatedCr(draft);
+		paintCr();
+		onChange?.(draft);
+	};
 	const who = () => String(draft.name || "").trim() || "the creature";
 
 	parent.addClass("fiveetools-creatureform");
@@ -175,8 +179,14 @@ export function renderCreatureForm (parent, draft, {onChange} = {}) {
 			for (const child of field.fields) addField(grid, child, draft, emit);
 			continue;
 		}
+		if (field.kind === "cr") {
+			paintCr = addCrField(parent, draft, emit);
+			continue;
+		}
 		addField(parent, field, draft, emit);
 	}
+	applyCalculatedCr(draft);
+	paintCr();
 
 	renderNamedSection(parent, "Traits", "traits", TRAIT_TEMPLATES, draft, who, emit);
 	renderNamedSection(parent, "Actions", "actions", ACTION_TEMPLATES, draft, who, emit);
@@ -324,6 +334,47 @@ function renderSpellSection (parent, draft, emit) {
 
 	searchEl.addEventListener("input", () => paintHits());
 	paintSpells();
+}
+
+function addCrField (parent, draft, emit) {
+	const wrap = parent.createDiv({cls: "fiveetools-homebrew__field"});
+	wrap.createEl("label", {text: "Challenge rating"});
+	const hint = wrap.createEl("div", {cls: "fiveetools-creatureform__crhint"});
+	const row = wrap.createDiv({cls: "fiveetools-creatureform__cr"});
+	const select = row.createEl("select", {attr: {title: "Challenge rating"}});
+	for (const opt of CHALLENGE_RATINGS) {
+		select.createEl("option", {attr: {value: opt.id}, text: opt.label});
+	}
+	const checkWrap = wrap.createEl("label", {cls: "fiveetools-homebrew__check", attr: {title: "Keep this CR instead of the calculated value"}});
+	const cb = checkWrap.createEl("input", {attr: {type: "checkbox"}});
+	checkWrap.createSpan({text: "Override calculated CR"});
+
+	const paint = () => {
+		const info = estimateCreatureCr(draft);
+		if (info.cr) {
+			const bits = [`Calculated CR ${info.cr}`];
+			if (info.defensive || info.offensive) {
+				bits.push(`(Def ${info.defensive || "—"} · Off ${info.offensive || "—"})`);
+			}
+			hint.setText(bits.join(" "));
+		} else {
+			hint.setText("Calculated CR — (needs HP/AC or attack damage)");
+		}
+		select.value = draft.cr || "0";
+		select.toggleAttribute("disabled", !draft.crOverride);
+		cb.checked = !!draft.crOverride;
+	};
+
+	cb.addEventListener("change", () => {
+		draft.crOverride = cb.checked;
+		emit();
+	});
+	select.addEventListener("change", () => {
+		draft.crOverride = true;
+		draft.cr = select.value;
+		emit();
+	});
+	return paint;
 }
 
 function addField (parent, field, draft, emit) {

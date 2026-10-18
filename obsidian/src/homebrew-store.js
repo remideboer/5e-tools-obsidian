@@ -193,6 +193,7 @@ export function emptyForm (typeId) {
 			conditionImmune: "",
 			languages: "Common",
 			cr: "0",
+			crOverride: false,
 			traits: [],
 			actions: [],
 			bonus: [],
@@ -261,6 +262,7 @@ export function normalizeMonsterForm (form) {
 	next.spells = coerceSpells(form?.spells);
 	next.spellAbility = String(form?.spellAbility || "int").toLowerCase();
 	if (!["int", "wis", "cha"].includes(next.spellAbility)) next.spellAbility = "int";
+	next.crOverride = !!form?.crOverride;
 	bumpNamedRowId([next.traits, next.actions, next.bonus, next.reactions, next.spells].flat());
 	return next;
 }
@@ -534,6 +536,7 @@ function monsterToForm (ent) {
 	form.conditionImmune = protToText(ent.conditionImmune);
 	form.languages = (ent.languages || []).join(", ");
 	form.cr = String(ent.cr?.cr ?? ent.cr ?? "0");
+	form.crOverride = true;
 	form.traits = namedEntriesToRows(ent.trait);
 	form.actions = namedEntriesToRows(ent.action);
 	form.bonus = namedEntriesToRows(ent.bonus);

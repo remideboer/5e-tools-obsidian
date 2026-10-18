@@ -715,6 +715,27 @@
 	min-width: 0;
 }
 
+.fiveetools-creatureform__cr {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.fiveetools-creatureform__cr select {
+	flex: 1;
+	min-width: 0;
+}
+
+.fiveetools-creatureform .fiveetools-homebrew__check {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+.fiveetools-creatureform__crhint {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
 .fiveetools-homebrew__check {
 	display: flex;
 	align-items: center;

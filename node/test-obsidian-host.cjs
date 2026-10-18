@@ -365,6 +365,24 @@ function search (term) {
 	if (host.hpAverageFromFormula("2d8+2") !== 11) {
 		throw new Error(`2d8+2 should average 11, got ${host.hpAverageFromFormula("2d8+2")}`);
 	}
+	if (typeof host.estimateCreatureCr !== "function" || typeof host.applyCalculatedCr !== "function") {
+		throw new Error("creature CR helpers missing from host");
+	}
+	const gobCr = host.estimateCreatureCr({
+		ac: "15",
+		hpFormula: "2d6",
+		actions: [{name: "Scimitar", text: "{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h} {@damage 1d6+2} Slashing damage."}],
+	});
+	if (gobCr.cr !== "1/4") {
+		throw new Error(`goblin-like stats should estimate CR 1/4, got ${JSON.stringify(gobCr)}`);
+	}
+	const locked = {ac: "15", hpFormula: "2d6", cr: "5", crOverride: true};
+	host.applyCalculatedCr(locked);
+	if (locked.cr !== "5") throw new Error("override should keep a chosen CR");
+	locked.crOverride = false;
+	host.applyCalculatedCr(locked);
+	if (locked.cr !== "1/4") throw new Error(`auto CR should replace unlocked CR, got ${locked.cr}`);
+	if (!goblinStarter.crOverride) throw new Error("library starter should keep published CR until unlocked");
 	if (typeof host.cacheEntityInDataLoader !== "function") throw new Error("cacheEntityInDataLoader missing from host");
 	const previewSpell = host.buildEntity("spell", {
 		name: "HB Preview Bolt",
