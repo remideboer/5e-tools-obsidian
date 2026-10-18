@@ -1,4 +1,5 @@
 import {Notice} from "obsidian";
+import {closeCampaignNote, openCampaignNote} from "./campaign-editor.js";
 import {
 	CAMPAIGN_SECTIONS,
 	createCampaign,
@@ -10,11 +11,16 @@ import {
 	listEntries,
 	parseCampaignMarkdown,
 	readEntryText,
-	saveEntryText,
 	sessionFromCampaignEncounter,
 	writeEntry,
 } from "./campaign-store.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
+
+export function teardownCampaignManager (plugin) {
+	plugin?._campaignVaultOff?.();
+	if (plugin) plugin._campaignVaultOff = null;
+	closeCampaignNote(plugin);
+}
 
 export function renderCampaignManager (formEl, resultEl, {
 	session,
@@ -31,10 +37,7 @@ export function renderCampaignManager (formEl, resultEl, {
 	let selectedPath = session?.selectedPath || "";
 	let campaigns = [];
 	let entries = [];
-	let editorText = "";
 	let parsed = parseCampaignMarkdown("");
-	let saveTimer = null;
-	let dirty = false;
 
 	const catalogEl = formEl.createDiv({cls: "fiveetools-homebrew__catalog"});
 	catalogEl.createEl("h3", {text: "Campaigns"});
@@ -72,6 +75,7 @@ export function renderCampaignManager (formEl, resultEl, {
 	};
 
 	const showPlaceholder = (text) => {
+		closeCampaignNote(plugin);
 		resultEl.empty();
 		resultEl.removeClass("fiveetools-campaign-reader");
 		resultEl.createEl("p", {
@@ -80,7 +84,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		});
 	};
 
-	const currentSnapshot = () => parsed.snapshot || parseCampaignMarkdown(editorText).snapshot;
+	const currentSnapshot = () => parsed.snapshot;
 
 	const paintCampaignSelect = () => {
 		campaignSel.empty();
@@ -104,10 +108,8 @@ export function renderCampaignManager (formEl, resultEl, {
 			btn.toggleAttribute("disabled", !slug);
 			btn.addEventListener("click", () => {
 				void (async () => {
-					await flushSave();
 					sectionId = section.id;
 					selectedPath = "";
-					editorText = "";
 					parsed = parseCampaignMarkdown("");
 					if (sectionId === "overview") await loadOverview();
 					else await reloadEntries();
@@ -169,67 +171,45 @@ export function renderCampaignManager (formEl, resultEl, {
 		}
 	};
 
-	const paintEditor = () => {
-		resultEl.empty();
+	const editorHost = () => {
+		resultEl.addClass("fiveetools-campaign-reader");
+		let wrap = resultEl.querySelector(".fiveetools-campaign__editor");
+		if (!wrap) {
+			resultEl.empty();
+			resultEl.addClass("fiveetools-campaign-reader");
+			wrap = resultEl.createDiv({cls: "fiveetools-campaign__editor"});
+		}
+		return wrap;
+	};
+
+	const paintEditor = async () => {
 		if (!slug || !selectedPath) {
 			showPlaceholder();
 			return;
 		}
-		resultEl.addClass("fiveetools-campaign-reader");
-		const wrap = resultEl.createDiv({cls: "fiveetools-campaign__editor"});
-		if (sectionId === "maps" && parsed.fields?.image) {
-			const src = vaultResource(app, parsed.fields.image);
-			if (src) wrap.createEl("img", {attr: {src, alt: parsed.fields.name || "Map"}, cls: "fiveetools-campaign__map"});
+		const file = app?.vault?.getAbstractFileByPath?.(selectedPath);
+		if (!file || file.children) {
+			showPlaceholder("Note is missing.");
+			return;
 		}
-		const ta = wrap.createEl("textarea", {cls: "fiveetools-campaign__textarea"});
-		ta.value = editorText;
-		ta.addEventListener("input", () => {
-			editorText = ta.value;
-			parsed = parseCampaignMarkdown(editorText);
-			dirty = true;
-			openComposerBtn.disabled = sectionId !== "encounters" || !currentSnapshot();
-			scheduleSave();
-			emit();
-		});
-	};
-
-	const flushSave = async () => {
-		if (saveTimer) {
-			clearTimeout(saveTimer);
-			saveTimer = null;
-		}
-		if (!dirty || !slug || !selectedPath) return;
 		try {
-			const saved = await saveEntryText(plugin, slug, sectionId, selectedPath, editorText);
-			selectedPath = saved.path;
-			parsed = saved;
-			dirty = false;
-			if (sectionId === "overview") {
-				campaigns = await listCampaigns(plugin);
-				paintCampaignSelect();
-			} else {
-				entries = await listEntries(plugin, slug, sectionId);
-				paintList();
-			}
+			await openCampaignNote(plugin, editorHost(), file);
 		} catch (e) {
-			new Notice(e.message || "Could not save.");
+			showPlaceholder(e.message || "Could not open note.");
 		}
 	};
 
-	const scheduleSave = () => {
-		if (saveTimer) clearTimeout(saveTimer);
-		saveTimer = setTimeout(() => { void flushSave(); }, 400);
+	const refreshParsed = async (filePath) => {
+		const text = filePath ? await readEntryText(plugin, filePath) : "";
+		parsed = parseCampaignMarkdown(text);
+		paintImport();
+		paintList();
 	};
 
 	const openPath = async (filePath) => {
-		await flushSave();
 		selectedPath = filePath || "";
-		editorText = selectedPath ? await readEntryText(plugin, selectedPath) : "";
-		parsed = parseCampaignMarkdown(editorText);
-		dirty = false;
-		paintList();
-		paintImport();
-		paintEditor();
+		await refreshParsed(selectedPath);
+		await paintEditor();
 		emit();
 	};
 
@@ -250,7 +230,6 @@ export function renderCampaignManager (formEl, resultEl, {
 		paintList();
 		if (selectedPath) await openPath(selectedPath);
 		else {
-			editorText = "";
 			parsed = parseCampaignMarkdown("");
 			showPlaceholder();
 			emit();
@@ -265,7 +244,6 @@ export function renderCampaignManager (formEl, resultEl, {
 		if (!slug) {
 			sectionId = "overview";
 			selectedPath = "";
-			editorText = "";
 			parsed = parseCampaignMarkdown("");
 			entries = [];
 			paintTabs();
@@ -278,6 +256,37 @@ export function renderCampaignManager (formEl, resultEl, {
 		else await reloadEntries();
 	};
 
+	const onVaultModify = (file) => {
+		if (!file?.path) return;
+		if (file.path === selectedPath || entries.some(it => it.path === file.path)) {
+			void (async () => {
+				if (sectionId === "overview") {
+					campaigns = await listCampaigns(plugin);
+					paintCampaignSelect();
+				} else {
+					entries = await listEntries(plugin, slug, sectionId);
+				}
+				if (file.path === selectedPath) await refreshParsed(selectedPath);
+				else paintList();
+			})();
+		}
+	};
+	const onVaultRename = (file, oldPath) => {
+		if (selectedPath === oldPath) {
+			selectedPath = file?.path || "";
+			emit();
+		}
+		onVaultModify(file);
+	};
+
+	plugin._campaignVaultOff?.();
+	const modifyRef = app?.vault?.on?.("modify", onVaultModify);
+	const renameRef = app?.vault?.on?.("rename", onVaultRename);
+	plugin._campaignVaultOff = () => {
+		app?.vault?.offref?.(modifyRef);
+		app?.vault?.offref?.(renameRef);
+	};
+
 	paintCampaignSelect();
 	paintTabs();
 	paintImport();
@@ -286,11 +295,9 @@ export function renderCampaignManager (formEl, resultEl, {
 
 	campaignSel.addEventListener("change", () => {
 		void (async () => {
-			await flushSave();
 			slug = campaignSel.value;
 			sectionId = "overview";
 			selectedPath = "";
-			editorText = "";
 			parsed = parseCampaignMarkdown("");
 			await reloadCampaigns();
 			emit();
@@ -298,7 +305,6 @@ export function renderCampaignManager (formEl, resultEl, {
 	});
 	newCampaignBtn.addEventListener("click", async () => {
 		try {
-			await flushSave();
 			const created = await createCampaign(plugin, newNameEl.value);
 			newNameEl.value = "";
 			slug = created.slug;
@@ -315,15 +321,10 @@ export function renderCampaignManager (formEl, resultEl, {
 		if (!slug) return;
 		const label = campaigns.find(it => it.slug === slug)?.name || slug;
 		if (typeof window !== "undefined" && !window.confirm(`Delete campaign ${label}?`)) return;
-		if (saveTimer) {
-			clearTimeout(saveTimer);
-			saveTimer = null;
-		}
-		dirty = false;
+		closeCampaignNote(plugin);
 		await deleteCampaign(plugin, slug);
 		slug = "";
 		selectedPath = "";
-		editorText = "";
 		parsed = parseCampaignMarkdown("");
 		await reloadCampaigns();
 		emit();
@@ -331,7 +332,6 @@ export function renderCampaignManager (formEl, resultEl, {
 	searchEl.addEventListener("input", () => paintList());
 	newBtn.addEventListener("click", async () => {
 		try {
-			await flushSave();
 			const created = await createEntry(plugin, slug, sectionId, noteNameEl.value);
 			noteNameEl.value = "";
 			entries = await listEntries(plugin, slug, sectionId);
@@ -345,14 +345,9 @@ export function renderCampaignManager (formEl, resultEl, {
 		if (!selectedPath) return;
 		const label = parsed.fields?.name || "this entry";
 		if (typeof window !== "undefined" && !window.confirm(`Delete ${label}?`)) return;
-		if (saveTimer) {
-			clearTimeout(saveTimer);
-			saveTimer = null;
-		}
-		dirty = false;
+		closeCampaignNote(plugin);
 		await deleteEntry(plugin, selectedPath);
 		selectedPath = "";
-		editorText = "";
 		parsed = parseCampaignMarkdown("");
 		await reloadEntries();
 		emit();
@@ -364,7 +359,6 @@ export function renderCampaignManager (formEl, resultEl, {
 			return;
 		}
 		try {
-			await flushSave();
 			const written = await writeEntry(plugin, slug, "encounters", entryFromSavedEncounter(saved));
 			entries = await listEntries(plugin, slug, sectionId);
 			await openPath(written.path);
@@ -373,7 +367,9 @@ export function renderCampaignManager (formEl, resultEl, {
 			new Notice(e.message || "Could not import encounter.");
 		}
 	});
-	openComposerBtn.addEventListener("click", () => {
+	openComposerBtn.addEventListener("click", async () => {
+		const text = selectedPath ? await readEntryText(plugin, selectedPath) : "";
+		parsed = parseCampaignMarkdown(text);
 		const snapshot = currentSnapshot();
 		if (!snapshot) return;
 		const next = sessionFromCampaignEncounter({
@@ -392,10 +388,4 @@ export function renderCampaignManager (formEl, resultEl, {
 		paintList();
 		showPlaceholder(e.message || "Could not load campaigns.");
 	});
-}
-
-function vaultResource (app, vaultPath) {
-	const file = app?.vault?.getAbstractFileByPath?.(String(vaultPath || "").replace(/\\/g, "/"));
-	if (!file || file.children) return "";
-	return app.vault.getResourcePath?.(file) || "";
 }

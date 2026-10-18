@@ -22,6 +22,10 @@ const obsidianMock = {
 			else if (el) el.textContent = String(md || "");
 		},
 	},
+	WorkspaceLeaf: class WorkspaceLeaf {
+		openFile () { return Promise.resolve(); }
+		detach () {}
+	},
 	addIcon () {},
 	normalizePath: (p) => String(p || "").replace(/\\/g, "/"),
 	requestUrl: async ({url}) => ({arrayBuffer: Buffer.from(`img:${url}`)}),

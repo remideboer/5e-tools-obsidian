@@ -7,7 +7,7 @@ import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js"
 import {renderLootGenerator} from "./loot-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
-import {renderCampaignManager} from "./campaign-view.js";
+import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -120,6 +120,8 @@ export class FiveEToolsLibraryView extends ItemView {
 
 	async onClose () {
 		if (this._closeBestiaryMenus) this.contentEl.removeEventListener("click", this._closeBestiaryMenus);
+		teardownCampaignManager(this.plugin);
+		this.readerEl?.removeClass("fiveetools-campaign-reader");
 		this.contentEl.empty();
 	}
 
@@ -201,6 +203,10 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
 		clearListToolClasses(this.listEl);
+		if (item?.tool !== "campaign" || globalTerm.length >= 2) {
+			teardownCampaignManager(this.plugin);
+			this.readerEl?.removeClass("fiveetools-campaign-reader");
+		}
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
@@ -211,10 +217,6 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		this.listEl.empty();
-		if (item?.tool !== "campaign" && this.readerEl?.querySelector(".fiveetools-campaign__editor")) {
-			this.readerEl.empty();
-			this.readerEl.removeClass("fiveetools-campaign-reader");
-		}
 
 		if (item?.tool === "loot") {
 			this.searchEl.style.display = "none";
