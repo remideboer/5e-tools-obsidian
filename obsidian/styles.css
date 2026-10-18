@@ -421,6 +421,8 @@ a.fiveetools-inline-link {
 	z-index: 1000;
 	pointer-events: none;
 	background: transparent;
+	opacity: 1;
+	transition: opacity 1s ease;
 }
 
 .fiveetools-dice-overlay canvas {
