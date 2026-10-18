@@ -55,6 +55,16 @@ const SPELL_ABILITIES = [
 	{id: "cha", label: "Charisma"},
 ];
 
+function numberedOptions (min, max, step = 1) {
+	const out = [];
+	for (let n = min; n <= max; n += step) out.push({id: String(n), label: String(n)});
+	return out;
+}
+
+const ABILITY_SCORES = numberedOptions(1, 30);
+const ARMOR_CLASSES = numberedOptions(1, 30);
+const SPEEDS = numberedOptions(0, 120, 5).map(it => ({id: it.id, label: `${it.label} ft.`}));
+
 const DAMAGE_TYPES = [
 	{id: "acid", label: "Acid"},
 	{id: "bludgeoning", label: "Bludgeoning"},
@@ -134,19 +144,19 @@ function monsterStatFields () {
 		]},
 		{kind: "grid", fields: [
 			{key: "alignment", label: "Alignment", input: "select", options: ALIGNMENTS},
-			{key: "ac", label: "Armor class"},
+			{key: "ac", label: "Armor class", input: "select", options: ARMOR_CLASSES, fallback: "10"},
 		]},
 		{kind: "grid", fields: [
 			{key: "hpFormula", label: "HP formula"},
-			{key: "speed", label: "Speed"},
+			{key: "speed", label: "Speed", input: "select", options: SPEEDS, fallback: "30"},
 		]},
-		{kind: "grid", fields: [
-			{key: "str", label: "STR"},
-			{key: "dex", label: "DEX"},
-			{key: "con", label: "CON"},
-			{key: "int", label: "INT"},
-			{key: "wis", label: "WIS"},
-			{key: "cha", label: "CHA"},
+		{kind: "grid", cols: 3, fields: [
+			{key: "str", label: "STR", input: "select", options: ABILITY_SCORES, fallback: "10"},
+			{key: "dex", label: "DEX", input: "select", options: ABILITY_SCORES, fallback: "10"},
+			{key: "con", label: "CON", input: "select", options: ABILITY_SCORES, fallback: "10"},
+			{key: "int", label: "INT", input: "select", options: ABILITY_SCORES, fallback: "10"},
+			{key: "wis", label: "WIS", input: "select", options: ABILITY_SCORES, fallback: "10"},
+			{key: "cha", label: "CHA", input: "select", options: ABILITY_SCORES, fallback: "10"},
 		]},
 		{key: "saves", label: "Saves (dex +3, wis +2)"},
 		{key: "skills", label: "Skills (perception +5)"},
@@ -175,7 +185,7 @@ export function renderCreatureForm (parent, draft, {onChange} = {}) {
 	parent.addClass("fiveetools-creatureform");
 	for (const field of monsterStatFields()) {
 		if (field.kind === "grid") {
-			const grid = parent.createDiv({cls: "fiveetools-homebrew__grid"});
+			const grid = parent.createDiv({cls: field.cols === 3 ? "fiveetools-homebrew__grid fiveetools-homebrew__grid--3" : "fiveetools-homebrew__grid"});
 			for (const child of field.fields) addField(grid, child, draft, emit);
 			continue;
 		}
@@ -391,7 +401,7 @@ function addField (parent, field, draft, emit) {
 		const opts = [...(field.options || [])];
 		if (current !== "" && !opts.some(opt => opt.id === current)) opts.push({id: current, label: current});
 		for (const opt of opts) el.createEl("option", {attr: {value: opt.id}, text: opt.label});
-		el.value = current || opts[0]?.id || "";
+		el.value = current || field.fallback || opts[0]?.id || "";
 		draft[field.key] = el.value;
 	} else {
 		el = wrap.createEl("input", {
