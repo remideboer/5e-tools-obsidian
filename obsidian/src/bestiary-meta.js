@@ -45,9 +45,14 @@ export const BESTIARY_FILTER_OPTIONS = {
 		{id: "LE", label: "Lawful Evil"},
 		{id: "NE", label: "Neutral Evil"},
 		{id: "CE", label: "Chaotic Evil"},
-		{id: "A", label: "Any"},
+		{id: "G", label: "Any Good"},
+		{id: "E", label: "Any Evil"},
+		{id: "L", label: "Lawful"},
+		{id: "C", label: "Chaotic"},
 	],
 };
+
+const ALIGNMENT_GROUPS = new Set(["G", "E", "L", "C"]);
 
 let officialMap = null;
 
@@ -78,8 +83,15 @@ export function docMatchesBestiaryFilters (doc, filters) {
 	if (filters.types?.length && !filters.types.some(it => meta.types.includes(it))) return false;
 	if (filters.crs?.length && !filters.crs.includes(meta.cr || "0")) return false;
 	if (filters.sizes?.length && !filters.sizes.some(it => meta.sizes.includes(it))) return false;
-	if (filters.alignments?.length && !filters.alignments.some(it => meta.alignments.includes(it))) return false;
+	if (filters.alignments?.length && !alignmentMatches(meta.alignments, filters.alignments)) return false;
 	return true;
+}
+
+function alignmentMatches (codes, selected) {
+	return selected.some(sel => {
+		if (ALIGNMENT_GROUPS.has(sel)) return (codes || []).some(code => String(code).includes(sel));
+		return (codes || []).includes(sel);
+	});
 }
 
 export function resetMonsterMeta () {

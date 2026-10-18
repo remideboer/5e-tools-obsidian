@@ -249,6 +249,13 @@
 	margin: 0;
 }
 
+.fiveetools-bestiary-filters__clear {
+	grid-column: 1 / -1;
+	font-size: 12px;
+	line-height: 1.2;
+	padding: 4px 6px;
+}
+
 .fiveetools-library__list {
 	flex: 1;
 	overflow: auto;

@@ -552,6 +552,12 @@ function search (term) {
 	if (host.docMatchesBestiaryFilters(mmGoblinDoc, {crs: ["30"]})) {
 		throw new Error("goblin should not match CR 30");
 	}
+	if (!host.docMatchesBestiaryFilters(mmGoblinDoc, {alignments: ["E"]})) {
+		throw new Error("goblin should match Any Evil");
+	}
+	if (host.docMatchesBestiaryFilters(mmGoblinDoc, {alignments: ["G"]})) {
+		throw new Error("goblin should not match Any Good");
+	}
 	const goblinHits = host.listEntities({
 		categoriesExact: ["bestiary"],
 		bestiaryFilters: {types: ["humanoid"], crs: ["1/4"], sizes: ["S"], alignments: ["NE"]},

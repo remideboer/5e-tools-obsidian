@@ -334,6 +334,20 @@ function paintBestiaryFilters (hostEl, filters, onChange) {
 	addBestiaryFilter(grid, "CR", "crs", BESTIARY_FILTER_OPTIONS.crs, filters, onChange);
 	addBestiaryFilter(grid, "Size", "sizes", BESTIARY_FILTER_OPTIONS.sizes, filters, onChange);
 	addBestiaryFilter(grid, "Alignment", "alignments", BESTIARY_FILTER_OPTIONS.alignments, filters, onChange);
+	const clear = hostEl.createEl("button", {
+		cls: "fiveetools-bestiary-filters__clear",
+		attr: {type: "button"},
+		text: "Clear filters",
+	});
+	clear.addEventListener("click", (ev) => {
+		ev.stopPropagation();
+		filters.types = [];
+		filters.crs = [];
+		filters.sizes = [];
+		filters.alignments = [];
+		paintBestiaryFilters(hostEl, filters, onChange);
+		onChange();
+	});
 }
 
 function addBestiaryFilter (grid, label, key, options, filters, onChange) {
