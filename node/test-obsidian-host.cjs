@@ -280,6 +280,38 @@ function search (term) {
 		throw new Error("delete should leave the overwritten goblin encounter");
 	}
 
+	if (typeof host.setEncounterInstance !== "function" || typeof host.getEncounterInstance !== "function") {
+		throw new Error("encounter instance helpers missing from host");
+	}
+	const live = enc.combatants.map((it, i) => (i === 0 ? {...it, hpCurrent: 3} : it));
+	host.setEncounterInstance({
+		name: "Live fight",
+		savedId: savedAgain.id,
+		selectedId: enc.added[0].id,
+		combatants: live,
+		party: {count: 4, level: 2},
+	});
+	const inst = host.getEncounterInstance();
+	if (inst.name !== "Live fight" || inst.party?.level !== 2 || inst.combatants?.[0]?.hpCurrent !== 3) {
+		throw new Error(`instance should keep running state, got ${JSON.stringify(inst)}`);
+	}
+	live[0].hpCurrent = 1;
+	if (host.getEncounterInstance().combatants[0].hpCurrent !== 3) {
+		throw new Error("instance should clone combatants");
+	}
+	host.upsertSavedEncounter({name: "Template only", combatants: []});
+	if (host.getEncounterInstance().name !== "Live fight") {
+		throw new Error("named save should not replace the running instance");
+	}
+	host.applyEncountersJson({
+		encounters: [{name: "Keep", combatants: []}],
+		instance: {name: "Live fight", combatants: [{hpCurrent: 3, hpMax: 7, cr: "1/4"}], party: {count: 4, level: 2}},
+	});
+	const restored = host.getEncounterInstance();
+	if (restored.name !== "Live fight" || restored.combatants[0].hpCurrent !== 3 || restored.party.level !== 2) {
+		throw new Error(`instance should round-trip in catalog JSON, got ${JSON.stringify(restored)}`);
+	}
+
 	if (typeof host.hpAverageFromFormula !== "function" || typeof host.buildEntity !== "function" || typeof host.entityToForm !== "function") {
 		throw new Error("homebrew helpers missing from host");
 	}

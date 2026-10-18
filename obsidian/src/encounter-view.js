@@ -16,7 +16,9 @@ import {
 	deleteSavedEncounter,
 	getSavedEncounter,
 	listSavedEncounters,
+	queueSaveEncountersToVault,
 	saveEncountersToVault,
+	setEncounterInstance,
 	upsertSavedEncounter,
 } from "./encounter-store.js";
 import {encounterDifficulty, normalizeParty} from "./encounter-difficulty.js";
@@ -159,7 +161,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	formEl.createEl("h3", {text: "Encounter Composer"});
 	formEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Search the bestiary and click a result to preview its statblock, then Add. Save named encounters to load later.",
+		text: "The running encounter autosaves. Search the bestiary and click a result to preview its statblock, then Add. Use Save to keep a named copy.",
 	});
 
 	let combatants = cloneCombatants(session?.combatants);
@@ -223,7 +225,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		loadBtn.toggleAttribute("disabled", !pickedId);
 		deleteBtn.toggleAttribute("disabled", !pickedId);
 		paintDifficulty();
-		onSessionChange?.({
+		const next = {
 			combatants: cloneCombatants(combatants),
 			selectedId,
 			name,
@@ -233,7 +235,10 @@ export function renderEncounterComposer (formEl, resultEl, {
 			showBlank,
 			blankDraft: normalizeMonsterForm(blankDraft),
 			saveToHomebrew,
-		});
+		};
+		onSessionChange?.(next);
+		setEncounterInstance(next);
+		queueSaveEncountersToVault(plugin);
 	};
 
 	const paintDifficulty = () => {

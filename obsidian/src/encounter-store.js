@@ -2,9 +2,24 @@ import {normalizeParty} from "./encounter-difficulty.js";
 
 let catalogJson = emptyCatalog();
 let nextEncounterId = 1;
+let saveTimer = null;
 
 export function emptyCatalog () {
-	return {encounters: []};
+	return {encounters: [], instance: emptyInstance()};
+}
+
+export function emptyInstance () {
+	return {
+		name: "",
+		savedId: null,
+		pickedId: null,
+		selectedId: null,
+		party: normalizeParty(),
+		combatants: [],
+		showBlank: false,
+		blankDraft: null,
+		saveToHomebrew: false,
+	};
 }
 
 export function getEncountersJson () {
@@ -56,6 +71,34 @@ export async function saveEncountersToVault (plugin) {
 	return getEncountersJson();
 }
 
+export function getEncounterInstance () {
+	return copyJson(catalogJson.instance || emptyInstance());
+}
+
+export function setEncounterInstance (session) {
+	const catalog = normalizeCatalog(catalogJson);
+	catalog.instance = normalizeInstance(session);
+	catalogJson = catalog;
+	return getEncounterInstance();
+}
+
+export function queueSaveEncountersToVault (plugin, delay = 250) {
+	if (!plugin?.app?.vault) return;
+	if (saveTimer) clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => {
+		saveTimer = null;
+		saveEncountersToVault(plugin).catch(() => {});
+	}, delay);
+}
+
+export async function flushEncounterSave (plugin) {
+	if (saveTimer) {
+		clearTimeout(saveTimer);
+		saveTimer = null;
+	}
+	return saveEncountersToVault(plugin);
+}
+
 export function listSavedEncounters () {
 	return (catalogJson.encounters || []).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
@@ -102,6 +145,7 @@ function normalizeCatalog (json) {
 	const encounters = Array.isArray(json?.encounters) ? json.encounters : [];
 	return {
 		encounters: encounters.map(normalizeEncounter).filter(Boolean),
+		instance: normalizeInstance(json?.instance),
 	};
 }
 
@@ -117,6 +161,21 @@ function normalizeEncounter (raw) {
 		selectedId: raw.selectedId || null,
 		party: normalizeParty(raw.party),
 		combatants: cloneCombatants(raw.combatants),
+	};
+}
+
+function normalizeInstance (raw) {
+	if (!raw || typeof raw !== "object") return emptyInstance();
+	return {
+		name: String(raw.name || ""),
+		savedId: raw.savedId || null,
+		pickedId: raw.pickedId || null,
+		selectedId: raw.selectedId || null,
+		party: normalizeParty(raw.party),
+		combatants: cloneCombatants(raw.combatants),
+		showBlank: !!raw.showBlank,
+		blankDraft: raw.blankDraft ? copyJson(raw.blankDraft) : null,
+		saveToHomebrew: !!raw.saveToHomebrew,
 	};
 }
 
@@ -158,4 +217,6 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.getSavedEncounter = getSavedEncounter;
 	globalThis.FiveEToolsObsidian.upsertSavedEncounter = upsertSavedEncounter;
 	globalThis.FiveEToolsObsidian.deleteSavedEncounter = deleteSavedEncounter;
+	globalThis.FiveEToolsObsidian.getEncounterInstance = getEncounterInstance;
+	globalThis.FiveEToolsObsidian.setEncounterInstance = setEncounterInstance;
 }

@@ -8,7 +8,7 @@ import {validateRoot} from "./src/local-fs.js";
 import {getPluginDir} from "./src/plugin-dir.js";
 import {ensureSearchIndex, indexHomebrewDocs} from "./src/search-index.js";
 import {cacheBrewInDataLoader, loadHomebrewFromVault} from "./src/homebrew-store.js";
-import {loadEncountersFromVault} from "./src/encounter-store.js";
+import {flushEncounterSave, getEncounterInstance, loadEncountersFromVault, setEncounterInstance} from "./src/encounter-store.js";
 import {FiveEToolsSettingTab} from "./src/settings.js";
 
 export default class FiveEToolsPlugin extends Plugin {
@@ -73,7 +73,13 @@ export default class FiveEToolsPlugin extends Plugin {
 		cacheBrewInDataLoader();
 		indexHomebrewDocs();
 		await loadEncountersFromVault(this);
+		if (!this._encounterSession) this._encounterSession = getEncounterInstance();
 		return true;
+	}
+
+	onunload () {
+		if (this._encounterSession) setEncounterInstance(this._encounterSession);
+		void flushEncounterSave(this);
 	}
 
 	async openSearch () {
