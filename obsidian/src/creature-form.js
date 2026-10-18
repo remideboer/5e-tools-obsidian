@@ -115,7 +115,11 @@ function monsterStatFields () {
 		]},
 		{key: "saves", label: "Saves (dex +3, wis +2)"},
 		{key: "skills", label: "Skills (perception +5)"},
+		{key: "passive", label: "Passive Perception"},
 		{key: "senses", label: "Senses"},
+		{key: "resist", label: "Resistances (fire, cold)"},
+		{key: "immune", label: "Immunities (poison, fire)"},
+		{key: "conditionImmune", label: "Condition immunities (charmed, frightened)"},
 		{kind: "grid", fields: [
 			{key: "languages", label: "Languages"},
 			{key: "cr", label: "Challenge rating", input: "select", options: CHALLENGE_RATINGS},

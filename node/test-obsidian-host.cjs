@@ -259,6 +259,11 @@ function search (term) {
 		ac: "13",
 		hpFormula: "2d8+2",
 		dex: "14",
+		wis: "12",
+		passive: "15",
+		resist: "fire, cold",
+		immune: "poison",
+		conditionImmune: "charmed, frightened",
 		traits: [{name: "Pack Tactics", text: "Advantage when an ally is near."}],
 		actions: [{name: "Scimitar", text: "Melee attack."}],
 		spells: [{name: "Fire Bolt", source: "XPHB"}],
@@ -269,9 +274,17 @@ function search (term) {
 	if (!customMon.spellcasting?.[0]?.will?.some(it => /Fire Bolt/i.test(it))) {
 		throw new Error(`custom monster missing spellcasting, got ${JSON.stringify(customMon.spellcasting)}`);
 	}
+	if (customMon.passive !== 15) throw new Error(`custom monster passive should be 15, got ${customMon.passive}`);
+	if (!customMon.resist?.includes("fire") || !customMon.immune?.includes("poison")) {
+		throw new Error("custom monster missing resist or immune");
+	}
+	if (!customMon.conditionImmune?.includes("charmed")) throw new Error("custom monster missing condition immunity");
 	const customForm = host.entityToForm("monster", customMon);
 	if (!customForm.traits.some(it => it.name === "Pack Tactics")) throw new Error("trait rows should round-trip");
 	if (!customForm.spells.some(it => it.name === "Fire Bolt")) throw new Error("spell rows should round-trip");
+	if (customForm.passive !== "15" || !/fire/i.test(customForm.resist) || !/charmed/i.test(customForm.conditionImmune)) {
+		throw new Error("passive/resist/immunities should round-trip");
+	}
 	if (typeof host.addCombatantsFromEntity !== "function") throw new Error("addCombatantsFromEntity missing from host");
 	const customEnc = host.addCombatantsFromEntity({combatants: [], selectedId: null}, customMon, 1);
 	if (customEnc.added?.[0]?.ent?.name !== "HB Scout") throw new Error("custom combatant should snapshot ent");

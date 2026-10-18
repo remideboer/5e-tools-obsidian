@@ -186,7 +186,11 @@ export function emptyForm (typeId) {
 			cha: "10",
 			saves: "",
 			skills: "",
+			passive: "10",
 			senses: "",
+			resist: "",
+			immune: "",
+			conditionImmune: "",
 			languages: "Common",
 			cr: "0",
 			traits: [],
@@ -464,7 +468,7 @@ function buildMonster (form) {
 		int: numStat(form?.int, 10),
 		wis,
 		cha: numStat(form?.cha, 10),
-		passive: 10 + Math.floor((wis - 10) / 2),
+		passive: parsePassive(form?.passive, wis),
 		languages: splitComma(form?.languages),
 		cr: String(form?.cr || "0").trim() || "0",
 	};
@@ -475,6 +479,12 @@ function buildMonster (form) {
 	const senses = parseSenses(form?.senses);
 	if (senses.darkvision) ent.darkvision = senses.darkvision;
 	if (senses.senses.length) ent.senses = senses.senses;
+	const resist = splitComma(form?.resist).map(it => it.toLowerCase());
+	if (resist.length) ent.resist = resist;
+	const immune = splitComma(form?.immune).map(it => it.toLowerCase());
+	if (immune.length) ent.immune = immune;
+	const conditionImmune = splitComma(form?.conditionImmune).map(it => it.toLowerCase());
+	if (conditionImmune.length) ent.conditionImmune = conditionImmune;
 	const trait = namedRowsToEntries(form?.traits);
 	if (trait.length) ent.trait = trait;
 	const action = namedRowsToEntries(form?.actions);
@@ -517,7 +527,11 @@ function monsterToForm (ent) {
 	form.cha = String(ent.cha ?? 10);
 	form.saves = bonusMapToText(ent.save);
 	form.skills = bonusMapToText(ent.skill);
+	form.passive = String(ent.passive ?? (10 + Math.floor(((ent.wis ?? 10) - 10) / 2)));
 	form.senses = (ent.senses || []).join(", ");
+	form.resist = protToText(ent.resist);
+	form.immune = protToText(ent.immune);
+	form.conditionImmune = protToText(ent.conditionImmune);
 	form.languages = (ent.languages || []).join(", ");
 	form.cr = String(ent.cr?.cr ?? ent.cr ?? "0");
 	form.traits = namedEntriesToRows(ent.trait);
@@ -906,6 +920,25 @@ function splitComma (raw) {
 function numStat (value, fallback) {
 	const n = Number(value);
 	return Number.isFinite(n) ? n : fallback;
+}
+
+function parsePassive (value, wis) {
+	const auto = 10 + Math.floor((wis - 10) / 2);
+	if (value == null || String(value).trim() === "") return auto;
+	const n = Number(value);
+	return Number.isFinite(n) ? n : auto;
+}
+
+function protToText (list) {
+	return (list || []).map(it => {
+		if (typeof it === "string") return it;
+		const types = it?.resist || it?.immune || it?.vulnerable || [];
+		const bits = [];
+		if (it?.preNote) bits.push(it.preNote);
+		if (types.length) bits.push(types.join(", "));
+		if (it?.note) bits.push(it.note);
+		return bits.filter(Boolean).join(" ");
+	}).filter(Boolean).join(", ");
 }
 
 function titleCase (value) {
