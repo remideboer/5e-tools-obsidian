@@ -355,7 +355,7 @@ function addCrField (parent, draft, emit) {
 	for (const opt of CHALLENGE_RATINGS) {
 		select.createEl("option", {attr: {value: opt.id}, text: opt.label});
 	}
-	const checkWrap = wrap.createEl("label", {cls: "fiveetools-homebrew__check", attr: {title: "Keep this CR instead of the calculated value"}});
+	const checkWrap = row.createEl("label", {cls: "fiveetools-homebrew__check", attr: {title: "Keep this CR instead of the calculated value"}});
 	const cb = checkWrap.createEl("input", {attr: {type: "checkbox"}});
 	checkWrap.createSpan({text: "Override calculated CR"});
 
