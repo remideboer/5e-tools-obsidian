@@ -1,6 +1,17 @@
 import {Modal, Notice} from "obsidian";
-import {searchEntities} from "./search-index.js";
+import {searchEntities, brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
+import {renderCreatureForm} from "./creature-form.js";
+import {
+	buildEntity,
+	cacheBrewInDataLoader,
+	cacheEntityInDataLoader,
+	emptyForm,
+	homebrewType,
+	normalizeMonsterForm,
+	saveHomebrewToVault,
+	upsertEntity,
+} from "./homebrew-store.js";
 import {
 	deleteSavedEncounter,
 	getSavedEncounter,
@@ -93,6 +104,42 @@ export async function addCombatants (session, doc, count = 1) {
 	};
 }
 
+export function addCombatantsFromEntity (session, ent, count = 1) {
+	if (!ent?.name) throw new Error("Name is required.");
+	cacheEntityInDataLoader(ent, "monster");
+	const doc = brewDocFromEntity(ent, homebrewType("monster"));
+	const n = Math.max(1, Math.min(20, Number(count) || 1));
+	const hpMax = hpMaxFromEnt(ent);
+	const cr = crFromEnt(ent);
+	const ac = acFromEnt(ent);
+	const initiative = initiativeFromEnt(ent);
+	const combatants = [...(session?.combatants || [])];
+	bumpIdCounter(combatants);
+	const added = [];
+	const snapshot = JSON.parse(JSON.stringify(ent));
+	for (let i = 0; i < n; i++) {
+		const combatant = {
+			id: `c${nextCombatantId++}`,
+			label: nextLabel(ent.name, combatants),
+			doc: serializeDoc(doc),
+			ent: JSON.parse(JSON.stringify(snapshot)),
+			custom: true,
+			hpMax,
+			hpCurrent: hpMax,
+			cr,
+			ac,
+			initiative,
+		};
+		combatants.push(combatant);
+		added.push(combatant);
+	}
+	return {
+		combatants,
+		selectedId: added[added.length - 1].id,
+		added,
+	};
+}
+
 export function adjustHp (current, max, delta) {
 	const cur = Number(current) || 0;
 	const cap = Number(max) || 0;
@@ -120,6 +167,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let savedId = session?.savedId || null;
 	let pickedId = session?.pickedId || savedId || null;
 	let previewKey = null;
+	let showBlank = !!session?.showBlank;
+	let blankDraft = normalizeMonsterForm(session?.blankDraft || emptyForm("monster"));
+	let saveToHomebrew = !!session?.saveToHomebrew;
 	bumpIdCounter(combatants);
 
 	const nameRow = formEl.createDiv({cls: "fiveetools-encounter__row"});
@@ -144,7 +194,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 		cls: "fiveetools-encounter__count",
 		attr: {type: "number", min: "1", max: "20", value: "1", title: "Copies to add"},
 	});
+	const blankBtn = searchRow.createEl("button", {text: "Blank creature", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
 	const hitsEl = addRow.createDiv({cls: "fiveetools-encounter__hits"});
+	const blankEl = formEl.createDiv({cls: "fiveetools-encounter__blank is-hidden"});
 	const rosterEl = formEl.createDiv({cls: "fiveetools-encounter__roster"});
 	const actions = formEl.createDiv({cls: "fiveetools-encounter__row"});
 	const clearBtn = actions.createEl("button", {text: "Clear encounter", cls: "fiveetools-btn fiveetools-btn--ghost"});
@@ -159,6 +211,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 			name,
 			savedId,
 			pickedId,
+			showBlank,
+			blankDraft: normalizeMonsterForm(blankDraft),
+			saveToHomebrew,
 		});
 	};
 
@@ -180,7 +235,30 @@ export function renderEncounterComposer (formEl, resultEl, {
 
 	const openSelected = () => {
 		const hit = combatants.find(it => it.id === selectedId);
+		if (hit?.ent) cacheEntityInDataLoader(hit.ent, "monster");
 		openDoc(hit?.doc);
+	};
+
+	let blankPreviewTimer = null;
+	const cancelBlankPreview = () => {
+		if (blankPreviewTimer) {
+			clearTimeout(blankPreviewTimer);
+			blankPreviewTimer = null;
+		}
+	};
+	const previewBlank = () => {
+		const ent = buildEntity("monster", blankDraft);
+		if (!ent?.name) {
+			showPlaceholder();
+			return;
+		}
+		cacheEntityInDataLoader(ent, "monster");
+		previewKey = null;
+		openDoc(brewDocFromEntity(ent, homebrewType("monster")));
+	};
+	const scheduleBlankPreview = () => {
+		cancelBlankPreview();
+		blankPreviewTimer = setTimeout(previewBlank, 200);
 	};
 
 	const previewDoc = (doc) => {
@@ -320,9 +398,71 @@ export function renderEncounterComposer (formEl, resultEl, {
 		else showPlaceholder();
 	};
 
+	const paintBlank = () => {
+		blankEl.empty();
+		blankBtn.classList.toggle("is-selected", showBlank);
+		if (!showBlank) {
+			blankEl.addClass("is-hidden");
+			return;
+		}
+		blankEl.removeClass("is-hidden");
+		const formHost = blankEl.createDiv({cls: "fiveetools-encounter__blankform"});
+		renderCreatureForm(formHost, blankDraft, {
+			onChange: () => {
+				emit();
+				scheduleBlankPreview();
+			},
+		});
+		const blankActions = blankEl.createDiv({cls: "fiveetools-encounter__row"});
+		const saveWrap = blankActions.createEl("label", {cls: "fiveetools-homebrew__check"});
+		const saveCb = saveWrap.createEl("input", {attr: {type: "checkbox"}});
+		saveCb.checked = saveToHomebrew;
+		saveWrap.createSpan({text: "Save to homebrew"});
+		saveCb.addEventListener("change", () => {
+			saveToHomebrew = saveCb.checked;
+			emit();
+		});
+		const addBlankBtn = blankActions.createEl("button", {text: "Add to encounter", cls: "fiveetools-btn", attr: {type: "button"}});
+		addBlankBtn.addEventListener("click", async () => {
+			const ent = buildEntity("monster", blankDraft);
+			if (!ent.name) {
+				new Notice("Name is required.");
+				return;
+			}
+			try {
+				if (saveToHomebrew) {
+					upsertEntity("monster", ent);
+					await saveHomebrewToVault(plugin);
+					cacheBrewInDataLoader();
+					indexHomebrewDocs();
+				}
+				const next = addCombatantsFromEntity({combatants, selectedId}, ent, Number(countInput.value) || 1);
+				combatants = next.combatants;
+				selectedId = next.selectedId;
+				previewKey = null;
+				emit();
+				paintHits();
+				paintRoster();
+				openSelected();
+			} catch (e) {
+				new Notice(e.message || "Could not add creature.");
+			}
+		});
+	};
+
 	nameEl.addEventListener("input", () => {
 		name = nameEl.value;
 		emit();
+	});
+	blankBtn.addEventListener("click", () => {
+		showBlank = !showBlank;
+		emit();
+		paintBlank();
+		if (showBlank) scheduleBlankPreview();
+		else {
+			cancelBlankPreview();
+			openSelected();
+		}
 	});
 	newBtn.addEventListener("click", () => {
 		combatants = [];
@@ -331,9 +471,14 @@ export function renderEncounterComposer (formEl, resultEl, {
 		savedId = null;
 		pickedId = null;
 		previewKey = null;
+		showBlank = false;
+		blankDraft = emptyForm("monster");
+		saveToHomebrew = false;
+		cancelBlankPreview();
 		nameEl.value = "";
 		emit();
 		paintSaves();
+		paintBlank();
 		paintHits();
 		paintRoster();
 		showPlaceholder();
@@ -403,9 +548,11 @@ export function renderEncounterComposer (formEl, resultEl, {
 	});
 
 	paintSaves();
+	paintBlank();
 	emit();
 	paintRoster();
-	if (selectedId) openSelected();
+	if (showBlank) previewBlank();
+	else if (selectedId) openSelected();
 	else showPlaceholder();
 }
 
@@ -539,11 +686,13 @@ function cloneCombatants (combatants) {
 	return (combatants || []).map(it => ({
 		...it,
 		doc: it.doc ? {...it.doc} : null,
+		ent: it.ent ? JSON.parse(JSON.stringify(it.ent)) : null,
 	}));
 }
 
 if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.addCombatants = addCombatants;
+	globalThis.FiveEToolsObsidian.addCombatantsFromEntity = addCombatantsFromEntity;
 	globalThis.FiveEToolsObsidian.hpMaxFromEnt = hpMaxFromEnt;
 	globalThis.FiveEToolsObsidian.acFromEnt = acFromEnt;
 	globalThis.FiveEToolsObsidian.initiativeFromEnt = initiativeFromEnt;

@@ -341,6 +341,33 @@
 	width: 3.2em;
 }
 
+.fiveetools-encounter__blank {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-height: 0;
+	max-height: 42%;
+	overflow: auto;
+	padding: 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+
+.fiveetools-encounter__blank.is-hidden {
+	display: none;
+}
+
+.fiveetools-encounter__blankform {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.fiveetools-btn.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
 .fiveetools-encounter__hits {
 	display: flex;
 	flex-direction: column;
@@ -560,6 +587,63 @@
 .fiveetools-homebrew__field input,
 .fiveetools-homebrew__field select,
 .fiveetools-homebrew__field textarea {
+	width: 100%;
+}
+
+.fiveetools-creatureform__section {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.fiveetools-creatureform__list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.fiveetools-creatureform__namedrow {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+
+.fiveetools-creatureform__namedrow select,
+.fiveetools-creatureform__namedrow input,
+.fiveetools-creatureform__namedrow textarea {
+	width: 100%;
+}
+
+.fiveetools-creatureform__hits {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 9em;
+	overflow: auto;
+}
+
+.fiveetools-creatureform__hit,
+.fiveetools-creatureform__spell {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 4px 6px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	cursor: pointer;
+}
+
+.fiveetools-creatureform__hitmeta {
+	min-width: 0;
+	flex: 1;
+}
+
+.fiveetools-creatureform__search {
 	width: 100%;
 }
 

@@ -131,6 +131,7 @@ function cloneCombatants (combatants) {
 	return (combatants || []).map(it => ({
 		...it,
 		doc: it.doc ? {...it.doc} : null,
+		ent: it.ent ? JSON.parse(JSON.stringify(it.ent)) : null,
 	}));
 }
 

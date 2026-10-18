@@ -251,6 +251,32 @@ function search (term) {
 	if (goblinCopy.source !== "HB" || goblinCopy.name !== ent.name) {
 		throw new Error("starter should copy the selected creature into HB brew");
 	}
+	if (!Array.isArray(goblinStarter.traits) || !Array.isArray(goblinStarter.actions)) {
+		throw new Error("creature form should use trait and action rows");
+	}
+	const customMon = host.buildEntity("monster", {
+		name: "HB Scout",
+		ac: "13",
+		hpFormula: "2d8+2",
+		dex: "14",
+		traits: [{name: "Pack Tactics", text: "Advantage when an ally is near."}],
+		actions: [{name: "Scimitar", text: "Melee attack."}],
+		spells: [{name: "Fire Bolt", source: "XPHB"}],
+		spellAbility: "int",
+	});
+	if (!customMon.trait?.some(it => it.name === "Pack Tactics")) throw new Error("custom monster missing trait");
+	if (!customMon.action?.some(it => it.name === "Scimitar")) throw new Error("custom monster missing action");
+	if (!customMon.spellcasting?.[0]?.will?.some(it => /Fire Bolt/i.test(it))) {
+		throw new Error(`custom monster missing spellcasting, got ${JSON.stringify(customMon.spellcasting)}`);
+	}
+	const customForm = host.entityToForm("monster", customMon);
+	if (!customForm.traits.some(it => it.name === "Pack Tactics")) throw new Error("trait rows should round-trip");
+	if (!customForm.spells.some(it => it.name === "Fire Bolt")) throw new Error("spell rows should round-trip");
+	if (typeof host.addCombatantsFromEntity !== "function") throw new Error("addCombatantsFromEntity missing from host");
+	const customEnc = host.addCombatantsFromEntity({combatants: [], selectedId: null}, customMon, 1);
+	if (customEnc.added?.[0]?.ent?.name !== "HB Scout") throw new Error("custom combatant should snapshot ent");
+	if (customEnc.added[0].ac !== 13) throw new Error(`custom combatant AC should be 13, got ${customEnc.added[0].ac}`);
+	if (customEnc.added[0].hpMax !== 11) throw new Error(`custom combatant HP should be 11, got ${customEnc.added[0].hpMax}`);
 	if (host.hpAverageFromFormula("2d8+2") !== 11) {
 		throw new Error(`2d8+2 should average 11, got ${host.hpAverageFromFormula("2d8+2")}`);
 	}

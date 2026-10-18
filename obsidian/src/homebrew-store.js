@@ -189,10 +189,12 @@ export function emptyForm (typeId) {
 			senses: "",
 			languages: "Common",
 			cr: "0",
-			traits: "",
-			actions: "",
-			bonus: "",
-			reactions: "",
+			traits: [],
+			actions: [],
+			bonus: [],
+			reactions: [],
+			spells: [],
+			spellAbility: "int",
 		};
 		case "background": return {
 			name: "",
@@ -242,6 +244,30 @@ export function entityToForm (typeId, ent) {
 		case "race": return raceToForm(ent);
 		default: return spellToForm(ent);
 	}
+}
+
+let nextNamedRowId = 1;
+
+export function normalizeMonsterForm (form) {
+	const next = {...emptyForm("monster"), ...(form || {})};
+	next.traits = coerceNamedRows(form?.traits);
+	next.actions = coerceNamedRows(form?.actions);
+	next.bonus = coerceNamedRows(form?.bonus);
+	next.reactions = coerceNamedRows(form?.reactions);
+	next.spells = coerceSpells(form?.spells);
+	next.spellAbility = String(form?.spellAbility || "int").toLowerCase();
+	if (!["int", "wis", "cha"].includes(next.spellAbility)) next.spellAbility = "int";
+	bumpNamedRowId([next.traits, next.actions, next.bonus, next.reactions, next.spells].flat());
+	return next;
+}
+
+export function newNamedRow (partial = {}) {
+	return {
+		id: partial.id || `r${nextNamedRowId++}`,
+		name: String(partial.name || ""),
+		text: String(partial.text || ""),
+		template: String(partial.template || ""),
+	};
 }
 
 export function buildEntity (typeId, form) {
@@ -449,14 +475,28 @@ function buildMonster (form) {
 	const senses = parseSenses(form?.senses);
 	if (senses.darkvision) ent.darkvision = senses.darkvision;
 	if (senses.senses.length) ent.senses = senses.senses;
-	const trait = parseNamedEntries(form?.traits);
+	const trait = namedRowsToEntries(form?.traits);
 	if (trait.length) ent.trait = trait;
-	const action = parseNamedEntries(form?.actions);
+	const action = namedRowsToEntries(form?.actions);
 	if (action.length) ent.action = action;
-	const bonus = parseNamedEntries(form?.bonus);
+	const bonus = namedRowsToEntries(form?.bonus);
 	if (bonus.length) ent.bonus = bonus;
-	const reaction = parseNamedEntries(form?.reactions);
+	const reaction = namedRowsToEntries(form?.reactions);
 	if (reaction.length) ent.reaction = reaction;
+	const spells = coerceSpells(form?.spells).filter(it => it.name);
+	if (spells.length) {
+		const ability = String(form?.spellAbility || "int").toLowerCase();
+		const abilityLabel = ability === "wis" ? "Wisdom" : ability === "cha" ? "Charisma" : "Intelligence";
+		const who = ent.name || "creature";
+		ent.spellcasting = [{
+			name: "Spellcasting",
+			type: "spellcasting",
+			ability: ["int", "wis", "cha"].includes(ability) ? ability : "int",
+			displayAs: "action",
+			headerEntries: [`The ${who} casts one of the following spells, using ${abilityLabel} as the spellcasting ability:`],
+			will: spells.map(it => `{@spell ${it.name}|${it.source || "XPHB"}}`),
+		}];
+	}
 	return ent;
 }
 
@@ -480,10 +520,12 @@ function monsterToForm (ent) {
 	form.senses = (ent.senses || []).join(", ");
 	form.languages = (ent.languages || []).join(", ");
 	form.cr = String(ent.cr?.cr ?? ent.cr ?? "0");
-	form.traits = namedEntriesToText(ent.trait);
-	form.actions = namedEntriesToText(ent.action);
-	form.bonus = namedEntriesToText(ent.bonus);
-	form.reactions = namedEntriesToText(ent.reaction);
+	form.traits = namedEntriesToRows(ent.trait);
+	form.actions = namedEntriesToRows(ent.action);
+	form.bonus = namedEntriesToRows(ent.bonus);
+	form.reactions = namedEntriesToRows(ent.reaction);
+	form.spells = spellsFromEnt(ent);
+	form.spellAbility = ent.spellcasting?.[0]?.ability || "int";
 	return form;
 }
 
@@ -708,6 +750,88 @@ function parseNamedEntries (raw, {asEntries = false} = {}) {
 		const entries = body ? [body] : [""];
 		return asEntries ? {type: "entries", name, entries} : {name, entries};
 	});
+}
+
+function coerceNamedRows (raw) {
+	if (Array.isArray(raw)) {
+		return raw.map(it => newNamedRow({
+			id: it?.id,
+			name: it?.name,
+			text: it?.text != null ? it.text : entriesToText(it?.entries),
+			template: it?.template,
+		})).filter(it => it.id);
+	}
+	return parseNamedEntries(raw).map(it => newNamedRow({
+		name: it.name,
+		text: entriesToText(it.entries),
+	}));
+}
+
+function namedRowsToEntries (raw) {
+	return coerceNamedRows(raw).filter(it => String(it.name || "").trim()).map(it => ({
+		name: String(it.name).trim(),
+		entries: String(it.text || "").trim() ? [String(it.text).trim()] : [""],
+	}));
+}
+
+function namedEntriesToRows (list) {
+	return (list || []).map(it => newNamedRow({
+		name: it?.name || "",
+		text: entriesToText(it?.entries),
+	}));
+}
+
+function coerceSpells (raw) {
+	if (!Array.isArray(raw)) return [];
+	return raw.map(it => ({
+		id: it?.id || `r${nextNamedRowId++}`,
+		name: String(it?.name || "").trim(),
+		source: String(it?.source || it?.s || "XPHB").trim() || "XPHB",
+		u: it?.u || "",
+	})).filter(it => it.name);
+}
+
+function spellsFromEnt (ent) {
+	const out = [];
+	const seen = new Set();
+	for (const block of ent?.spellcasting || []) {
+		const blobs = [
+			...(block.will || []),
+			...Object.values(block.daily || {}).flat(),
+			...(block.headerEntries || []),
+		];
+		if (block.spells && typeof block.spells === "object") {
+			for (const slot of Object.values(block.spells)) {
+				const list = Array.isArray(slot) ? slot : slot?.spells;
+				if (Array.isArray(list)) blobs.push(...list);
+			}
+		}
+		for (const blob of blobs) {
+			const text = typeof blob === "string" ? blob : "";
+			for (const m of text.matchAll(/\{@spell ([^}]+)\}/gi)) {
+				const [name, source] = m[1].split("|").map(part => part.trim());
+				if (!name) continue;
+				const src = source || "XPHB";
+				const key = `${name.toLowerCase()}|${src.toLowerCase()}`;
+				if (seen.has(key)) continue;
+				seen.add(key);
+				out.push({
+					id: `r${nextNamedRowId++}`,
+					name,
+					source: src,
+					u: "",
+				});
+			}
+		}
+	}
+	return out;
+}
+
+function bumpNamedRowId (rows) {
+	for (const it of rows || []) {
+		const n = Number(String(it.id || "").replace(/^r/, ""));
+		if (Number.isFinite(n) && n >= nextNamedRowId) nextNamedRowId = n + 1;
+	}
 }
 
 function namedEntriesToText (list) {

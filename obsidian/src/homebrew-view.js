@@ -10,11 +10,13 @@ import {
 	homebrewType,
 	HOMEBREW_TYPES,
 	listBrewEntities,
+	normalizeMonsterForm,
 	saveHomebrewToVault,
 	upsertEntity,
 } from "./homebrew-store.js";
 import {loadEntity} from "./entity-loader.js";
 import {brewDocFromEntity, indexHomebrewDocs, searchEntities} from "./search-index.js";
+import {renderCreatureForm} from "./creature-form.js";
 
 export function renderHomebrewEditor (formEl, resultEl, {
 	session,
@@ -36,6 +38,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 	let draft = session?.draft && session.typeId === typeId
 		? {...session.draft}
 		: emptyForm(typeId);
+	if (typeId === "monster") draft = normalizeMonsterForm(draft);
 	if (typeId === "background" && draft.abilities && !draft.ability1) {
 		const parts = String(draft.abilities).split(",").map(it => it.trim().toLowerCase()).filter(Boolean);
 		draft.ability1 = parts[0] || "str";
@@ -166,6 +169,15 @@ export function renderHomebrewEditor (formEl, resultEl, {
 
 	const renderForm = () => {
 		formWrap.empty();
+		if (homebrewType(typeId).id === "monster") {
+			renderCreatureForm(formWrap, draft, {
+				onChange: () => {
+					emit();
+					schedulePreview();
+				},
+			});
+			return;
+		}
 		const fields = formFields(typeId, draft);
 		for (const field of fields) {
 			if (field.kind === "grid") {
@@ -323,7 +335,6 @@ export function renderHomebrewEditor (formEl, resultEl, {
 function formFields (typeId, draft) {
 	switch (homebrewType(typeId).id) {
 		case "item": return itemFields(draft);
-		case "monster": return monsterFields();
 		case "background": return backgroundFields();
 		case "race": return raceFields();
 		default: return spellFields();
@@ -378,43 +389,6 @@ function itemFields (draft) {
 		]},
 		{key: "armorClass", label: "Armor class"},
 		{key: "entries", label: "Description", input: "textarea"},
-	];
-}
-
-function monsterFields () {
-	return [
-		{key: "name", label: "Name"},
-		{kind: "grid", fields: [
-			{key: "size", label: "Size", input: "select", options: SIZES},
-			{key: "type", label: "Type", input: "select", options: CREATURE_TYPES},
-		]},
-		{kind: "grid", fields: [
-			{key: "alignment", label: "Alignment", input: "select", options: ALIGNMENTS},
-			{key: "ac", label: "Armor class"},
-		]},
-		{kind: "grid", fields: [
-			{key: "hpFormula", label: "HP formula"},
-			{key: "speed", label: "Speed"},
-		]},
-		{kind: "grid", fields: [
-			{key: "str", label: "STR"},
-			{key: "dex", label: "DEX"},
-			{key: "con", label: "CON"},
-			{key: "int", label: "INT"},
-			{key: "wis", label: "WIS"},
-			{key: "cha", label: "CHA"},
-		]},
-		{key: "saves", label: "Saves (dex +3, wis +2)"},
-		{key: "skills", label: "Skills (perception +5)"},
-		{key: "senses", label: "Senses"},
-		{kind: "grid", fields: [
-			{key: "languages", label: "Languages"},
-			{key: "cr", label: "Challenge rating", input: "select", options: CHALLENGE_RATINGS},
-		]},
-		{key: "traits", label: "Traits (Name. Text)", input: "textarea"},
-		{key: "actions", label: "Actions (Name. Text)", input: "textarea"},
-		{key: "bonus", label: "Bonus actions", input: "textarea"},
-		{key: "reactions", label: "Reactions", input: "textarea"},
 	];
 }
 
@@ -620,27 +594,6 @@ const CREATURE_TYPES = [
 	{id: "plant", label: "Plant"},
 	{id: "undead", label: "Undead"},
 ];
-
-const ALIGNMENTS = [
-	{id: "U", label: "Unaligned"},
-	{id: "LG", label: "Lawful Good"},
-	{id: "NG", label: "Neutral Good"},
-	{id: "CG", label: "Chaotic Good"},
-	{id: "LN", label: "Lawful Neutral"},
-	{id: "N", label: "Neutral"},
-	{id: "CN", label: "Chaotic Neutral"},
-	{id: "LE", label: "Lawful Evil"},
-	{id: "NE", label: "Neutral Evil"},
-	{id: "CE", label: "Chaotic Evil"},
-	{id: "A", label: "Any"},
-];
-
-const CHALLENGE_RATINGS = [
-	"0", "1/8", "1/4", "1/2",
-	"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-	"11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
-	"21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
-].map(id => ({id, label: id}));
 
 const DAMAGE_TYPES = [
 	{id: "", label: "—"},
