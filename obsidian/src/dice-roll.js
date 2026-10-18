@@ -1,5 +1,8 @@
-import {Notice} from "obsidian";
 import {showDice3d} from "./dice-3d.js";
+
+const POPUP_ID = "fiveetools-roll-popup";
+const POPUP_MS = 4000;
+let popupTimer = null;
 
 export function rollPacked (entry, evt = {}) {
 	const Renderer = globalThis.Renderer;
@@ -50,13 +53,31 @@ export function formatRollNotice (result) {
 }
 
 export function presentRoll (plugin, result) {
-	if (result?.total == null) {
-		new Notice("Could not roll.");
-		return result;
-	}
-	new Notice(formatRollNotice(result));
-	if (plugin?.settings?.dice3d) void showDice3d(plugin, result);
+	showRollPopup(formatRollNotice(result));
+	if (result?.total != null && plugin?.settings?.dice3d) void showDice3d(plugin, result);
 	return result;
+}
+
+function showRollPopup (text) {
+	const el = ensureRollPopup();
+	el.textContent = text;
+	el.style.display = "";
+	if (popupTimer) window.clearTimeout(popupTimer);
+	popupTimer = window.setTimeout(() => {
+		el.style.display = "none";
+		popupTimer = null;
+	}, POPUP_MS);
+}
+
+function ensureRollPopup () {
+	let el = document.getElementById(POPUP_ID);
+	if (el) return el;
+	el = document.createElement("div");
+	el.id = POPUP_ID;
+	el.className = "fiveetools-roll-popup";
+	el.style.display = "none";
+	document.body.appendChild(el);
+	return el;
 }
 
 export function bindDiceRollers (el, plugin) {
