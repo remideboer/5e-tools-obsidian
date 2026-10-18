@@ -229,6 +229,12 @@ function search (term) {
 	if (gobKeys.length !== 3 || gobKeys[2] - gobKeys[0] !== 2) {
 		throw new Error(`goblins should stay grouped, got ${grouped.combatants.map(it => it.label).join(", ")}`);
 	}
+	const dexes = grouped.combatants.map(it => it.dex ?? -1);
+	for (let i = 1; i < dexes.length; i++) {
+		if (dexes[i] > dexes[i - 1]) {
+			throw new Error(`roster should be highest Dex first, got ${dexes.join(", ")}`);
+		}
+	}
 	if (host.adjustHp(expectedHp, expectedHp, 1) !== expectedHp) throw new Error("HP + should clamp to max");
 	if (host.adjustHp(0, expectedHp, -1) !== 0) throw new Error("HP - should clamp to 0");
 	const encEnt = await DataLoader.pCacheAndGet(page, enc.added[0].doc.s, enc.added[0].doc.u, {isSilent: true});

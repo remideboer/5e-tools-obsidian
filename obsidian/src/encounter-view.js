@@ -90,7 +90,13 @@ export function groupCombatants (list) {
 		}
 		groups[ix.get(key)].push(combatant);
 	}
+	groups.sort((a, b) => (combatantDex(b[0]) ?? -Infinity) - (combatantDex(a[0]) ?? -Infinity));
 	return groups.flat();
+}
+
+function combatantDex (combatant) {
+	const n = combatant?.dex ?? dexFromEnt(combatant?.ent);
+	return Number.isFinite(Number(n)) ? Number(n) : null;
 }
 
 function formatBonus (n) {
