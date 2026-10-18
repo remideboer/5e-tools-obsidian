@@ -50,8 +50,11 @@ export function serializeCampaignMarkdown ({fields = {}, body = "", snapshot = n
 	let out = "";
 	if (lines.length) out = `---\n${lines.join("\n")}\n---\n`;
 	const text = String(body || "").replace(/^\s+/, "");
-	if (text) out += `${out ? "\n" : ""}${text.replace(/\s+$/, "")}\n`;
-	if (snapshot) out += `${out ? "\n" : ""}\`\`\`json\n${JSON.stringify(snapshot, null, "\t")}\n\`\`\`\n`;
+	if (text) {
+		out += text;
+		if (!out.endsWith("\n")) out += "\n";
+	}
+	if (snapshot) out += `${out && !out.endsWith("\n") ? "\n" : ""}\`\`\`json\n${JSON.stringify(snapshot, null, "\t")}\n\`\`\`\n`;
 	return out;
 }
 
@@ -280,8 +283,8 @@ export async function createEntry (plugin, slug, sectionId, name) {
 	const fields = section.id === "sessions" ? {date} : {};
 	const label = trimmed || fileSlug;
 	let body = "";
-	if (section.id === "sessions") body = `# ${label} - ${date}\n`;
-	else if (trimmed) body = `# ${trimmed}\n`;
+	if (section.id === "sessions") body = `# ${label} - ${date}\n\n`;
+	else if (trimmed) body = `# ${trimmed}\n\n`;
 	const filePath = `${folder}/${fileSlug}.md`;
 	await writeFile(plugin, filePath, serializeCampaignMarkdown({fields, body}));
 	return readEntry(plugin, filePath);

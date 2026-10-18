@@ -13,6 +13,7 @@ export async function openCampaignNote (plugin, parentEl, file) {
 		});
 		existing.file = file;
 		hideNoteProperties(existing.leaf);
+		placeCursorAfterHeading(existing.leaf);
 		return existing;
 	}
 	closeCampaignNote(plugin);
@@ -35,6 +36,7 @@ export async function openCampaignNote (plugin, parentEl, file) {
 	parentEl.empty();
 	parentEl.appendChild(container);
 	hideNoteProperties(leaf);
+	placeCursorAfterHeading(leaf);
 	const embed = {leaf, rootSplit, parentEl, file};
 	plugin._campaignEmbed = embed;
 	return embed;
@@ -47,8 +49,8 @@ function hideNoteProperties (leaf) {
 		const meta = view?.metadataEditor;
 		if (meta?.containerEl) nodes.push(meta.containerEl);
 		if (meta?.contentEl) nodes.push(meta.contentEl);
-		view?.containerEl?.querySelectorAll?.(".metadata-container, .metadata-properties").forEach((el) => nodes.push(el));
-		leaf?.containerEl?.querySelectorAll?.(".metadata-container, .metadata-properties").forEach((el) => nodes.push(el));
+		view?.containerEl?.querySelectorAll?.(".metadata-container, .metadata-properties, .inline-title, .view-header").forEach((el) => nodes.push(el));
+		leaf?.containerEl?.querySelectorAll?.(".metadata-container, .metadata-properties, .inline-title, .view-header").forEach((el) => nodes.push(el));
 		for (const el of nodes) {
 			if (!el) continue;
 			el.hide?.();
@@ -57,6 +59,30 @@ function hideNoteProperties (leaf) {
 	};
 	hide();
 	if (typeof requestAnimationFrame === "function") requestAnimationFrame(hide);
+}
+
+function placeCursorAfterHeading (leaf) {
+	const go = () => {
+		const editor = leaf?.view?.editor;
+		if (!editor?.setCursor) return;
+		let headingLine = -1;
+		let hasBody = false;
+		for (let i = 0; i <= editor.lastLine(); i++) {
+			const text = editor.getLine(i) || "";
+			if (headingLine < 0 && /^#\s/.test(text)) headingLine = i;
+			else if (headingLine >= 0 && text.trim()) hasBody = true;
+		}
+		if (headingLine < 0 || hasBody) return;
+		while (editor.lastLine() < headingLine + 2) {
+			const last = editor.lastLine();
+			editor.replaceRange("\n", {line: last, ch: (editor.getLine(last) || "").length});
+		}
+		editor.setCursor(headingLine + 2, 0);
+		editor.focus?.();
+	};
+	go();
+	if (typeof requestAnimationFrame === "function") requestAnimationFrame(go);
+	setTimeout(go, 50);
 }
 
 export function closeCampaignNote (plugin) {
