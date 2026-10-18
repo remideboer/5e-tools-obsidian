@@ -396,7 +396,8 @@
 }
 
 .fiveetools-encounter__count {
-	width: 3.2em;
+	width: 4.5em;
+	flex: 0 0 auto;
 }
 
 .fiveetools-encounter__blank {

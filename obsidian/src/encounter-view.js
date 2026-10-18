@@ -105,9 +105,16 @@ function formatBonus (n) {
 	return v >= 0 ? `+${v}` : `${v}`;
 }
 
+function fillNumberSelect (el, min, max, value) {
+	for (let n = min; n <= max; n++) {
+		el.createEl("option", {attr: {value: String(n)}, text: String(n)});
+	}
+	el.value = String(value);
+}
+
 export async function addCombatants (session, doc, count = 1) {
 	if (!doc) throw new Error("No creature to add.");
-	const n = Math.max(1, Math.min(20, Number(count) || 1));
+	const n = Math.max(1, Math.min(10, Number(count) || 1));
 	const loaded = await loadEntity(doc);
 	const ent = loaded.ent;
 	if (!ent) throw new Error(`No JSON found for ${doc.n || "creature"}.`);
@@ -145,7 +152,7 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 	if (!ent?.name) throw new Error("Name is required.");
 	cacheEntityInDataLoader(ent, "monster");
 	const doc = brewDocFromEntity(ent, homebrewType("monster"));
-	const n = Math.max(1, Math.min(20, Number(count) || 1));
+	const n = Math.max(1, Math.min(10, Number(count) || 1));
 	const hpMax = hpMaxFromEnt(ent);
 	const cr = crFromEnt(ent);
 	const ac = acFromEnt(ent);
@@ -218,14 +225,12 @@ export function renderEncounterComposer (formEl, resultEl, {
 	const partyRow = partyEl.createDiv({cls: "fiveetools-encounter__row"});
 	const playersWrap = partyRow.createDiv({cls: "fiveetools-homebrew__field"});
 	playersWrap.createEl("label", {text: "Players"});
-	const playersEl = playersWrap.createEl("input", {
-		attr: {type: "number", min: "1", max: "12", value: String(party.count), title: "Number of player characters"},
-	});
+	const playersEl = playersWrap.createEl("select", {attr: {title: "Number of player characters"}});
+	fillNumberSelect(playersEl, 1, 12, party.count);
 	const levelWrap = partyRow.createDiv({cls: "fiveetools-homebrew__field"});
 	levelWrap.createEl("label", {text: "Level"});
-	const levelEl = levelWrap.createEl("input", {
-		attr: {type: "number", min: "1", max: "20", value: String(party.level), title: "Party level (all the same)"},
-	});
+	const levelEl = levelWrap.createEl("select", {attr: {title: "Party level (all the same)"}});
+	fillNumberSelect(levelEl, 1, 20, party.level);
 	const diffEl = partyEl.createEl("div", {cls: "fiveetools-encounter__diff"});
 	const xpEl = partyEl.createEl("div", {cls: "fiveetools-encounter__xp"});
 
@@ -247,11 +252,13 @@ export function renderEncounterComposer (formEl, resultEl, {
 		cls: "fiveetools-encounter__search",
 		attr: {type: "search", placeholder: "Add creature…"},
 	});
-	const countInput = searchRow.createEl("input", {
+	const countInput = searchRow.createEl("select", {
 		cls: "fiveetools-encounter__count",
-		attr: {type: "number", min: "1", max: "20", value: "1", title: "Copies to add"},
+		attr: {title: "Copies to add"},
 	});
-	const blankBtn = searchRow.createEl("button", {text: "Blank creature", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+	fillNumberSelect(countInput, 1, 10, 1);
+	const blankRow = addRow.createDiv({cls: "fiveetools-encounter__row"});
+	const blankBtn = blankRow.createEl("button", {text: "Blank creature", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
 	const hitsEl = addRow.createDiv({cls: "fiveetools-encounter__hits"});
 	const blankEl = composerEl.createDiv({cls: "fiveetools-encounter__blank is-hidden"});
 	const actions = composerEl.createDiv({cls: "fiveetools-encounter__row"});
@@ -537,8 +544,6 @@ export function renderEncounterComposer (formEl, resultEl, {
 		}
 		emit();
 	};
-	playersEl.addEventListener("input", () => readParty(false));
-	levelEl.addEventListener("input", () => readParty(false));
 	playersEl.addEventListener("change", () => readParty(true));
 	levelEl.addEventListener("change", () => readParty(true));
 	nameEl.addEventListener("input", () => {
