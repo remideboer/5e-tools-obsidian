@@ -2,6 +2,7 @@ import path from "path";
 import {getPluginDir} from "./plugin-dir.js";
 
 const SUPPORTED = new Set([4, 6, 8, 10, 12, 20, 100]);
+const DIE_SCALE = 1.5;
 
 let rollerPromise = null;
 let unavailable = false;
@@ -16,6 +17,7 @@ export async function showDice3d (plugin, result) {
 		if (!roller) return false;
 		const overlay = ensureOverlay();
 		overlay.style.display = "";
+		if (typeof roller._handleResize === "function") roller._handleResize();
 		await roller.roll(dice.map(it => ({
 			dice: `d${it.faces}`,
 			rolled: Number(it.value),
@@ -46,13 +48,52 @@ async function loadRoller (plugin) {
 	overlay.style.display = "";
 	const roller = new DiceRoller({
 		container: overlay,
-		width: Math.max(320, window.innerWidth || 800),
-		height: Math.max(240, window.innerHeight || 600),
+		width: Math.max(320, overlay.clientWidth || window.innerWidth || 800),
+		height: Math.max(240, overlay.clientHeight || window.innerHeight || 600),
 		onRollComplete: () => {
 			window.setTimeout(hideOverlay, 1200);
 		},
 	});
+	fitDice(roller, overlay);
 	return roller;
+}
+
+function fitDice (roller, overlay) {
+	const origApply = roller._applyDiePhysics?.bind(roller);
+	if (origApply) {
+		roller._applyDiePhysics = function (die, seed) {
+			scaleDie(die, DIE_SCALE);
+			return origApply(die, seed);
+		};
+	}
+	const origResize = roller._handleResize?.bind(roller);
+	if (origResize) {
+		roller._handleResize = function () {
+			if (overlay.style.display === "none") return;
+			origResize();
+		};
+	}
+}
+
+function scaleDie (die, factor) {
+	if (!die?.mesh || !die?.body) return;
+	die.mesh.scale.setScalar(factor);
+	for (const shape of die.body.shapes || []) {
+		if (shape.halfExtents?.scale) shape.halfExtents.scale(factor, shape.halfExtents);
+		else if (shape.vertices) {
+			for (const v of shape.vertices) {
+				if (v?.scale) v.scale(factor, v);
+			}
+		}
+		if (typeof shape.updateConvexPolyhedronRepresentation === "function") {
+			shape.updateConvexPolyhedronRepresentation();
+		}
+		if (typeof shape.updateBoundingSphereRadius === "function") {
+			shape.updateBoundingSphereRadius();
+		}
+	}
+	if (typeof die.body.updateBoundingRadius === "function") die.body.updateBoundingRadius();
+	if (typeof die.body.updateMassProperties === "function") die.body.updateMassProperties();
 }
 
 function runtimeRequire (id) {
