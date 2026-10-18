@@ -264,6 +264,7 @@ export function renderCampaignManager (formEl, resultEl, {
 			for (const combatant of combatants) {
 				renderCombatantRow(rosterEl, combatant, {
 					app,
+					plugin,
 					selected: combatant.id === selectedId,
 					onSelect: () => {
 						selectedId = combatant.id;

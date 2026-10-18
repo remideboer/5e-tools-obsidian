@@ -63,6 +63,7 @@
 		"5etools-utils": "^0.17.20",
 		"ajv": "^8.18.0",
 		"ajv-formats": "^3.0.1",
+		"cannon-es": "^0.20.0",
 		"commander": "^14.0.3",
 		"cspell-lib": "^9.6.4",
 		"esbuild": "^0.27.3",
@@ -70,6 +71,7 @@
 		"http-server": "^14.1.1",
 		"jest": "^30.2.0",
 		"json-source-map": "^0.6.1",
+		"open-dice-dnd": "^1.11.1",
 		"prettier": "^3.8.1",
 		"probe-image-size": "^7.2.3",
 		"readline-sync": "^1.4.10",
@@ -78,6 +80,7 @@
 		"simple-git": "^3.32.1",
 		"stylelint": "^17.3.0",
 		"stylelint-config-standard-scss": "^17.0.0",
+		"three": "^0.130.0",
 		"tinybench": "^6.0.0",
 		"workbox-cli": "^7.4.1"
 	},

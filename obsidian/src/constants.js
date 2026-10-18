@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS = {
 	notesFolder: "5etools",
 	imageBaseUrl: "https://5e.tools",
 	style: "one",
+	dice3d: false,
 };
 
 export const MAX_SEARCH_RESULTS = 40;

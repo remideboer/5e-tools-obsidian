@@ -22,6 +22,7 @@ import {
 	upsertSavedEncounter,
 } from "./encounter-store.js";
 import {encounterDifficulty, normalizeParty} from "./encounter-difficulty.js";
+import {presentRoll, rollInitiative} from "./dice-roll.js";
 
 let nextCombatantId = 1;
 
@@ -361,6 +362,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		for (const combatant of combatants) {
 			renderCombatantRow(rosterEl, combatant, {
 				app,
+				plugin,
 				selected: !previewKey && combatant.id === selectedId,
 				onSelect: () => {
 					previewKey = null;
@@ -655,12 +657,12 @@ export function renderEncounterComposer (formEl, resultEl, {
 	else showPlaceholder();
 }
 
-export function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, onRemove}) {
+export function renderCombatantRow (parent, combatant, {app, plugin, selected, onSelect, onHp, onRemove}) {
 	const row = parent.createDiv({
 		cls: `fiveetools-encounter__combatant${selected ? " is-selected" : ""}${combatant.hpCurrent <= 0 ? " is-down" : ""}`,
 	});
 	row.addEventListener("click", (evt) => {
-		if (evt.target.closest(".fiveetools-encounter__hp")) return;
+		if (evt.target.closest(".fiveetools-encounter__hp, .fiveetools-encounter__init")) return;
 		onSelect();
 	});
 
@@ -673,7 +675,16 @@ export function renderCombatantRow (parent, combatant, {app, selected, onSelect,
 	const stats = name.createDiv({cls: "fiveetools-encounter__stats"});
 	stats.createEl("span", {text: `AC ${combatant.ac != null ? combatant.ac : "—"}`});
 	stats.createEl("span", {text: `HP ${combatant.hpCurrent}/${combatant.hpMax}`});
-	stats.createEl("span", {text: `Init ${formatBonus(combatant.initiative)}`});
+	const initBtn = stats.createEl("button", {
+		text: `Init ${formatBonus(combatant.initiative)}`,
+		cls: "fiveetools-encounter__init",
+		attr: {type: "button", title: "Roll initiative"},
+	});
+	initBtn.addEventListener("click", (evt) => {
+		evt.preventDefault();
+		evt.stopPropagation();
+		presentRoll(plugin, rollInitiative(combatant.initiative, evt, `${combatant.label} initiative`));
+	});
 	const dex = combatant.dex ?? dexFromEnt(combatant.ent);
 	stats.createEl("span", {text: dex != null ? String(dex) : "—", attr: {title: "Passive initiative"}});
 

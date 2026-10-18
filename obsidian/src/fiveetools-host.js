@@ -8,6 +8,7 @@ import "../../js/render-markdown.js";
 import "../../js/utils-dataloader.js";
 import {toPosixRoot, urlToLocalPath} from "./local-fs.js";
 import {cachedMediaSrc, clearMediaCache} from "./media-cache.js";
+import {formatRollNotice, rollInitiative, rollPacked} from "./dice-roll.js";
 
 export {setStyleHint, getStyleHint};
 
@@ -25,7 +26,7 @@ export function configureFiveEToolsRoot (rootPath, {imageBaseUrl = "https://5e.t
 	const renderer = globalThis.Renderer.get();
 	renderer.setBaseUrl(posixRoot);
 	renderer.setBaseMediaUrl("img", `${String(imageBaseUrl || "https://5e.tools").replace(/\/+$/, "")}/img/`);
-	renderer.setAddHandlers(false);
+	renderer.setAddHandlers(true);
 	bindObsidianLinkPlugin(renderer);
 
 	globalThis.DataUtil._pLoad_pGetJson_pGetOptionalJson = async function ({url}) {
@@ -121,4 +122,7 @@ globalThis.FiveEToolsObsidian = {
 	getSearchUtil,
 	cachedMediaSrc,
 	clearMediaCache,
+	rollPacked,
+	rollInitiative,
+	formatRollNotice,
 };

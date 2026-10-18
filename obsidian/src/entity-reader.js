@@ -6,6 +6,7 @@ import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
 import {docFromHref, docFromVetLink} from "./search-index.js";
+import {bindDiceRollers} from "./dice-roll.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc) {
 	containerEl.empty();
@@ -55,6 +56,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 					}
 				});
 				await renderAdventurePanel(body, plugin, loaded.ent, {bindInternalLinks});
+				bindDiceRollers(body, plugin);
 				return;
 			}
 
@@ -78,6 +80,7 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
 				statWrap.innerHTML = compactHtml;
 				bindInternalLinks(statWrap, plugin);
+				bindDiceRollers(statWrap, plugin);
 				await rewriteMediaUrls(plugin, statWrap);
 			}
 

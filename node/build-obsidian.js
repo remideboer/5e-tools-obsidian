@@ -60,6 +60,22 @@ await esbuild.build({
 	plugins: [elasticlunrPlugin, stubAcePlugin],
 });
 
+const diceDir = path.join(outDir, "dice");
+fs.mkdirSync(diceDir, {recursive: true});
+await esbuild.build({
+	absWorkingDir: root,
+	entryPoints: [path.join(root, "obsidian", "src", "dice-3d-lib.js")],
+	bundle: true,
+	outfile: path.join(diceDir, "dice-3d.js"),
+	format: "cjs",
+	platform: "browser",
+	target: "es2020",
+	minify: true,
+	logLevel: "info",
+});
+const notices = path.join(root, "node_modules", "open-dice-dnd", "THIRD_PARTY_NOTICES.txt");
+if (fs.existsSync(notices)) fs.copyFileSync(notices, path.join(diceDir, "THIRD_PARTY_NOTICES.txt"));
+
 fs.copyFileSync(path.join(root, "obsidian", "manifest.json"), path.join(outDir, "manifest.json"));
 fs.copyFileSync(path.join(root, "obsidian", "styles.css"), path.join(outDir, "styles.css"));
 fs.writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
@@ -181,7 +197,7 @@ function installToDevVaults () {
 		for (const name of ["main.js", "manifest.json", "styles.css"]) {
 			fs.copyFileSync(path.join(outDir, name), path.join(dest, name));
 		}
-		for (const dir of ["data", "search"]) {
+		for (const dir of ["data", "search", "dice"]) {
 			const src = path.join(outDir, dir);
 			if (fs.existsSync(src)) fs.cpSync(src, path.join(dest, dir), {recursive: true});
 		}

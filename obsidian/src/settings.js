@@ -50,6 +50,16 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName("3D dice")
+			.setDesc("Animate predetermined dice in an overlay after a roll. Turn off if WebGL fails.")
+			.addToggle(toggle => toggle
+				.setValue(!!this.plugin.settings.dice3d)
+				.onChange(async (value) => {
+					this.plugin.settings.dice3d = !!value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName("Statblock style")
 			.setDesc("Classic (2014) or modern (2024) compact rendering.")
 			.addDropdown(dropdown => dropdown

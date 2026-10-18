@@ -21,6 +21,7 @@ const obsidianMock = {
 		addText () { return this; }
 		addDropdown () { return this; }
 		addButton () { return this; }
+		addToggle () { return this; }
 	},
 	Notice: class Notice { constructor (msg) { console.log("Notice:", msg); } },
 	MarkdownRenderer: {
@@ -178,6 +179,25 @@ function search (term) {
 	if (!crPart || crPart === "\u2014") throw new Error(`goblin CR missing: ${crPart}`);
 	if (!String(html).includes(String(ent.cr?.cr ?? ent.cr))) throw new Error("compact HTML missing CR");
 	if (!/XP/i.test(String(html))) throw new Error("compact HTML missing XP");
+	if (!/data-packed-dice/.test(String(html))) throw new Error("compact HTML missing clickable dice");
+	if (typeof host.rollPacked !== "function") throw new Error("rollPacked missing from host");
+	const hitEntry = Renderer.utils.getTagEntry("@hit", "+5");
+	const hitRoll = host.rollPacked(hitEntry);
+	if (hitRoll.notation !== "1d20+5") throw new Error(`hit notation ${hitRoll.notation}`);
+	if (hitRoll.dice.length !== 1 || hitRoll.dice[0].faces !== 20) throw new Error("hit should roll one d20");
+	if (hitRoll.total < 6 || hitRoll.total > 25) throw new Error(`hit total ${hitRoll.total}`);
+	const advRoll = host.rollPacked(Renderer.utils.getTagEntry("@hit", "+5"), {shiftKey: true});
+	if (!/2d20dl1/.test(advRoll.notation) || advRoll.dice.length !== 2) throw new Error(`advantage ${advRoll.notation} dice ${advRoll.dice.length}`);
+	const dmgRoll = host.rollPacked(Renderer.utils.getTagEntry("@damage", "2d6+3"), {shiftKey: true});
+	if (dmgRoll.dice.length !== 4) throw new Error(`crit should roll 4d6, got ${dmgRoll.dice.length}`);
+	const initRoll = host.rollInitiative(2);
+	if (initRoll.dice.length !== 1 || initRoll.total < 3 || initRoll.total > 22) throw new Error(`initiative ${JSON.stringify(initRoll)}`);
+	const notice = host.formatRollNotice(hitRoll);
+	if (!notice.includes(String(hitRoll.total))) throw new Error(`roll notice missing total: ${notice}`);
+	const dice3d = path.join(pluginDir, "dice", "dice-3d.js");
+	if (!fs.existsSync(dice3d)) throw new Error("3D dice bundle missing");
+	const diceSrc = fs.readFileSync(dice3d, "utf8");
+	if (!/DiceRoller/.test(diceSrc)) throw new Error("3D dice bundle missing DiceRoller");
 	console.log("cr", crPart);
 	const tokenUrl = Renderer.monster.getTokenUrl(ent);
 	console.log("tokenUrl", tokenUrl);
