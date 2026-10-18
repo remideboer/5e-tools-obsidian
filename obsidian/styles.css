@@ -300,21 +300,37 @@
 
 .fiveetools-encounter__saves {
 	overflow: auto;
-	max-height: 8em;
+	max-height: 12em;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 }
 
 .fiveetools-encounter__save {
-	display: block;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: center;
+	gap: 2px;
 	width: 100%;
+	height: auto;
+	min-height: 3.25em;
+	line-height: 1.3;
 	text-align: left;
-	padding: 6px 8px;
+	padding: 8px 10px;
 	border: 0;
 	border-bottom: 1px solid var(--background-modifier-border);
 	background: transparent;
 	color: var(--text-normal);
+	white-space: normal;
+	overflow: visible;
 	cursor: pointer;
+}
+
+.fiveetools-encounter__save .fiveetools-modal__name,
+.fiveetools-encounter__save .fiveetools-modal__sub {
+	width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .fiveetools-encounter__save.is-selected {
