@@ -12,7 +12,8 @@ import {
 	saveHomebrewToVault,
 	upsertEntity,
 } from "./homebrew-store.js";
-import {brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
+import {loadEntity} from "./entity-loader.js";
+import {brewDocFromEntity, indexHomebrewDocs, searchEntities} from "./search-index.js";
 
 export function renderHomebrewEditor (formEl, resultEl, {
 	session,
@@ -26,7 +27,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 	formEl.createEl("h3", {text: "Homebrew"});
 	formEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Create 2024 spells, items, creatures, backgrounds, and species. Saved entries appear in the library with source HB.",
+		text: "Search the library and Use an entry as a starter, or create one from scratch. Saved entries appear with source HB.",
 	});
 
 	let typeId = session?.typeId || "spell";
@@ -41,8 +42,14 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		draft.ability3 = parts[2] || "con";
 	}
 	let previousName = session?.previousName || "";
+	let previewKey = "";
 
 	const tabs = formEl.createDiv({cls: "fiveetools-homebrew__tabs"});
+	const searchEl = formEl.createEl("input", {
+		cls: "fiveetools-homebrew__search",
+		attr: {type: "search", placeholder: "Search library…"},
+	});
+	const hitsEl = formEl.createDiv({cls: "fiveetools-homebrew__results"});
 	const listEl = formEl.createDiv({cls: "fiveetools-homebrew__list"});
 	const actions = formEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const newBtn = actions.createEl("button", {text: "New", cls: "fiveetools-btn"});
@@ -66,7 +73,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		resultEl.empty();
 		resultEl.createEl("p", {
 			cls: "fiveetools-view__meta",
-			text: "Fill the form, then Preview or Save to see the statblock.",
+			text: "Search for an entry to preview and Use as a starter, or fill the form and Preview.",
 		});
 	};
 
@@ -90,8 +97,12 @@ export function renderHomebrewEditor (formEl, resultEl, {
 				typeId = type.id;
 				selectedName = "";
 				previousName = "";
+				previewKey = "";
+				searchEl.value = "";
 				draft = emptyForm(typeId);
+				searchEl.setAttr("placeholder", `Start from ${type.label.toLowerCase()}…`);
 				renderTabs();
+				paintHits();
 				renderList();
 				renderForm();
 				showPlaceholder();
@@ -117,7 +128,9 @@ export function renderHomebrewEditor (formEl, resultEl, {
 			row.addEventListener("click", () => {
 				selectedName = ent.name;
 				previousName = ent.name;
+				previewKey = "";
 				draft = entityToForm(typeId, ent);
+				paintHits();
 				renderList();
 				renderForm();
 				previewEntity(ent);
@@ -151,10 +164,65 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		}
 	};
 
+	const paintHits = () => {
+		hitsEl.empty();
+		const term = String(searchEl.value || "").trim();
+		if (term.length < 2) return;
+		const docs = searchEntities(term, {categoriesExact: [searchCategory(typeId)], limit: 8});
+		if (!docs.length) {
+			hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No matching entries."});
+			return;
+		}
+		for (const doc of docs) {
+			const row = hitsEl.createDiv({
+				cls: `fiveetools-homebrew__result${previewKey === docKey(doc) ? " is-selected" : ""}`,
+			});
+			const meta = row.createDiv({cls: "fiveetools-homebrew__resultmeta"});
+			meta.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
+			meta.createEl("div", {
+				cls: "fiveetools-modal__sub",
+				text: [doc.sA || doc.s, doc.cf].filter(Boolean).join(" · "),
+			});
+			row.addEventListener("click", (evt) => {
+				if (evt.target.closest("button")) return;
+				previewKey = docKey(doc);
+				paintHits();
+				onOpenDoc?.(doc);
+			});
+			const useBtn = row.createEl("button", {text: "Use", cls: "fiveetools-btn"});
+			useBtn.addEventListener("click", async (evt) => {
+				evt.stopPropagation();
+				useBtn.setAttr("disabled", "true");
+				try {
+					const loaded = await loadEntity(doc);
+					if (!loaded.ent) throw new Error(`No JSON found for ${doc.n || "entry"}.`);
+					draft = entityToForm(typeId, loaded.ent);
+					selectedName = "";
+					previousName = "";
+					previewKey = docKey(doc);
+					paintHits();
+					renderList();
+					renderForm();
+					previewEntity(buildEntity(typeId, draft));
+					emit();
+				} catch (e) {
+					resultEl.empty();
+					resultEl.createEl("p", {text: e.message || "Could not use this entry."});
+				} finally {
+					useBtn.removeAttribute("disabled");
+				}
+			});
+		}
+	};
+
+	searchEl.addEventListener("input", () => paintHits());
+
 	newBtn.addEventListener("click", () => {
 		selectedName = "";
 		previousName = "";
+		previewKey = "";
 		draft = emptyForm(typeId);
+		paintHits();
 		renderList();
 		renderForm();
 		showPlaceholder();
@@ -216,7 +284,9 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		new Notice(`Saved ${ent.name} (HB).`);
 	});
 
+	searchEl.setAttr("placeholder", `Start from ${homebrewType(typeId).label.toLowerCase()}…`);
 	renderTabs();
+	paintHits();
 	renderList();
 	renderForm();
 	if (selectedName) {
@@ -417,6 +487,18 @@ class ConfirmDeleteModal extends Modal {
 	onClose () {
 		this.contentEl.empty();
 	}
+}
+
+function searchCategory (typeId) {
+	switch (homebrewType(typeId).id) {
+		case "monster": return "bestiary";
+		case "race": return "species";
+		default: return homebrewType(typeId).id;
+	}
+}
+
+function docKey (doc) {
+	return `${doc?.u || ""}|${doc?.s || ""}`;
 }
 
 function confirmDelete (app, label, onConfirm) {

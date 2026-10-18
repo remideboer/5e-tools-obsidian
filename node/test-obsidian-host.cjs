@@ -207,8 +207,16 @@ function search (term) {
 	if (!encEnt) throw new Error(`encounter combatant JSON miss via ${enc.added[0].doc.u}`);
 	console.log("encounter", {labels: enc.added.map(it => it.label), hp: expectedHp, cr: enc.added[0].cr});
 
-	if (typeof host.hpAverageFromFormula !== "function" || typeof host.buildEntity !== "function") {
+	if (typeof host.hpAverageFromFormula !== "function" || typeof host.buildEntity !== "function" || typeof host.entityToForm !== "function") {
 		throw new Error("homebrew helpers missing from host");
+	}
+	const goblinStarter = host.entityToForm("monster", ent);
+	if (goblinStarter.name !== ent.name || !goblinStarter.hpFormula) {
+		throw new Error(`goblin starter form incomplete: ${JSON.stringify(goblinStarter)}`);
+	}
+	const goblinCopy = host.buildEntity("monster", goblinStarter);
+	if (goblinCopy.source !== "HB" || goblinCopy.name !== ent.name) {
+		throw new Error("starter should copy the selected creature into HB brew");
 	}
 	if (host.hpAverageFromFormula("2d8+2") !== 11) {
 		throw new Error(`2d8+2 should average 11, got ${host.hpAverageFromFormula("2d8+2")}`);

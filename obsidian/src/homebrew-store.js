@@ -772,6 +772,7 @@ installBrewUtil();
 if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.hpAverageFromFormula = hpAverageFromFormula;
 	globalThis.FiveEToolsObsidian.emptyBrew = emptyBrew;
+	globalThis.FiveEToolsObsidian.entityToForm = entityToForm;
 	globalThis.FiveEToolsObsidian.buildEntity = buildEntity;
 	globalThis.FiveEToolsObsidian.applyBrewJson = applyBrewJson;
 	globalThis.FiveEToolsObsidian.getBrewJson = getBrewJson;

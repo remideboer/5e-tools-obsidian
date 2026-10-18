@@ -421,6 +421,40 @@
 	border-color: var(--interactive-accent);
 }
 
+.fiveetools-homebrew__search {
+	width: 100%;
+}
+
+.fiveetools-homebrew__results {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 9em;
+	overflow: auto;
+}
+
+.fiveetools-homebrew__result {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 4px 6px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	background: var(--background-secondary);
+	cursor: pointer;
+}
+
+.fiveetools-homebrew__result.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-homebrew__resultmeta {
+	min-width: 0;
+	flex: 1;
+}
+
 .fiveetools-homebrew__list {
 	overflow: auto;
 	max-height: 28%;
