@@ -189,6 +189,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		const globalTerm = String(this.globalQuery || "").trim();
 		const item = currentNavItem(this.navId);
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
 		clearListToolClasses(this.listEl);
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";

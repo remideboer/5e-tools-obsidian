@@ -27,11 +27,6 @@ export function renderHomebrewEditor (formEl, resultEl, {
 } = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-homebrew");
-	formEl.createEl("h3", {text: "Homebrew"});
-	formEl.createEl("p", {
-		cls: "fiveetools-view__meta",
-		text: "Search the library and Use an entry as a starter, or create one from scratch. Saved entries appear with source HB.",
-	});
 
 	let typeId = session?.typeId || "spell";
 	let selectedName = session?.selectedName || "";
@@ -48,19 +43,27 @@ export function renderHomebrewEditor (formEl, resultEl, {
 	let previousName = session?.previousName || "";
 	let previewKey = "";
 
-	const tabs = formEl.createDiv({cls: "fiveetools-homebrew__tabs"});
-	const searchEl = formEl.createEl("input", {
+	const catalogEl = formEl.createDiv({cls: "fiveetools-homebrew__catalog"});
+	catalogEl.createEl("h3", {text: "Homebrew"});
+	catalogEl.createEl("p", {
+		cls: "fiveetools-view__meta",
+		text: "Search the library and Use an entry as a starter, or create one from scratch. Saved entries appear with source HB.",
+	});
+	const tabs = catalogEl.createDiv({cls: "fiveetools-homebrew__tabs"});
+	const searchEl = catalogEl.createEl("input", {
 		cls: "fiveetools-homebrew__search",
 		attr: {type: "search", placeholder: "Search library…"},
 	});
-	const hitsEl = formEl.createDiv({cls: "fiveetools-homebrew__results"});
-	const listEl = formEl.createDiv({cls: "fiveetools-homebrew__list"});
-	const actions = formEl.createDiv({cls: "fiveetools-homebrew__row"});
+	const hitsEl = catalogEl.createDiv({cls: "fiveetools-homebrew__results"});
+	const listEl = catalogEl.createDiv({cls: "fiveetools-homebrew__list"});
+	const actions = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const newBtn = actions.createEl("button", {text: "New", cls: "fiveetools-btn"});
 	const editBtn = actions.createEl("button", {text: "Edit", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
-	const formWrap = formEl.createDiv({cls: "fiveetools-homebrew__form"});
-	const saveRow = formEl.createDiv({cls: "fiveetools-homebrew__row"});
+
+	const creatorEl = formEl.createDiv({cls: "fiveetools-homebrew__creator"});
+	const formWrap = creatorEl.createDiv({cls: "fiveetools-homebrew__form"});
+	const saveRow = creatorEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const previewBtn = saveRow.createEl("button", {text: "Preview", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const saveBtn = saveRow.createEl("button", {text: "Save", cls: "fiveetools-btn"});
 
