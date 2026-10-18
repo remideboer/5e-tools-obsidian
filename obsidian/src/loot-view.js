@@ -21,6 +21,8 @@ const RARITY_WEIGHT = {
 	legendary: 43,
 };
 
+const EYE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
+
 const MAGIC_TABLE_RARITY = {
 	A: "common",
 	B: "uncommon",
@@ -130,6 +132,10 @@ export function renderLootGenerator (formEl, resultEl, {
 		resultEl.empty();
 		resultEl.createEl("p", {cls: "fiveetools-view__meta", text: "Select tables and a count, then roll."});
 	};
+	const setViewedRow = (rowEl) => {
+		formEl.querySelectorAll(".fiveetools-loot__opt.is-selected").forEach((el) => el.removeClass("is-selected"));
+		rowEl?.addClass("is-selected");
+	};
 
 	for (const group of grouped) {
 		const wrap = tablesEl.createDiv({cls: "fiveetools-loot__group"});
@@ -138,10 +144,27 @@ export function renderLootGenerator (formEl, resultEl, {
 		header.createSpan({text: group.label});
 		const checks = [];
 		for (const table of group.tables) {
-			const row = wrap.createEl("label", {cls: "fiveetools-loot__opt"});
-			const cb = row.createEl("input", {attr: {type: "checkbox", "data-loot-id": table.id}});
+			const row = wrap.createDiv({cls: "fiveetools-loot__opt"});
+			const name = row.createEl("label", {cls: "fiveetools-loot__optname"});
+			const cb = name.createEl("input", {attr: {type: "checkbox", "data-loot-id": table.id}});
 			if (selected.has(table.id)) cb.checked = true;
-			row.createSpan({text: table.label});
+			name.createSpan({text: table.label});
+			const viewBtn = row.createEl("button", {
+				cls: "fiveetools-loot__view",
+				attr: {type: "button", title: "View table", "aria-label": "View table"},
+			});
+			viewBtn.innerHTML = EYE_SVG;
+			viewBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				setViewedRow(row);
+				try {
+					renderLootTableView(resultEl, lootTableView(table));
+				} catch (e) {
+					resultEl.empty();
+					resultEl.createEl("p", {text: e.message || "Could not open table."});
+				}
+			});
 			checks.push(cb);
 		}
 		const syncGroup = () => {
@@ -180,6 +203,7 @@ export function renderLootGenerator (formEl, resultEl, {
 		resultEl.setText("Rolling…");
 		try {
 			const next = rollSelectedTables(ids, countInput.value);
+			setViewedRow(null);
 			emitSession(next);
 			renderLootResults(resultEl, next, onOpenItem);
 		} catch (e) {
@@ -190,6 +214,7 @@ export function renderLootGenerator (formEl, resultEl, {
 	});
 
 	clearBtn.addEventListener("click", () => {
+		setViewedRow(null);
 		emitSession(null);
 		showPlaceholder();
 	});
@@ -411,6 +436,113 @@ function findRawTable (loot, meta) {
 	});
 }
 
+export function lootTableView (meta) {
+	const loot = loadLootJson();
+	if (meta?.kind === "dragonMundaneItems") {
+		return {
+			caption: meta.label,
+			columns: ["d100", "Item"],
+			rows: (loot.dragonMundaneItems || []).map(row => [diceRange(row), stripItemTag(row.item)]),
+		};
+	}
+	const table = findRawTable(loot, meta);
+	if (!table) throw new Error(`Missing table ${meta?.label || "unknown"}`);
+	const rows = table.table;
+	if (Array.isArray(rows) && rows.length && typeof rows[0] === "string") {
+		return {
+			caption: meta.label,
+			columns: ["#", "Item"],
+			rows: rows.map((it, i) => [String(i + 1), stripItemTag(it)]),
+		};
+	}
+	if (Array.isArray(rows) && rows.length) {
+		const out = rows.map(row => [diceRange(row), formatLootRowText(row)]);
+		if (table.coins) out.unshift(["Always", formatCoins(table.coins)]);
+		return {caption: meta.label, columns: ["d100", "Result"], rows: out};
+	}
+	const summary = [];
+	if (table.coins) summary.push(["Coins", formatCoins(table.coins)]);
+	if (table.dragonMundaneItems) summary.push(["Mundane", formatLootRowText({dragonMundaneItems: table.dragonMundaneItems})]);
+	if (table.gems) summary.push(["Gems", formatLootRowText({gems: table.gems})]);
+	if (table.artObjects) summary.push(["Art", formatLootRowText({artObjects: table.artObjects})]);
+	if (table.magicItems) summary.push(["Magic items", formatLootRowText({magicItems: table.magicItems})]);
+	return {caption: meta.label, columns: ["Part", "Result"], rows: summary};
+}
+
+export function formatLootRowText (row) {
+	if (typeof row === "string") return stripItemTag(row);
+	if (!row || typeof row !== "object") return "—";
+	if (row.item) return stripItemTag(row.item);
+	if (row.choose?.fromMatching?.rarity) return `${capitalize(row.choose.fromMatching.rarity)} magic item`;
+	const parts = [];
+	if (row.coins) parts.push(formatCoins(row.coins));
+	if (row.gems) parts.push(formatGemsArt(row.gems, "gems"));
+	if (row.artObjects) parts.push(formatGemsArt(row.artObjects, "art objects"));
+	if (row.dragonMundaneItems) parts.push(`${row.dragonMundaneItems.amount || "1"}× mundane items`);
+	for (const magic of row.magicItems || []) parts.push(formatMagicEntry(magic));
+	return parts.filter(Boolean).join("; ") || "—";
+}
+
+function stripItemTag (raw) {
+	return String(raw || "")
+		.replace(/\{@item ([^|}]+)(?:\|[^}]*)?\}/gi, "$1")
+		.replace(/\{@[^}]+\}/g, "")
+		.trim();
+}
+
+function diceRange (row) {
+	if (row?.min == null) return "—";
+	if (row.max == null || row.max === row.min) return String(row.min);
+	return `${row.min}–${row.max}`;
+}
+
+function formatCoins (coins) {
+	return Object.entries(coins || {})
+		.map(([type, formula]) => `${formula} ${type}`)
+		.join(", ");
+}
+
+function formatGemsArt (meta, label) {
+	if (!meta) return "";
+	const amount = meta.amount || "1";
+	if (meta.type != null) return `${amount}× ${meta.type} gp ${label}`;
+	if (meta.typeTable?.length) {
+		const types = meta.typeTable.map(it => `${diceRange(it)} ${it.type} gp`).join(", ");
+		return `${amount}× ${label} (${types})`;
+	}
+	return `${amount}× ${label}`;
+}
+
+function formatMagicEntry (entry) {
+	if (!entry) return "";
+	const amount = entry.amount || "1";
+	if (entry.type === "randomByLevel") return `${amount}× magic item (by level)`;
+	if (entry.type) return `${amount}× Table ${entry.type}`;
+	if (entry.typeTable?.length) {
+		const types = entry.typeTable.map(it => `${diceRange(it)} Table ${it.type}`).join(", ");
+		return `${amount}× magic items (${types})`;
+	}
+	return `${amount}× magic items`;
+}
+
+function renderLootTableView (el, view) {
+	el.empty();
+	el.addClass("fiveetools-loot__result");
+	el.createEl("h3", {text: view.caption || "Loot table"});
+	if (!view.rows?.length) {
+		el.createEl("p", {cls: "fiveetools-view__meta", text: "This table has no rows."});
+		return;
+	}
+	const tableEl = el.createEl("table", {cls: "fiveetools-loot__table"});
+	const head = tableEl.createEl("thead").createEl("tr");
+	for (const col of view.columns || []) head.createEl("th", {text: col});
+	const body = tableEl.createEl("tbody");
+	for (const row of view.rows) {
+		const tr = body.createEl("tr");
+		for (const cell of row) tr.createEl("td", {text: cell});
+	}
+}
+
 function groupTables (tables) {
 	const byGroup = new Map();
 	for (const group of TABLE_GROUPS) byGroup.set(group.label, []);
@@ -519,4 +651,6 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.listLootTables = listLootTables;
 	globalThis.FiveEToolsObsidian.rollSelectedTables = rollSelectedTables;
 	globalThis.FiveEToolsObsidian.lootTableRarityWeight = lootTableRarityWeight;
+	globalThis.FiveEToolsObsidian.lootTableView = lootTableView;
+	globalThis.FiveEToolsObsidian.formatLootRowText = formatLootRowText;
 }

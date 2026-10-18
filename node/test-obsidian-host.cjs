@@ -290,6 +290,22 @@ function search (term) {
 		count: lootRolls.items.length,
 		sample: lootRolls.items.map(it => `${it.label} [${it.tableLabel}]`),
 	});
+	if (typeof host.lootTableView !== "function" || typeof host.formatLootRowText !== "function") {
+		throw new Error("loot table view helpers missing from host");
+	}
+	const viewA = host.lootTableView(tableA);
+	if (!/Potion of Healing/i.test(viewA.rows?.[0]?.[1] || "")) throw new Error("Table A view missed Potion of Healing");
+	if (viewA.rows[0][0] !== "1–50") throw new Error(`Table A first range ${viewA.rows[0][0]}`);
+	const coinRow = host.formatLootRowText({min: 1, max: 30, coins: {cp: "5d6"}});
+	if (coinRow !== "5d6 cp") throw new Error(`coin row ${coinRow}`);
+	const hoard = lootTables.find(it => it.id === "hoard:DMG:Challenge 0-4");
+	const hoardView = host.lootTableView(hoard);
+	if (hoardView.rows?.[0]?.[0] !== "Always" || !/6d6\*100 cp/.test(hoardView.rows[0][1] || "")) {
+		throw new Error(`hoard coins row ${JSON.stringify(hoardView.rows?.[0])}`);
+	}
+	if (!hoardView.rows.some(row => /2d6× 10 gp gems/.test(row[1] || ""))) {
+		throw new Error("hoard view missed 10 gp gems row");
+	}
 
 	if (typeof host.addCombatants !== "function" || typeof host.hpMaxFromEnt !== "function") {
 		throw new Error("encounter helpers missing from host");
