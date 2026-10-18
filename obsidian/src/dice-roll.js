@@ -15,18 +15,20 @@ export function rollPacked (entry, evt = {}) {
 	const count = Math.max(1, Number(meta.rollCount) || 1);
 	const totals = [];
 	const dice = [];
+	let lastOnce = {total: null, dice: [], diceTotal: null, mod: 0};
 	for (let i = 0; i < count; i++) {
-		const once = rollNotation(notation);
-		totals.push(once.total);
-		dice.push(...once.dice);
+		lastOnce = rollNotation(notation);
+		totals.push(lastOnce.total);
+		dice.push(...lastOnce.dice);
 	}
-	const total = totals[totals.length - 1];
 	return {
 		label: packed.name || packed.displayText || notation || "Roll",
 		notation,
-		total,
+		total: lastOnce.total,
 		totals,
 		dice,
+		diceTotal: lastOnce.diceTotal,
+		mod: lastOnce.mod,
 		subType: packed.subType || "",
 		mode: rollMode(packed.subType, shiftKey, ctrlKey),
 	};
@@ -49,7 +51,16 @@ export function formatRollNotice (result) {
 	if (result?.total == null) return "Could not roll.";
 	const mode = result.mode ? ` (${result.mode})` : "";
 	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
-	return `${result.label}${mode}: ${result.total}${extra}`;
+	return `${formatBreakdown(result)}${mode}: ${result.total}${extra}`;
+}
+
+function formatBreakdown (result) {
+	if (result.diceTotal == null) return result.label || result.notation || "Roll";
+	const diceTotal = Number(result.diceTotal);
+	if (!Number.isFinite(diceTotal)) return result.label || result.notation || "Roll";
+	const mod = Number(result.mod) || 0;
+	if (!mod) return String(diceTotal);
+	return `${diceTotal} ${mod < 0 ? "-" : "+"} ${Math.abs(mod)}`;
 }
 
 export function presentRoll (plugin, result) {
@@ -118,7 +129,7 @@ function rollNotation (notation) {
 	const parsed = parseSimpleDice(notation);
 	if (!parsed) {
 		const total = globalThis.Renderer.dice.parseRandomise2(notation);
-		return {total: Number.isFinite(total) ? total : null, dice: []};
+		return {total: Number.isFinite(total) ? total : null, dice: [], diceTotal: null, mod: 0};
 	}
 	const rolled = [];
 	for (const term of parsed.dice) {
@@ -130,11 +141,14 @@ function rollNotation (notation) {
 	let used = rolled.map(it => it.sign * it.value);
 	if (parsed.drop === "l" && used.length > 1) used.splice(used.indexOf(Math.min(...used)), 1);
 	if (parsed.drop === "h" && used.length > 1) used.splice(used.indexOf(Math.max(...used)), 1);
-	let total = used.reduce((sum, n) => sum + n, 0) + parsed.mod;
+	const diceTotal = used.reduce((sum, n) => sum + n, 0);
+	let total = diceTotal + parsed.mod;
 	if (parsed.floorHalf) total = Math.floor(total / 2);
 	return {
 		total,
 		dice: rolled.map(it => ({faces: it.faces, value: it.value})),
+		diceTotal,
+		mod: parsed.mod,
 	};
 }
 

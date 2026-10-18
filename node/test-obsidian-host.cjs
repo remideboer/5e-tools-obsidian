@@ -193,7 +193,10 @@ function search (term) {
 	const initRoll = host.rollInitiative(2);
 	if (initRoll.dice.length !== 1 || initRoll.total < 3 || initRoll.total > 22) throw new Error(`initiative ${JSON.stringify(initRoll)}`);
 	const notice = host.formatRollNotice(hitRoll);
-	if (!notice.includes(String(hitRoll.total))) throw new Error(`roll notice missing total: ${notice}`);
+	const hitDie = hitRoll.diceTotal;
+	if (notice !== `${hitDie} + 5: ${hitRoll.total}`) throw new Error(`hit notice ${notice}`);
+	const dmgNotice = host.formatRollNotice(host.rollPacked(Renderer.utils.getTagEntry("@damage", "2d6+3")));
+	if (/d6/i.test(dmgNotice) || !/\d+ \+ 3: \d+/.test(dmgNotice)) throw new Error(`damage notice ${dmgNotice}`);
 	const dice3d = path.join(pluginDir, "dice", "dice-3d.js");
 	if (!fs.existsSync(dice3d)) throw new Error("3D dice bundle missing");
 	const diceSrc = fs.readFileSync(dice3d, "utf8");
