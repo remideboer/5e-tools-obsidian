@@ -271,6 +271,30 @@
 	margin: 8px 0 4px;
 }
 
+.fiveetools-encounter__party {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px 10px;
+	margin: 4px 0 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+
+.fiveetools-encounter__party .fiveetools-homebrew__field {
+	flex: 1;
+	min-width: 0;
+}
+
+.fiveetools-encounter__diff {
+	font-weight: 600;
+}
+
+.fiveetools-encounter__xp {
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
 .fiveetools-encounter__add,
 .fiveetools-encounter__roster {
 	display: flex;

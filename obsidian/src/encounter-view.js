@@ -19,6 +19,7 @@ import {
 	saveEncountersToVault,
 	upsertSavedEncounter,
 } from "./encounter-store.js";
+import {encounterDifficulty, normalizeParty} from "./encounter-difficulty.js";
 
 let nextCombatantId = 1;
 
@@ -164,6 +165,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let combatants = cloneCombatants(session?.combatants);
 	let selectedId = session?.selectedId || null;
 	let name = session?.name || "";
+	let party = normalizeParty(session?.party);
 	let savedId = session?.savedId || null;
 	let pickedId = session?.pickedId || savedId || null;
 	let previewKey = null;
@@ -171,6 +173,21 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let blankDraft = normalizeMonsterForm(session?.blankDraft || emptyForm("monster"));
 	let saveToHomebrew = !!session?.saveToHomebrew;
 	bumpIdCounter(combatants);
+
+	const partyEl = formEl.createDiv({cls: "fiveetools-encounter__party"});
+	const partyRow = partyEl.createDiv({cls: "fiveetools-encounter__row"});
+	const playersWrap = partyRow.createDiv({cls: "fiveetools-homebrew__field"});
+	playersWrap.createEl("label", {text: "Players"});
+	const playersEl = playersWrap.createEl("input", {
+		attr: {type: "number", min: "1", max: "12", value: String(party.count), title: "Number of player characters"},
+	});
+	const levelWrap = partyRow.createDiv({cls: "fiveetools-homebrew__field"});
+	levelWrap.createEl("label", {text: "Level"});
+	const levelEl = levelWrap.createEl("input", {
+		attr: {type: "number", min: "1", max: "20", value: String(party.level), title: "Party level (all the same)"},
+	});
+	const diffEl = partyEl.createEl("div", {cls: "fiveetools-encounter__diff"});
+	const xpEl = partyEl.createEl("div", {cls: "fiveetools-encounter__xp"});
 
 	const nameRow = formEl.createDiv({cls: "fiveetools-encounter__row"});
 	const nameEl = nameRow.createEl("input", {
@@ -205,16 +222,24 @@ export function renderEncounterComposer (formEl, resultEl, {
 		clearBtn.toggleAttribute("disabled", !combatants.length);
 		loadBtn.toggleAttribute("disabled", !pickedId);
 		deleteBtn.toggleAttribute("disabled", !pickedId);
+		paintDifficulty();
 		onSessionChange?.({
 			combatants: cloneCombatants(combatants),
 			selectedId,
 			name,
+			party: normalizeParty(party),
 			savedId,
 			pickedId,
 			showBlank,
 			blankDraft: normalizeMonsterForm(blankDraft),
 			saveToHomebrew,
 		});
+	};
+
+	const paintDifficulty = () => {
+		const info = encounterDifficulty({combatants, party});
+		diffEl.setText(info.difficulty ? `Difficulty: ${info.label}` : "Difficulty: —");
+		xpEl.setText(`${info.totalXp.toLocaleString()} XP · ${info.xpPerPlayer.toLocaleString()} per player`);
 	};
 
 	const showPlaceholder = () => {
@@ -385,10 +410,13 @@ export function renderEncounterComposer (formEl, resultEl, {
 			? saved.selectedId
 			: (combatants[combatants.length - 1]?.id || null);
 		name = saved.name;
+		party = normalizeParty(saved.party);
 		savedId = saved.id;
 		pickedId = saved.id;
 		previewKey = null;
 		nameEl.value = name;
+		playersEl.value = String(party.count);
+		levelEl.value = String(party.level);
 		bumpIdCounter(combatants);
 		emit();
 		paintSaves();
@@ -450,6 +478,18 @@ export function renderEncounterComposer (formEl, resultEl, {
 		});
 	};
 
+	const readParty = (clampDisplay) => {
+		party = normalizeParty({count: playersEl.value, level: levelEl.value});
+		if (clampDisplay) {
+			playersEl.value = String(party.count);
+			levelEl.value = String(party.level);
+		}
+		emit();
+	};
+	playersEl.addEventListener("input", () => readParty(false));
+	levelEl.addEventListener("input", () => readParty(false));
+	playersEl.addEventListener("change", () => readParty(true));
+	levelEl.addEventListener("change", () => readParty(true));
 	nameEl.addEventListener("input", () => {
 		name = nameEl.value;
 		emit();
@@ -490,6 +530,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 				name,
 				combatants,
 				selectedId,
+				party,
 			});
 			await saveEncountersToVault(plugin);
 			savedId = saved.id;
@@ -697,4 +738,6 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.acFromEnt = acFromEnt;
 	globalThis.FiveEToolsObsidian.initiativeFromEnt = initiativeFromEnt;
 	globalThis.FiveEToolsObsidian.adjustHp = adjustHp;
+	globalThis.FiveEToolsObsidian.encounterDifficulty = encounterDifficulty;
+	globalThis.FiveEToolsObsidian.normalizeParty = normalizeParty;
 }

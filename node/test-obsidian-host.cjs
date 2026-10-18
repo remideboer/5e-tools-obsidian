@@ -223,6 +223,28 @@ function search (term) {
 	if (!encEnt) throw new Error(`encounter combatant JSON miss via ${enc.added[0].doc.u}`);
 	console.log("encounter", {labels: enc.added.map(it => it.label), hp: expectedHp, cr: enc.added[0].cr});
 
+	if (typeof host.encounterDifficulty !== "function") throw new Error("encounterDifficulty missing from host");
+	const oneGob = host.encounterDifficulty({
+		combatants: [{cr: "1/4"}],
+		party: {count: 4, level: 1},
+		style: "one",
+	});
+	if (oneGob.totalXp !== 50 || oneGob.xpPerPlayer !== 12 || oneGob.difficulty !== "low") {
+		throw new Error(`1 goblin vs 4 L1 should be Low 50 XP / 12 each, got ${JSON.stringify(oneGob)}`);
+	}
+	const fiveGobs = host.encounterDifficulty({
+		combatants: Array.from({length: 5}, () => ({cr: "1/4"})),
+		party: {count: 4, level: 1},
+		style: "one",
+	});
+	if (fiveGobs.totalXp !== 250 || fiveGobs.xpPerPlayer !== 62 || fiveGobs.difficulty !== "moderate") {
+		throw new Error(`5 goblins vs 4 L1 should be Moderate 250 XP / 62 each, got ${JSON.stringify(fiveGobs)}`);
+	}
+	const emptyDiff = host.encounterDifficulty({combatants: [], party: {count: 4, level: 1}, style: "one"});
+	if (emptyDiff.difficulty !== "" || emptyDiff.totalXp !== 0) {
+		throw new Error(`empty roster should have no difficulty, got ${JSON.stringify(emptyDiff)}`);
+	}
+
 	if (typeof host.applyEncountersJson !== "function" || typeof host.upsertSavedEncounter !== "function") {
 		throw new Error("encounter save helpers missing from host");
 	}
@@ -231,7 +253,11 @@ function search (term) {
 		name: "Goblin ambush",
 		selectedId: enc.added[1].id,
 		combatants: enc.combatants,
+		party: {count: 5, level: 3},
 	});
+	if (savedA.party?.count !== 5 || savedA.party?.level !== 3) {
+		throw new Error(`saved encounter should keep party, got ${JSON.stringify(savedA.party)}`);
+	}
 	const savedB = host.upsertSavedEncounter({name: "Owlbear nest", combatants: []});
 	if (!savedA.id || savedA.combatants?.length !== 2) throw new Error("saved encounter should keep combatants");
 	if (host.listSavedEncounters().length !== 2) throw new Error("should list both saved encounters");

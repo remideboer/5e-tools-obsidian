@@ -1,3 +1,5 @@
+import {normalizeParty} from "./encounter-difficulty.js";
+
 let catalogJson = emptyCatalog();
 let nextEncounterId = 1;
 
@@ -65,7 +67,7 @@ export function getSavedEncounter (id) {
 	return hit ? copyJson(hit) : null;
 }
 
-export function upsertSavedEncounter ({id, name, combatants, selectedId} = {}) {
+export function upsertSavedEncounter ({id, name, combatants, selectedId, party} = {}) {
 	const trimmed = String(name || "").trim();
 	if (!trimmed) throw new Error("Name is required.");
 	const catalog = normalizeCatalog(catalogJson);
@@ -78,6 +80,7 @@ export function upsertSavedEncounter ({id, name, combatants, selectedId} = {}) {
 		name: trimmed,
 		updated: new Date().toISOString(),
 		selectedId: selectedId || null,
+		party: normalizeParty(party),
 		combatants: cloneCombatants(combatants),
 	};
 	if (ix >= 0) catalog.encounters[ix] = saved;
@@ -112,6 +115,7 @@ function normalizeEncounter (raw) {
 		name,
 		updated: String(raw.updated || "") || new Date().toISOString(),
 		selectedId: raw.selectedId || null,
+		party: normalizeParty(raw.party),
 		combatants: cloneCombatants(raw.combatants),
 	};
 }
