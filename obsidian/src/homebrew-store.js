@@ -118,6 +118,23 @@ export function cacheBrewInDataLoader () {
 	});
 }
 
+export function cacheEntityInDataLoader (ent, prop) {
+	const DataLoader = globalThis.DataLoader;
+	const UrlUtil = globalThis.UrlUtil;
+	const typeProp = prop || ent?.__prop;
+	if (!ent?.name || !typeProp || !DataLoader) return;
+	ent.__prop = typeProp;
+	const hashBuilder = UrlUtil?.URL_TO_HASH_BUILDER?.[typeProp];
+	if (DataLoader._pCache_addEntityToCache && hashBuilder) {
+		DataLoader._pCache_addEntityToCache({prop: typeProp, hashBuilder, ent});
+		return;
+	}
+	DataLoader._pCache_addToCache?.({
+		allDataMerged: {[typeProp]: [ent]},
+		propAllowlist: new Set([typeProp]),
+	});
+}
+
 export function applyBrewJson (json) {
 	setBrewJson(json);
 	cacheBrewInDataLoader();
@@ -228,13 +245,17 @@ export function entityToForm (typeId, ent) {
 }
 
 export function buildEntity (typeId, form) {
-	switch (homebrewType(typeId).id) {
-		case "item": return buildItem(form);
-		case "monster": return buildMonster(form);
-		case "background": return buildBackground(form);
-		case "race": return buildRace(form);
-		default: return buildSpell(form);
+	const type = homebrewType(typeId);
+	let ent;
+	switch (type.id) {
+		case "item": ent = buildItem(form); break;
+		case "monster": ent = buildMonster(form); break;
+		case "background": ent = buildBackground(form); break;
+		case "race": ent = buildRace(form); break;
+		default: ent = buildSpell(form);
 	}
+	if (ent) ent.__prop = type.prop;
+	return ent;
 }
 
 export function installBrewUtil () {
@@ -778,4 +799,5 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.getBrewJson = getBrewJson;
 	globalThis.FiveEToolsObsidian.upsertEntity = upsertEntity;
 	globalThis.FiveEToolsObsidian.cacheBrewInDataLoader = cacheBrewInDataLoader;
+	globalThis.FiveEToolsObsidian.cacheEntityInDataLoader = cacheEntityInDataLoader;
 }

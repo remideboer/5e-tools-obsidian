@@ -2,6 +2,7 @@ import {Modal, Notice} from "obsidian";
 import {
 	buildEntity,
 	cacheBrewInDataLoader,
+	cacheEntityInDataLoader,
 	deleteEntity,
 	emptyForm,
 	entityToForm,
@@ -73,17 +74,32 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		resultEl.empty();
 		resultEl.createEl("p", {
 			cls: "fiveetools-view__meta",
-			text: "Search for an entry to preview and Use as a starter, or fill the form and Preview.",
+			text: "Search for an entry to preview and Use as a starter, or fill the form to see a live statblock.",
 		});
 	};
 
+	let previewTimer = null;
+	const cancelPreview = () => {
+		if (previewTimer) {
+			clearTimeout(previewTimer);
+			previewTimer = null;
+		}
+	};
 	const previewEntity = (ent) => {
 		if (!ent?.name) {
 			showPlaceholder();
 			return;
 		}
-		cacheBrewInDataLoader();
-		onOpenDoc?.(brewDocFromEntity(ent, homebrewType(typeId)));
+		const type = homebrewType(typeId);
+		cacheEntityInDataLoader(ent, type.prop);
+		onOpenDoc?.(brewDocFromEntity(ent, type));
+	};
+	const previewDraft = () => {
+		previewEntity(buildEntity(typeId, draft));
+	};
+	const schedulePreview = () => {
+		cancelPreview();
+		previewTimer = setTimeout(previewDraft, 200);
 	};
 
 	const renderTabs = () => {
@@ -100,6 +116,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 				previewKey = "";
 				searchEl.value = "";
 				draft = emptyForm(typeId);
+				cancelPreview();
 				searchEl.setAttr("placeholder", `Start from ${type.label.toLowerCase()}…`);
 				renderTabs();
 				paintHits();
@@ -143,6 +160,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		el.addEventListener("input", () => {
 			draft[key] = el.type === "checkbox" ? el.checked : el.value;
 			emit();
+			schedulePreview();
 		});
 	};
 
@@ -222,6 +240,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		previousName = "";
 		previewKey = "";
 		draft = emptyForm(typeId);
+		cancelPreview();
 		paintHits();
 		renderList();
 		renderForm();
@@ -250,6 +269,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 			selectedName = "";
 			previousName = "";
 			draft = emptyForm(typeId);
+			cancelPreview();
 			renderList();
 			renderForm();
 			showPlaceholder();
@@ -258,12 +278,14 @@ export function renderHomebrewEditor (formEl, resultEl, {
 	});
 
 	previewBtn.addEventListener("click", () => {
+		cancelPreview();
 		const ent = buildEntity(typeId, draft);
 		if (!ent.name) {
 			new Notice("Name is required.");
+			previewEntity(ent);
 			return;
 		}
-		previewEntity(ent);
+		previewDraft();
 	});
 
 	saveBtn.addEventListener("click", async () => {

@@ -221,6 +221,27 @@ function search (term) {
 	if (host.hpAverageFromFormula("2d8+2") !== 11) {
 		throw new Error(`2d8+2 should average 11, got ${host.hpAverageFromFormula("2d8+2")}`);
 	}
+	if (typeof host.cacheEntityInDataLoader !== "function") throw new Error("cacheEntityInDataLoader missing from host");
+	const previewSpell = host.buildEntity("spell", {
+		name: "HB Preview Bolt",
+		level: "0",
+		school: "V",
+		timeNumber: "1",
+		timeUnit: "action",
+		range: "60 feet",
+		verbal: true,
+		somatic: true,
+		entries: "The target takes {@damage 1d6} Fire damage.",
+	});
+	host.cacheEntityInDataLoader(previewSpell, "spell");
+	const previewPage = UrlUtil.CAT_TO_PAGE[Parser.CAT_ID_SPELL];
+	const previewHash = UrlUtil.encodeForHash([previewSpell.name, "HB"]);
+	const previewLoaded = await DataLoader.pCacheAndGet(previewPage, "HB", previewHash, {isSilent: true});
+	if (!previewLoaded || previewLoaded.name !== "HB Preview Bolt") throw new Error(`unsaved preview spell miss via ${previewHash}`);
+	const previewHtml = String(Renderer.hover.getFnRenderCompact(previewPage, {isStatic: true})(previewLoaded));
+	if (!previewHtml.includes("HB Preview Bolt")) throw new Error("preview HTML missing spell name");
+	if (previewHtml.includes("{@damage")) throw new Error("preview HTML still has raw damage tag");
+	if (!/1d6/i.test(previewHtml)) throw new Error("preview HTML missing formatted damage");
 	const hbSpell = host.buildEntity("spell", {
 		name: "HB Spark",
 		level: "0",
