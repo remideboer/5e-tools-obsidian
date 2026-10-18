@@ -7,24 +7,26 @@ let rollerPromise = null;
 let unavailable = false;
 
 export async function showDice3d (plugin, result) {
-	if (unavailable || !plugin) return;
+	if (unavailable || !plugin) return false;
 	const dice = (result?.dice || []).filter(it => SUPPORTED.has(Number(it.faces)));
-	if (!dice.length) return;
+	if (!dice.length) return false;
 	try {
 		if (!hasWebGl()) throw new Error("WebGL unavailable");
 		const roller = await getRoller(plugin);
-		if (!roller) return;
+		if (!roller) return false;
 		const overlay = ensureOverlay();
 		overlay.style.display = "";
 		await roller.roll(dice.map(it => ({
 			dice: `d${it.faces}`,
 			rolled: Number(it.value),
 		})));
+		return true;
 	} catch (e) {
 		unavailable = true;
 		rollerPromise = null;
 		hideOverlay();
 		console.warn("5etools 3D dice failed", e);
+		return false;
 	}
 }
 

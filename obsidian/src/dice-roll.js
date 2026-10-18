@@ -53,8 +53,14 @@ export function formatRollNotice (result) {
 }
 
 export function presentRoll (plugin, result) {
-	showRollPopup(formatRollNotice(result));
-	if (result?.total != null && plugin?.settings?.dice3d) void showDice3d(plugin, result);
+	const text = formatRollNotice(result);
+	if (result?.total != null && plugin?.settings?.dice3d) {
+		void showDice3d(plugin, result).then(() => {
+			window.setTimeout(() => showRollPopup(text), 500);
+		});
+		return result;
+	}
+	showRollPopup(text);
 	return result;
 }
 
