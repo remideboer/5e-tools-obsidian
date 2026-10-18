@@ -19,6 +19,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.selectedDoc = null;
 		this.navEl = null;
 		this.navGroupsEl = null;
+		this.listColEl = null;
 		this.listEl = null;
 		this.readerEl = null;
 		this.searchEl = null;
@@ -75,8 +76,8 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.refreshList();
 		});
 		this.navGroupsEl = this.navEl.createDiv({cls: "fiveetools-library__navgroups"});
-		const listCol = this.contentEl.createDiv({cls: "fiveetools-library__listcol"});
-		this.searchEl = listCol.createEl("input", {
+		this.listColEl = this.contentEl.createDiv({cls: "fiveetools-library__listcol"});
+		this.searchEl = this.listColEl.createEl("input", {
 			cls: "fiveetools-library__search",
 			attr: {type: "search", placeholder: "Filter list…"},
 		});
@@ -84,7 +85,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.query = this.searchEl.value;
 			this.refreshList();
 		});
-		this.listEl = listCol.createDiv({cls: "fiveetools-library__list"});
+		this.listEl = this.listColEl.createDiv({cls: "fiveetools-library__list"});
 		this.readerEl = this.contentEl.createDiv({cls: "fiveetools-library__reader fiveetools-view"});
 
 		if (!await this.plugin.ensureReady()) {
@@ -179,6 +180,8 @@ export class FiveEToolsLibraryView extends ItemView {
 
 	refreshList () {
 		const globalTerm = String(this.globalQuery || "").trim();
+		const item = currentNavItem(this.navId);
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";
 			this.listEl.empty();
@@ -187,7 +190,6 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
-		const item = currentNavItem(this.navId);
 		this.listEl.empty();
 
 		if (item?.tool === "loot") {

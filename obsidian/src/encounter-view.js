@@ -158,11 +158,6 @@ export function renderEncounterComposer (formEl, resultEl, {
 } = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-encounter");
-	formEl.createEl("h3", {text: "Encounter Composer"});
-	formEl.createEl("p", {
-		cls: "fiveetools-view__meta",
-		text: "The running encounter autosaves. Search the bestiary and click a result to preview its statblock, then Add. Use Save to keep a named copy.",
-	});
 
 	let combatants = cloneCombatants(session?.combatants);
 	let selectedId = session?.selectedId || null;
@@ -176,7 +171,14 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let saveToHomebrew = !!session?.saveToHomebrew;
 	bumpIdCounter(combatants);
 
-	const partyEl = formEl.createDiv({cls: "fiveetools-encounter__party"});
+	const composerEl = formEl.createDiv({cls: "fiveetools-encounter__composer"});
+	composerEl.createEl("h3", {text: "Encounter Composer"});
+	composerEl.createEl("p", {
+		cls: "fiveetools-view__meta",
+		text: "The running encounter autosaves. Search the bestiary and click a result to preview its statblock, then Add. Use Save to keep a named copy.",
+	});
+
+	const partyEl = composerEl.createDiv({cls: "fiveetools-encounter__party"});
 	const partyRow = partyEl.createDiv({cls: "fiveetools-encounter__row"});
 	const playersWrap = partyRow.createDiv({cls: "fiveetools-homebrew__field"});
 	playersWrap.createEl("label", {text: "Players"});
@@ -191,19 +193,19 @@ export function renderEncounterComposer (formEl, resultEl, {
 	const diffEl = partyEl.createEl("div", {cls: "fiveetools-encounter__diff"});
 	const xpEl = partyEl.createEl("div", {cls: "fiveetools-encounter__xp"});
 
-	const nameRow = formEl.createDiv({cls: "fiveetools-encounter__row"});
+	const nameRow = composerEl.createDiv({cls: "fiveetools-encounter__row"});
 	const nameEl = nameRow.createEl("input", {
 		cls: "fiveetools-encounter__name",
 		attr: {type: "text", placeholder: "Encounter name", value: name},
 	});
-	const savesEl = formEl.createDiv({cls: "fiveetools-encounter__saves"});
-	const saveActions = formEl.createDiv({cls: "fiveetools-encounter__row"});
+	const savesEl = composerEl.createDiv({cls: "fiveetools-encounter__saves"});
+	const saveActions = composerEl.createDiv({cls: "fiveetools-encounter__row"});
 	const newBtn = saveActions.createEl("button", {text: "New", cls: "fiveetools-btn"});
 	const saveBtn = saveActions.createEl("button", {text: "Save", cls: "fiveetools-btn"});
 	const loadBtn = saveActions.createEl("button", {text: "Load", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const deleteBtn = saveActions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
 
-	const addRow = formEl.createDiv({cls: "fiveetools-encounter__add"});
+	const addRow = composerEl.createDiv({cls: "fiveetools-encounter__add"});
 	const searchRow = addRow.createDiv({cls: "fiveetools-encounter__row"});
 	const searchEl = searchRow.createEl("input", {
 		cls: "fiveetools-encounter__search",
@@ -215,10 +217,13 @@ export function renderEncounterComposer (formEl, resultEl, {
 	});
 	const blankBtn = searchRow.createEl("button", {text: "Blank creature", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
 	const hitsEl = addRow.createDiv({cls: "fiveetools-encounter__hits"});
-	const blankEl = formEl.createDiv({cls: "fiveetools-encounter__blank is-hidden"});
-	const rosterEl = formEl.createDiv({cls: "fiveetools-encounter__roster"});
-	const actions = formEl.createDiv({cls: "fiveetools-encounter__row"});
+	const blankEl = composerEl.createDiv({cls: "fiveetools-encounter__blank is-hidden"});
+	const actions = composerEl.createDiv({cls: "fiveetools-encounter__row"});
 	const clearBtn = actions.createEl("button", {text: "Clear encounter", cls: "fiveetools-btn fiveetools-btn--ghost"});
+
+	const creaturesEl = formEl.createDiv({cls: "fiveetools-encounter__creatures"});
+	creaturesEl.createEl("h3", {text: "Creatures"});
+	const rosterEl = creaturesEl.createDiv({cls: "fiveetools-encounter__roster"});
 
 	const emit = () => {
 		clearBtn.toggleAttribute("disabled", !combatants.length);
