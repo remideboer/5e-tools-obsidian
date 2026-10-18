@@ -1,7 +1,6 @@
 import {EditorSuggest, Notice} from "obsidian";
 import {searchEntities} from "./search-index.js";
-import {loadEntity} from "./entity-loader.js";
-import {insertEntityNote, wikilinkForFile} from "./note-writer.js";
+import {fiveETagForDoc} from "./fivee-tag.js";
 
 export class FiveEToolsLinkSuggest extends EditorSuggest {
 	constructor (plugin) {
@@ -33,18 +32,15 @@ export class FiveEToolsLinkSuggest extends EditorSuggest {
 		});
 	}
 
-	async selectSuggestion (doc) {
+	selectSuggestion (doc) {
 		const ctx = this.context;
 		if (!ctx?.editor) return;
-		const {editor, start, end} = ctx;
-		try {
-			const loaded = await loadEntity(doc);
-			if (!loaded?.ent) throw new Error("Could not load that entry.");
-			const file = await insertEntityNote(this.plugin, {doc, ent: loaded.ent, open: false});
-			editor.replaceRange(wikilinkForFile(file, doc.n), start, end);
-		} catch (e) {
-			new Notice(e.message || "Could not insert link.");
+		const tag = fiveETagForDoc(doc);
+		if (!tag) {
+			new Notice("Could not insert link.");
+			return;
 		}
+		ctx.editor.replaceRange(tag, ctx.start, ctx.end);
 	}
 }
 

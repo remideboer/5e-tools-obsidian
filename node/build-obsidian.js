@@ -54,7 +54,7 @@ await esbuild.build({
 	format: "cjs",
 	platform: "node",
 	target: "es2020",
-	external: ["obsidian", "electron", "fs", "path", "os", "crypto"],
+	external: ["obsidian", "electron", "fs", "path", "os", "crypto", "@codemirror/view", "@codemirror/state"],
 	minify: true,
 	logLevel: "info",
 	plugins: [elasticlunrPlugin, stubAcePlugin],

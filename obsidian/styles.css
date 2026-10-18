@@ -69,6 +69,13 @@
 	font-size: 12px;
 }
 
+a.fiveetools-inline-link {
+	cursor: pointer;
+	text-decoration: underline dotted;
+	color: #922610;
+	font-weight: 700;
+}
+
 .fiveetools-modal__sub,
 .fiveetools-view__meta,
 .fiveetools-modal__empty,

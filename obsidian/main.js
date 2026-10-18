@@ -11,6 +11,7 @@ import {cacheBrewInDataLoader, loadHomebrewFromVault} from "./src/homebrew-store
 import {flushEncounterSave, getEncounterInstance, loadEncountersFromVault, setEncounterInstance} from "./src/encounter-store.js";
 import {FiveEToolsSettingTab} from "./src/settings.js";
 import {registerLinkSuggest} from "./src/link-suggest.js";
+import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
 
 export default class FiveEToolsPlugin extends Plugin {
 	async onload () {
@@ -45,6 +46,7 @@ export default class FiveEToolsPlugin extends Plugin {
 		this.addRibbonIcon(ICON_ID, "Open 5etools library", () => this.openLibrary());
 		this.addSettingTab(new FiveEToolsSettingTab(this.app, this));
 		registerLinkSuggest(this);
+		registerFiveETagPostProcessor(this);
 	}
 
 	async saveSettings () {

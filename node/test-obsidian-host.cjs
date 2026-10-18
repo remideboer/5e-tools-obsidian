@@ -2,7 +2,11 @@ const path = require("path");
 const Module = require("module");
 const origLoad = Module._load;
 const obsidianMock = {
-	Plugin: class Plugin {},
+	Plugin: class Plugin {
+		registerEditorSuggest () {}
+		registerMarkdownPostProcessor () {}
+		registerEditorExtension () {}
+	},
 	ItemView: class ItemView {},
 	Modal: class Modal {},
 	EditorSuggest: class EditorSuggest {
@@ -35,6 +39,22 @@ const obsidianMock = {
 };
 Module._load = function (request, parent, isMain) {
 	if (request === "obsidian") return obsidianMock;
+	if (request === "@codemirror/view") {
+		return {
+			Decoration: {replace: () => ({})},
+			ViewPlugin: {fromClass: () => ({})},
+			WidgetType: class WidgetType {},
+		};
+	}
+	if (request === "@codemirror/state") {
+		return {
+			Prec: {highest: (ext) => ext, high: (ext) => ext},
+			RangeSetBuilder: class RangeSetBuilder {
+				add () {}
+				finish () { return {}; }
+			},
+		};
+	}
 	return origLoad.apply(this, arguments);
 };
 
@@ -199,14 +219,10 @@ function search (term) {
 	}
 	const hatDoc = host.findEntityDoc("Hat of Wizardry", {categoriesExact: ["item"]});
 	if (!hatDoc || !/hat of wizardry/i.test(hatDoc.n)) throw new Error("Hat of Wizardry missing from search");
-	if (typeof host.entityNotePath !== "function" || typeof host.wikilinkForFile !== "function") {
-		throw new Error("entity note link helpers missing from host");
-	}
-	const hatPath = host.entityNotePath({settings: {notesFolder: "5etools"}}, hatDoc, {name: hatDoc.n, source: hatDoc.s});
-	if (!/Hat of Wizardry\.md$/.test(hatPath)) throw new Error(`unexpected hat note path: ${hatPath}`);
-	const hatLink = host.wikilinkForFile({path: hatPath}, hatDoc.n);
-	if (!/\[\[.*Hat of Wizardry/.test(hatLink)) throw new Error(`bad wikilink ${hatLink}`);
-	console.log("item link", {name: hatDoc.n, source: hatDoc.s, path: hatPath});
+	if (typeof host.fiveETagForDoc !== "function") throw new Error("fiveETagForDoc missing from host");
+	const hatTag = host.fiveETagForDoc(hatDoc);
+	if (!/\{@item Hat of Wizardry\|/i.test(hatTag)) throw new Error(`unexpected hat tag: ${hatTag}`);
+	console.log("item link", {name: hatDoc.n, source: hatDoc.s, tag: hatTag});
 	const speciesHits = search("elf").filter(d => String(d.cf).toLowerCase() === "species");
 	const elfDoc = speciesHits.find(d => /^elf$/i.test(d.n) && String(d.s).toUpperCase() === "XPHB") || speciesHits[0];
 	if (!elfDoc) throw new Error("no Elf species");
