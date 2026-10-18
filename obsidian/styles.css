@@ -389,6 +389,13 @@ a.fiveetools-inline-link {
 	overflow: auto;
 }
 
+.workspace-leaf-content[data-type="fiveetools-library"] .fiveetools-view,
+.workspace-leaf-content[data-type="fiveetools-preview"],
+.fiveetools-view {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
 .fiveetools-library__reader {
 	flex: 1;
 	min-width: 0;
