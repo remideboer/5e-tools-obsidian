@@ -1,6 +1,6 @@
 import {hpAverageFromFormula} from "./homebrew-store.js";
 
-const WORD_COUNTS = {two: 2, three: 3, four: 4, five: 5, six: 6};
+const COUNT_WORDS = {a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6};
 
 const CR_TABLE = [
 	["0", 13, 1, 6, 3, 0, 1, 13],
@@ -81,24 +81,28 @@ export function estimateCreatureCr (form = {}) {
 function offenseFromForm (form) {
 	const rows = [...(form.actions || []), ...(form.bonus || [])];
 	const attacks = [];
-	let multi = 1;
+	let multiRow = null;
 	for (const row of rows) {
 		const text = String(row?.text || "");
 		const name = String(row?.name || "");
-		const count = multiattackCount(name, text);
-		if (count > 1) multi = Math.max(multi, count);
+		if (!multiRow && isMultiattackRow(name, text)) multiRow = {name, text};
 		const dpr = damageFromText(text);
 		if (!dpr) continue;
-		const hit = hitFromText(text);
-		const dc = saveDcFromText(text);
-		attacks.push({dpr, hit, dc});
+		attacks.push({
+			name,
+			dpr,
+			hit: hitFromText(text),
+			dc: saveDcFromText(text),
+		});
 	}
 	if (!attacks.length) return {dpr: 0, attackBonus: 0, useSaveDc: false};
 	const best = attacks.slice().sort((a, b) => b.dpr - a.dpr)[0];
-	const useSaveDc = best.dc != null && best.hit == null;
+	const combo = multiRow ? comboFromMulti(attacks, multiRow, best) : {dpr: best.dpr, attack: best};
+	const atk = combo.attack || best;
+	const useSaveDc = atk.dc != null && atk.hit == null;
 	return {
-		dpr: Math.floor(best.dpr * multi),
-		attackBonus: useSaveDc ? best.dc : (best.hit ?? 3),
+		dpr: Math.floor(combo.dpr),
+		attackBonus: useSaveDc ? atk.dc : (atk.hit ?? 3),
 		useSaveDc,
 	};
 }
@@ -121,20 +125,84 @@ function saveDcFromText (text) {
 	return m ? Number(m[1]) : null;
 }
 
-function multiattackCount (name, text) {
-	const blob = `${name} ${text}`;
-	if (!/multiattack/i.test(name) && !/makes\s+\S+\s+attacks/i.test(blob)) return 1;
-	const m = blob.match(/makes\s+(two|three|four|five|six|\d+)\s+attacks/i);
-	if (!m) return 2;
-	return WORD_COUNTS[m[1].toLowerCase()] || Math.max(1, Number(m[1]) || 2);
+function isMultiattackRow (name, text) {
+	return /multiattack/i.test(name) || /makes\s+.+\s+attacks?/i.test(text);
+}
+
+function comboFromMulti (attacks, multiRow, best) {
+	const uses = parseMultiUses(`${multiRow.name} ${multiRow.text}`);
+	if (!uses.length) {
+		return {dpr: best.dpr * 2, attack: best};
+	}
+	let dpr = 0;
+	const used = [];
+	for (const use of uses) {
+		const pick = pickAttack(attacks, use.names, best);
+		dpr += use.count * pick.dpr;
+		used.push(pick);
+	}
+	const attack = used.slice().sort((a, b) => b.dpr - a.dpr)[0] || best;
+	return {dpr, attack};
+}
+
+function parseMultiUses (text) {
+	const uses = [];
+	const re = /\b(one|two|three|four|five|six|a|an|\d+)\s+(?:((?:[\w']+\s+or\s+)*[\w']+(?:\s+[\w']+)*)\s+)?attacks?\b/i;
+	for (const part of String(text || "").split(/\s*(?:,|\band\b)\s*/i)) {
+		const m = part.match(re);
+		if (!m) continue;
+		uses.push({
+			count: parseCount(m[1]),
+			names: splitOrNames(m[2]),
+		});
+	}
+	return uses;
+}
+
+function parseCount (raw) {
+	const key = String(raw || "").toLowerCase();
+	if (COUNT_WORDS[key]) return COUNT_WORDS[key];
+	const n = Number(raw);
+	return Number.isFinite(n) && n > 0 ? Math.round(n) : 1;
+}
+
+function splitOrNames (raw) {
+	return String(raw || "").split(/\s+or\s+/i).map(it => it.trim()).filter(Boolean);
+}
+
+function pickAttack (attacks, names, best) {
+	if (!names.length) return best;
+	const options = names.map(name => findAttack(attacks, name)).filter(Boolean);
+	if (!options.length) return best;
+	return options.slice().sort((a, b) => b.dpr - a.dpr)[0];
+}
+
+function findAttack (attacks, name) {
+	const needle = normalizeAttackName(name);
+	if (!needle) return null;
+	return attacks.find(it => normalizeAttackName(it.name) === needle)
+		|| attacks.find(it => {
+			const have = normalizeAttackName(it.name);
+			return have.includes(needle) || needle.includes(have);
+		})
+		|| null;
+}
+
+function normalizeAttackName (name) {
+	return String(name || "").toLowerCase().replace(/\s+attacks?$/i, "").trim();
 }
 
 function averageDiceExpr (raw) {
 	const compact = String(raw || "").replace(/\s+/g, "");
 	if (!compact) return 0;
-	if (/^\d+d\d+([+-]\d+)?$/i.test(compact) || /^-?\d+$/.test(compact)) {
-		return hpAverageFromFormula(compact);
+	const simple = compact.match(/^(\d+)d(\d+)(?:([+-])(\d+))?$/i);
+	if (simple) {
+		const n = Number(simple[1]);
+		const sides = Number(simple[2]);
+		const bonus = simple[4] ? Number(simple[4]) * (simple[3] === "-" ? -1 : 1) : 0;
+		return n * ((sides + 1) / 2) + bonus;
 	}
+	if (/^-?\d+$/.test(compact)) return Number(compact);
 	let total = 0;
 	let used = false;
 	for (const m of compact.matchAll(/(\d+)d(\d+)/gi)) {
@@ -145,7 +213,7 @@ function averageDiceExpr (raw) {
 	for (const m of compact.replace(/\d+d\d+/gi, "").matchAll(/([+-]\d+)/g)) {
 		total += Number(m[1]);
 	}
-	return Math.floor(total);
+	return total;
 }
 
 function countSaves (raw) {

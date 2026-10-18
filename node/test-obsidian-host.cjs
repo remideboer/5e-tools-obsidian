@@ -376,6 +376,34 @@ function search (term) {
 	if (gobCr.cr !== "1/4") {
 		throw new Error(`goblin-like stats should estimate CR 1/4, got ${JSON.stringify(gobCr)}`);
 	}
+	const unnamedMulti = host.estimateCreatureCr({
+		actions: [
+			{name: "Multiattack", text: "The goblin makes two attacks."},
+			{name: "Scimitar", text: "{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h} {@damage 1d6+2} Slashing damage."},
+		],
+	});
+	if (unnamedMulti.dpr !== 11) {
+		throw new Error(`unnamed Multiattack should be 2 \u00d7 scimitar DPR, got ${JSON.stringify(unnamedMulti)}`);
+	}
+	const namedMulti = host.estimateCreatureCr({
+		actions: [
+			{name: "Multiattack", text: "The wolf makes two Bite attacks."},
+			{name: "Bite", text: "{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h} {@damage 1d6+2} Piercing damage."},
+		],
+	});
+	if (namedMulti.dpr !== 11) {
+		throw new Error(`named Bite Multiattack should be 2 \u00d7 Bite DPR, got ${JSON.stringify(namedMulti)}`);
+	}
+	const mixedMulti = host.estimateCreatureCr({
+		actions: [
+			{name: "Multiattack", text: "The creature makes two Claw attacks and one Bite attack."},
+			{name: "Claw", text: "{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h} {@damage 1d6+2} Slashing damage."},
+			{name: "Bite", text: "{@atk mw} {@hit 4} to hit, reach 5 ft., one target. {@h} {@damage 1d8+2} Piercing damage."},
+		],
+	});
+	if (mixedMulti.dpr !== 17) {
+		throw new Error(`mixed Claw+Bite Multiattack should sum combo DPR, got ${JSON.stringify(mixedMulti)}`);
+	}
 	const locked = {ac: "15", hpFormula: "2d6", cr: "5", crOverride: true};
 	host.applyCalculatedCr(locked);
 	if (locked.cr !== "5") throw new Error("override should keep a chosen CR");
