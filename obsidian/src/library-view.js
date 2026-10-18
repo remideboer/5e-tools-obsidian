@@ -189,6 +189,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		const globalTerm = String(this.globalQuery || "").trim();
 		const item = currentNavItem(this.navId);
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
+		clearListToolClasses(this.listEl);
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";
 			this.listEl.empty();
@@ -304,6 +305,10 @@ function serializeDoc (doc) {
 
 function sameDoc (a, b) {
 	return !!(a && b && a.u === b.u && a.s === b.s && a.n === b.n);
+}
+
+function clearListToolClasses (el) {
+	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew");
 }
 
 function currentNavItem (navId) {
