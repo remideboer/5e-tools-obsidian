@@ -27,6 +27,31 @@ export function crFromEnt (ent) {
 	return ent.cr.cr || "";
 }
 
+export function acFromEnt (ent) {
+	const ac = ent?.ac;
+	if (ac == null) return null;
+	if (typeof ac === "number" && Number.isFinite(ac)) return ac;
+	const first = Array.isArray(ac) ? ac[0] : ac;
+	if (typeof first === "number" && Number.isFinite(first)) return first;
+	const n = Number(first?.ac);
+	return Number.isFinite(n) ? n : null;
+}
+
+export function initiativeFromEnt (ent) {
+	const fromRenderer = globalThis.Renderer?.monster?.getInitiativeBonusNumber?.({mon: ent});
+	if (fromRenderer != null && Number.isFinite(fromRenderer)) return fromRenderer;
+	if (typeof ent?.dex !== "number") return null;
+	const Parser = globalThis.Parser;
+	if (Parser?.getAbilityModNumber) return Parser.getAbilityModNumber(ent.dex);
+	return Math.floor((ent.dex - 10) / 2);
+}
+
+function formatBonus (n) {
+	if (n == null || !Number.isFinite(Number(n))) return "—";
+	const v = Number(n);
+	return v >= 0 ? `+${v}` : `${v}`;
+}
+
 export async function addCombatants (session, doc, count = 1) {
 	if (!doc) throw new Error("No creature to add.");
 	const n = Math.max(1, Math.min(20, Number(count) || 1));
@@ -35,6 +60,8 @@ export async function addCombatants (session, doc, count = 1) {
 	if (!ent) throw new Error(`No JSON found for ${doc.n || "creature"}.`);
 	const hpMax = hpMaxFromEnt(ent);
 	const cr = crFromEnt(ent);
+	const ac = acFromEnt(ent);
+	const initiative = initiativeFromEnt(ent);
 	const combatants = [...(session?.combatants || [])];
 	bumpIdCounter(combatants);
 	const added = [];
@@ -46,6 +73,8 @@ export async function addCombatants (session, doc, count = 1) {
 			hpMax,
 			hpCurrent: hpMax,
 			cr,
+			ac,
+			initiative,
 		};
 		combatants.push(combatant);
 		added.push(combatant);
@@ -247,6 +276,10 @@ function renderCombatantRow (parent, combatant, {app, selected, onSelect, onHp, 
 		cls: "fiveetools-modal__sub",
 		text: [combatant.cr ? `CR ${combatant.cr}` : null, combatant.doc?.sA || combatant.doc?.s].filter(Boolean).join(" · "),
 	});
+	const stats = name.createDiv({cls: "fiveetools-encounter__stats"});
+	stats.createEl("span", {text: `AC ${combatant.ac != null ? combatant.ac : "—"}`});
+	stats.createEl("span", {text: `HP ${combatant.hpCurrent}/${combatant.hpMax}`});
+	stats.createEl("span", {text: `Init ${formatBonus(combatant.initiative)}`});
 
 	const hp = row.createDiv({cls: "fiveetools-encounter__hp"});
 	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
@@ -353,5 +386,7 @@ function cloneCombatants (combatants) {
 if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.addCombatants = addCombatants;
 	globalThis.FiveEToolsObsidian.hpMaxFromEnt = hpMaxFromEnt;
+	globalThis.FiveEToolsObsidian.acFromEnt = acFromEnt;
+	globalThis.FiveEToolsObsidian.initiativeFromEnt = initiativeFromEnt;
 	globalThis.FiveEToolsObsidian.adjustHp = adjustHp;
 }

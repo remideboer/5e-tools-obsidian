@@ -356,6 +356,15 @@
 	min-width: 0;
 }
 
+.fiveetools-encounter__stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 2px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
 .fiveetools-encounter__hp {
 	display: flex;
 	align-items: center;

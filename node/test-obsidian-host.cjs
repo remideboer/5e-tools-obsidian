@@ -201,6 +201,8 @@ function search (term) {
 	if (!expectedHp || enc.added[0].hpMax !== expectedHp || enc.added[1].hpCurrent !== expectedHp) {
 		throw new Error(`goblin HP should be average ${expectedHp}, got ${enc.added[0].hpMax}`);
 	}
+	if (enc.added[0].ac !== 15) throw new Error(`goblin AC should be 15, got ${enc.added[0].ac}`);
+	if (enc.added[0].initiative !== 2) throw new Error(`goblin Init should be +2, got ${enc.added[0].initiative}`);
 	if (host.adjustHp(expectedHp, expectedHp, 1) !== expectedHp) throw new Error("HP + should clamp to max");
 	if (host.adjustHp(0, expectedHp, -1) !== 0) throw new Error("HP - should clamp to 0");
 	const encEnt = await DataLoader.pCacheAndGet(page, enc.added[0].doc.s, enc.added[0].doc.u, {isSilent: true});
