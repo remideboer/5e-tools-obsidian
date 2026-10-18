@@ -13,6 +13,10 @@ export {setStyleHint, getStyleHint};
 
 let configuredRoot = "";
 
+export function getConfiguredRoot () {
+	return configuredRoot;
+}
+
 export function configureFiveEToolsRoot (rootPath, {imageBaseUrl = "https://5e.tools"} = {}) {
 	const posixRoot = `${toPosixRoot(rootPath)}/`;
 	configuredRoot = posixRoot;
@@ -44,10 +48,6 @@ export function configureFiveEToolsRoot (rootPath, {imageBaseUrl = "https://5e.t
 	};
 
 	return posixRoot;
-}
-
-export function getConfiguredRoot () {
-	return configuredRoot;
 }
 
 export function getRenderer () {
@@ -110,6 +110,7 @@ function bindObsidianLinkPlugin (renderer) {
 
 globalThis.FiveEToolsObsidian = {
 	configureFiveEToolsRoot,
+	getConfiguredRoot,
 	setStyleHint,
 	getStyleHint,
 	getDataLoader,

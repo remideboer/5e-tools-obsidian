@@ -3,6 +3,7 @@ import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
+import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js";
 import {renderLootGenerator} from "./loot-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
@@ -23,9 +24,12 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listEl = null;
 		this.readerEl = null;
 		this.searchEl = null;
+		this.filterEl = null;
 		this.globalSearchEl = null;
+		this.bestiaryFilters = emptyBestiaryFilters();
 		this._restoring = false;
 		this._pendingState = null;
+		this._closeBestiaryMenus = null;
 	}
 
 	getViewType () {
@@ -85,6 +89,10 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.query = this.searchEl.value;
 			this.refreshList();
 		});
+		this.filterEl = this.listColEl.createDiv({cls: "fiveetools-bestiary-filters"});
+		paintBestiaryFilters(this.filterEl, this.bestiaryFilters, () => this.refreshList());
+		this._closeBestiaryMenus = () => closeBestiaryFilterMenus(this.filterEl);
+		this.contentEl.addEventListener("click", this._closeBestiaryMenus);
 		this.listEl = this.listColEl.createDiv({cls: "fiveetools-library__list"});
 		this.readerEl = this.contentEl.createDiv({cls: "fiveetools-library__reader fiveetools-view"});
 
@@ -110,6 +118,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	async onClose () {
+		if (this._closeBestiaryMenus) this.contentEl.removeEventListener("click", this._closeBestiaryMenus);
 		this.contentEl.empty();
 	}
 
@@ -193,6 +202,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		clearListToolClasses(this.listEl);
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
 			this.listEl.empty();
 			this.docs = searchEntities(globalTerm);
 			this.renderDocRows();
@@ -203,6 +213,7 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		if (item?.tool === "loot") {
 			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._lootSession || {ids: [], count: 1, results: null};
 			renderLootGenerator(this.listEl, this.readerEl, {
 				selectedIds: session.ids,
@@ -217,6 +228,7 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		if (item?.tool === "encounter") {
 			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._encounterSession || {combatants: [], selectedId: null};
 			renderEncounterComposer(this.listEl, this.readerEl, {
 				session,
@@ -231,6 +243,7 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		if (item?.tool === "homebrew") {
 			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._homebrewSession || {typeId: "spell"};
 			renderHomebrewEditor(this.listEl, this.readerEl, {
 				session,
@@ -244,9 +257,11 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		this.searchEl.style.display = "";
+		if (this.filterEl) this.filterEl.style.display = item?.id === "bestiary" ? "" : "none";
 		this.docs = listEntities({
 			categoriesExact: item?.categories || [],
 			query: this.query,
+			bestiaryFilters: item?.id === "bestiary" ? this.bestiaryFilters : undefined,
 		});
 
 		this.renderDocRows();
@@ -310,6 +325,56 @@ function sameDoc (a, b) {
 
 function clearListToolClasses (el) {
 	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew");
+}
+
+function paintBestiaryFilters (hostEl, filters, onChange) {
+	hostEl.empty();
+	const grid = hostEl;
+	addBestiaryFilter(grid, "Type", "types", BESTIARY_FILTER_OPTIONS.types, filters, onChange);
+	addBestiaryFilter(grid, "CR", "crs", BESTIARY_FILTER_OPTIONS.crs, filters, onChange);
+	addBestiaryFilter(grid, "Size", "sizes", BESTIARY_FILTER_OPTIONS.sizes, filters, onChange);
+	addBestiaryFilter(grid, "Alignment", "alignments", BESTIARY_FILTER_OPTIONS.alignments, filters, onChange);
+}
+
+function addBestiaryFilter (grid, label, key, options, filters, onChange) {
+	const wrap = grid.createDiv({cls: "fiveetools-bestiary-filter"});
+	const btn = wrap.createEl("button", {
+		cls: "fiveetools-bestiary-filter__btn",
+		attr: {type: "button"},
+	});
+	const menu = wrap.createDiv({cls: "fiveetools-bestiary-filter__menu"});
+	const syncBtn = () => {
+		const n = filters[key]?.length || 0;
+		btn.setText(n ? `${label} (${n})` : label);
+		btn.classList.toggle("is-active", n > 0);
+	};
+	for (const opt of options) {
+		const row = menu.createEl("label", {cls: "fiveetools-bestiary-filter__opt"});
+		const box = row.createEl("input", {attr: {type: "checkbox"}});
+		box.checked = (filters[key] || []).includes(opt.id);
+		box.addEventListener("change", () => {
+			const selected = new Set(filters[key] || []);
+			if (box.checked) selected.add(opt.id);
+			else selected.delete(opt.id);
+			filters[key] = [...selected];
+			syncBtn();
+			onChange();
+		});
+		row.createSpan({text: opt.label});
+	}
+	btn.addEventListener("click", (ev) => {
+		ev.stopPropagation();
+		const willOpen = !menu.classList.contains("is-open");
+		closeBestiaryFilterMenus(grid);
+		if (willOpen) menu.classList.add("is-open");
+	});
+	menu.addEventListener("click", (ev) => ev.stopPropagation());
+	syncBtn();
+}
+
+function closeBestiaryFilterMenus (hostEl) {
+	hostEl?.querySelectorAll(".fiveetools-bestiary-filter__menu.is-open")
+		.forEach(el => el.classList.remove("is-open"));
 }
 
 function currentNavItem (navId) {

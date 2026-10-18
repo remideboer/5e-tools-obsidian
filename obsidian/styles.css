@@ -186,6 +186,69 @@
 	width: calc(100% - 20px);
 }
 
+.fiveetools-bestiary-filters {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 4px 6px;
+	margin: 0 10px 8px;
+}
+
+.fiveetools-bestiary-filter {
+	position: relative;
+	min-width: 0;
+}
+
+.fiveetools-bestiary-filter__btn {
+	width: 100%;
+	font-size: 12px;
+	line-height: 1.2;
+	padding: 4px 6px;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-bestiary-filter__btn.is-active {
+	border-color: var(--interactive-accent);
+}
+
+.fiveetools-bestiary-filter__menu {
+	display: none;
+	position: absolute;
+	z-index: 20;
+	left: 0;
+	right: 0;
+	top: calc(100% + 2px);
+	max-height: 12em;
+	overflow: auto;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	box-shadow: var(--shadow-s);
+}
+
+.fiveetools-bestiary-filter__menu.is-open {
+	display: block;
+}
+
+.fiveetools-bestiary-filter__opt {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 6px;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.fiveetools-bestiary-filter__opt:hover {
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-bestiary-filter__opt input {
+	margin: 0;
+}
+
 .fiveetools-library__list {
 	flex: 1;
 	overflow: auto;

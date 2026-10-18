@@ -530,6 +530,52 @@ function search (term) {
 	if (areaParts.length < 3) throw new Error(`area href too short: ${areaHref}`);
 	console.log("adventure", {name: advPack.adventure?.name, chapters: chapters.length, areaHref});
 
+	if (typeof host.ensureSearchIndex !== "function") throw new Error("ensureSearchIndex missing from host");
+	if (typeof host.listEntities !== "function") throw new Error("listEntities missing from host");
+	if (typeof host.getMonsterMeta !== "function") throw new Error("getMonsterMeta missing from host");
+	await host.ensureSearchIndex(pluginDir);
+	const mmGoblinDoc = {
+		n: "Goblin",
+		s: "MM",
+		u: UrlUtil.URL_TO_HASH_BUILDER.monster({name: "Goblin", source: "MM"}),
+		cf: "bestiary",
+	};
+	const goblinMeta = host.getMonsterMeta(mmGoblinDoc);
+	if (!goblinMeta) throw new Error("goblin meta missing");
+	if (goblinMeta.cr !== "1/4") throw new Error(`goblin CR ${goblinMeta.cr}`);
+	if (!goblinMeta.types.includes("humanoid")) throw new Error(`goblin types ${JSON.stringify(goblinMeta.types)}`);
+	if (!goblinMeta.sizes.includes("S")) throw new Error(`goblin sizes ${JSON.stringify(goblinMeta.sizes)}`);
+	if (!goblinMeta.alignments.includes("NE")) throw new Error(`goblin alignments ${JSON.stringify(goblinMeta.alignments)}`);
+	if (!host.docMatchesBestiaryFilters(mmGoblinDoc, {types: ["humanoid"], crs: ["1/4"], sizes: ["S"], alignments: ["NE"]})) {
+		throw new Error("goblin should match humanoid + CR 1/4 + S + NE");
+	}
+	if (host.docMatchesBestiaryFilters(mmGoblinDoc, {crs: ["30"]})) {
+		throw new Error("goblin should not match CR 30");
+	}
+	const goblinHits = host.listEntities({
+		categoriesExact: ["bestiary"],
+		bestiaryFilters: {types: ["humanoid"], crs: ["1/4"], sizes: ["S"], alignments: ["NE"]},
+	});
+	if (!goblinHits.some(d => /^goblin$/i.test(d.n) && String(d.s).toUpperCase() === "MM")) {
+		throw new Error("listEntities Type+CR+Size+Alignment missed MM Goblin");
+	}
+	const cr30Hits = host.listEntities({
+		categoriesExact: ["bestiary"],
+		bestiaryFilters: {crs: ["30"]},
+	});
+	if (cr30Hits.some(d => /^goblin$/i.test(d.n))) throw new Error("CR 30 list included Goblin");
+	if (!cr30Hits.length) throw new Error("CR 30 filter returned nothing");
+	const typeCrHits = host.listEntities({
+		categoriesExact: ["bestiary"],
+		bestiaryFilters: {types: ["humanoid"], crs: ["1/4"]},
+	});
+	if (!typeCrHits.some(d => /^goblin$/i.test(d.n))) throw new Error("Type+CR filter missed Goblin");
+	console.log("bestiary filters", {
+		goblin: goblinMeta,
+		typeCr: typeCrHits.length,
+		cr30: cr30Hits.slice(0, 3).map(d => d.n),
+	});
+
 	if (typeof host.cachedMediaSrc !== "function") throw new Error("cachedMediaSrc missing from host");
 	const os = require("os");
 	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "fiveetools-cache-"));

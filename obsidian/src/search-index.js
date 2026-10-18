@@ -4,6 +4,7 @@ import {decompressIndex} from "./decompress-index.js";
 import {CORPUS_PAGES, MAX_LIBRARY_RESULTS, MAX_SEARCH_RESULTS} from "./constants.js";
 import {getElasticlunr, getParser, getSearchUtil, getStyleHint, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
+import {docMatchesBestiaryFilters, ensureMonsterMeta, hasBestiaryFilters, resetMonsterMeta} from "./bestiary-meta.js";
 
 const CATEGORY_ALIAS = {
 	creature: ["bestiary"],
@@ -34,6 +35,7 @@ let homebrewDocIds = new Set();
 export async function ensureSearchIndex (rootPath) {
 	const root = path.resolve(rootPath);
 	if (searchIndex && loadedRoot === root) return searchIndex;
+	resetMonsterMeta();
 
 	const elasticlunr = getElasticlunr();
 	const Parser = getParser();
@@ -59,6 +61,7 @@ export async function ensureSearchIndex (rootPath) {
 	searchIndex = index;
 	loadedRoot = root;
 	homebrewDocIds.clear();
+	ensureMonsterMeta();
 	return searchIndex;
 }
 
@@ -222,23 +225,29 @@ export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [
 	return out.slice(0, limit).map(it => it.doc);
 }
 
-export function listEntities ({categoriesExact = [], query = "", limit = MAX_LIBRARY_RESULTS} = {}) {
+export function listEntities ({categoriesExact = [], query = "", limit = MAX_LIBRARY_RESULTS, bestiaryFilters} = {}) {
 	if (!searchIndex) return [];
 	const cats = new Set((categoriesExact || []).map(it => String(it).toLowerCase()));
 	const term = String(query || "").trim();
+	const filtered = hasBestiaryFilters(bestiaryFilters);
 
 	let docs;
-	if (term.length >= 2) {
+	if (term.length >= 2 && !filtered) {
 		docs = searchEntities(term, {categoriesExact, limit: Math.max(limit, 400)});
 	} else {
 		docs = Object.values(searchIndex.documentStore.docs)
 			.filter(doc => doc && (!cats.size || cats.has(String(doc.cf || "").toLowerCase())));
+		if (term.length >= 2) {
+			const needle = term.toLowerCase();
+			docs = docs.filter(doc => String(doc.n || "").toLowerCase().includes(needle));
+		}
 		docs.sort((a, b) => {
 			const byName = String(a.n || "").localeCompare(String(b.n || ""));
 			if (byName) return byName;
 			return sourcePriority(a) - sourcePriority(b);
 		});
 	}
+	if (filtered) docs = docs.filter(doc => docMatchesBestiaryFilters(doc, bestiaryFilters));
 	return docs.slice(0, limit);
 }
 
@@ -334,4 +343,5 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.findEntityDoc = findEntityDoc;
 	globalThis.FiveEToolsObsidian.indexHomebrewDocs = indexHomebrewDocs;
 	globalThis.FiveEToolsObsidian.brewDocFromEntity = brewDocFromEntity;
+	globalThis.FiveEToolsObsidian.listEntities = listEntities;
 }
