@@ -9,9 +9,10 @@ import "../../js/utils-dataloader.js";
 import {toPosixRoot, urlToLocalPath} from "./local-fs.js";
 import {cachedMediaSrc, clearMediaCache} from "./media-cache.js";
 import {formatRollNotice, rollInitiative, rollPacked} from "./dice-roll.js";
-import {cssPixelsPerWorldPixel, screenPpiCss} from "./map-scale.js";
+import {cellPxFromMapDpi, cssPixelsPerWorldPixel, inchesFromMapDpi, mapDpiFromInches, screenPpiCss} from "./map-scale.js";
+import {detectImageDpi} from "./map-dpi.js";
 
-export {setStyleHint, getStyleHint, cssPixelsPerWorldPixel, screenPpiCss};
+export {setStyleHint, getStyleHint, cssPixelsPerWorldPixel, screenPpiCss, inchesFromMapDpi, mapDpiFromInches, cellPxFromMapDpi, detectImageDpi};
 
 let configuredRoot = "";
 
@@ -128,4 +129,8 @@ globalThis.FiveEToolsObsidian = {
 	formatRollNotice,
 	screenPpiCss,
 	cssPixelsPerWorldPixel,
+	inchesFromMapDpi,
+	mapDpiFromInches,
+	cellPxFromMapDpi,
+	detectImageDpi,
 };

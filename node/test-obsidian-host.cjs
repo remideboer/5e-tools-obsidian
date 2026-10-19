@@ -112,6 +112,34 @@ function search (term) {
 	}).map(it => it.doc);
 }
 
+function pngWithDpi (dpi) {
+	const ppm = Math.round(dpi / 0.0254);
+	const buf = new Uint8Array(29);
+	const view = new DataView(buf.buffer);
+	buf.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+	view.setUint32(8, 9);
+	buf.set([0x70, 0x48, 0x59, 0x73], 12);
+	view.setUint32(16, ppm);
+	view.setUint32(20, ppm);
+	buf[24] = 1;
+	return view;
+}
+
+function jpegWithDpi (dpi) {
+	const buf = new Uint8Array(20);
+	const view = new DataView(buf.buffer);
+	view.setUint16(0, 0xffd8);
+	view.setUint16(2, 0xffe0);
+	view.setUint16(4, 16);
+	buf.set([0x4a, 0x46, 0x49, 0x46, 0x00], 6);
+	buf[11] = 1;
+	buf[12] = 1;
+	buf[13] = 1;
+	view.setUint16(14, dpi);
+	view.setUint16(16, dpi);
+	return view;
+}
+
 (async () => {
 	if (!fs.existsSync(path.join(pluginDir, "data", "loot.json"))) throw new Error("loot.json missing from plugin");
 	if (!fs.existsSync(path.join(pluginDir, "data", "bestiary"))) throw new Error("bestiary missing from plugin");
@@ -813,7 +841,14 @@ function search (term) {
 	const cellCss = host.cssPixelsPerWorldPixel(70, 1, ppi);
 	if (Math.abs(cellCss - ppi / 70) > 1e-9) throw new Error(`cssPixelsPerWorldPixel ${cellCss}`);
 	if (host.cssPixelsPerWorldPixel(0, 1, ppi) != null) throw new Error("cssPixelsPerWorldPixel should reject empty cell");
-	console.log("map scale", {ppi, cellCss});
+	if (host.inchesFromMapDpi(1500, 150) !== 10) throw new Error(`inchesFromMapDpi ${host.inchesFromMapDpi(1500, 150)}`);
+	if (host.mapDpiFromInches(1500, 10) !== 150) throw new Error(`mapDpiFromInches ${host.mapDpiFromInches(1500, 10)}`);
+	if (host.cellPxFromMapDpi(150, 1) !== 150) throw new Error(`cellPxFromMapDpi ${host.cellPxFromMapDpi(150, 1)}`);
+	if (typeof host.detectImageDpi !== "function") throw new Error("detectImageDpi missing from host");
+	if (host.detectImageDpi(pngWithDpi(150)) !== 150) throw new Error(`png dpi ${host.detectImageDpi(pngWithDpi(150))}`);
+	if (host.detectImageDpi(pngWithDpi(72)) != null) throw new Error("72 DPI screen default should be ignored");
+	if (host.detectImageDpi(jpegWithDpi(300)) !== 300) throw new Error(`jpeg dpi ${host.detectImageDpi(jpegWithDpi(300))}`);
+	console.log("map scale", {ppi, cellCss, pngDpi: 150, jpegDpi: 300});
 
 	console.log("ok");
 })().catch(err => {

@@ -53,35 +53,37 @@ export function bindMapPointer (canvas, getCamera, setCamera, onChange) {
 	});
 	canvas.addEventListener("pointermove", (evt) => {
 		if (!drag) return;
-		const cam = getCamera();
-		const scale = clampScale(cam.scale);
-		setCamera({
-			...cam,
+		const prev = getCamera();
+		const scale = clampScale(prev.scale);
+		const next = {
+			...prev,
 			x: drag.cam.x - (evt.clientX - drag.x) / scale,
 			y: drag.cam.y - (evt.clientY - drag.y) / scale,
-		});
-		onChange();
+		};
+		setCamera(next);
+		onChange("pan", next, prev);
 	});
 	const endDrag = () => { drag = null; };
 	canvas.addEventListener("pointerup", endDrag);
 	canvas.addEventListener("pointercancel", endDrag);
 	canvas.addEventListener("wheel", (evt) => {
 		evt.preventDefault();
-		const cam = getCamera();
+		const prev = getCamera();
 		const rect = canvas.getBoundingClientRect();
 		const mx = evt.clientX - rect.left;
 		const my = evt.clientY - rect.top;
-		const before = clampScale(cam.scale);
+		const before = clampScale(prev.scale);
 		const factor = evt.deltaY < 0 ? 1.1 : 1 / 1.1;
 		const after = clampScale(before * factor);
-		const wx = cam.x + mx / before;
-		const wy = cam.y + my / before;
-		setCamera({
+		const wx = prev.x + mx / before;
+		const wy = prev.y + my / before;
+		const next = {
 			scale: after,
 			x: wx - mx / after,
 			y: wy - my / after,
-		});
-		onChange();
+		};
+		setCamera(next);
+		onChange("zoom", next, prev);
 	}, {passive: false});
 }
 
