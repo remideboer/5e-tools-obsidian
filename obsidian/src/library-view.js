@@ -9,6 +9,7 @@ import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
+import {renderMapTool, teardownMapView} from "./map-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -122,8 +123,10 @@ export class FiveEToolsLibraryView extends ItemView {
 	async onClose () {
 		if (this._closeBestiaryMenus) this.contentEl.removeEventListener("click", this._closeBestiaryMenus);
 		teardownCampaignManager(this.plugin);
+		teardownMapView(this.plugin, {closePlayer: true});
 		this.readerEl?.removeClass("fiveetools-campaign-reader");
 		this.readerEl?.removeClass("fiveetools-campaign-encounter");
+		this.readerEl?.removeClass("fiveetools-map-stage");
 		this.contentEl.empty();
 	}
 
@@ -210,6 +213,10 @@ export class FiveEToolsLibraryView extends ItemView {
 			teardownCampaignManager(this.plugin);
 			this.readerEl?.removeClass("fiveetools-campaign-reader");
 			this.readerEl?.removeClass("fiveetools-campaign-encounter");
+		}
+		if (item?.tool !== "map" || globalTerm.length >= 2) {
+			teardownMapView(this.plugin);
+			this.readerEl?.removeClass("fiveetools-map-stage");
 		}
 		if (globalTerm.length >= 2) {
 			this.searchEl.style.display = "none";
@@ -303,11 +310,26 @@ export class FiveEToolsLibraryView extends ItemView {
 							: null;
 						this.selectNav("encounter");
 					},
+					onOpenMap: () => this.selectNav("map"),
 				});
 			} catch (e) {
 				this.listEl.empty();
 				this.listEl.createEl("p", {text: e.message || "Could not open Campaigns."});
 			}
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "map") {
+			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._mapSession || {};
+			renderMapTool(this.listEl, this.readerEl, {
+				session,
+				plugin: this.plugin,
+				app: this.app,
+				onSessionChange: (next) => { this.plugin._mapSession = next; },
+			});
 			this.docs = [];
 			return;
 		}
@@ -380,7 +402,7 @@ function sameDoc (a, b) {
 }
 
 function clearListToolClasses (el) {
-	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign");
+	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign", "fiveetools-map");
 }
 
 function paintBestiaryFilters (hostEl, filters, onChange) {

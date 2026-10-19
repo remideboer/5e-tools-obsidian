@@ -806,6 +806,15 @@ function search (term) {
 		fs.rmSync(tmpRoot, {recursive: true, force: true});
 	}
 
+	if (typeof host.screenPpiCss !== "function") throw new Error("screenPpiCss missing from host");
+	const ppi = host.screenPpiCss(1920, 1080, 27);
+	if (!(ppi > 81.5) || !(ppi < 81.7)) throw new Error(`screenPpiCss ${ppi}`);
+	if (host.screenPpiCss(0, 1080, 27) != null) throw new Error("screenPpiCss should reject empty size");
+	const cellCss = host.cssPixelsPerWorldPixel(70, 1, ppi);
+	if (Math.abs(cellCss - ppi / 70) > 1e-9) throw new Error(`cssPixelsPerWorldPixel ${cellCss}`);
+	if (host.cssPixelsPerWorldPixel(0, 1, ppi) != null) throw new Error("cssPixelsPerWorldPixel should reject empty cell");
+	console.log("map scale", {ppi, cellCss});
+
 	console.log("ok");
 })().catch(err => {
 	console.error(err);

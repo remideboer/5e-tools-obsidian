@@ -34,6 +34,7 @@ export function renderCampaignManager (formEl, resultEl, {
 	app,
 	onSessionChange,
 	onOpenComposer,
+	onOpenMap,
 } = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-campaign");
@@ -210,7 +211,10 @@ export function renderCampaignManager (formEl, resultEl, {
 		let creaturesEl = formEl.querySelector(".fiveetools-encounter__creatures");
 		if (!creaturesEl) {
 			creaturesEl = formEl.createDiv({cls: "fiveetools-encounter__creatures"});
-			creaturesEl.createEl("h3", {text: "Creatures"});
+			const head = creaturesEl.createDiv({cls: "fiveetools-campaign__enchead"});
+			head.createEl("h3", {text: "Creatures"});
+			const mapBtn = head.createEl("button", {text: "Map", cls: "fiveetools-btn", attr: {type: "button"}});
+			mapBtn.addEventListener("click", () => onOpenMap?.());
 			creaturesEl.createDiv({cls: "fiveetools-encounter__roster"});
 		}
 		const rosterEl = creaturesEl.querySelector(".fiveetools-encounter__roster");

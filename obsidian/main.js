@@ -1,5 +1,5 @@
 import {Notice, Plugin} from "obsidian";
-import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./src/constants.js";
+import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY, VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./src/constants.js";
 import {FiveEToolsView} from "./src/entity-view.js";
 import {configureFiveEToolsRoot, setStyleHint} from "./src/fiveetools-host.js";
 import {ICON_ID, registerFiveEToolsIcon} from "./src/icon.js";
@@ -12,6 +12,7 @@ import {flushEncounterSave, getEncounterInstance, loadEncountersFromVault, setEn
 import {FiveEToolsSettingTab} from "./src/settings.js";
 import {registerLinkSuggest} from "./src/link-suggest.js";
 import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
+import {FiveEToolsMapPlayerView, teardownMapView} from "./src/map-view.js";
 
 export default class FiveEToolsPlugin extends Plugin {
 	async onload () {
@@ -30,6 +31,10 @@ export default class FiveEToolsPlugin extends Plugin {
 		this.registerView(
 			VIEW_TYPE_FIVEETOOLS_LIBRARY,
 			(leaf) => new FiveEToolsLibraryView(leaf, this),
+		);
+		this.registerView(
+			VIEW_TYPE_FIVEETOOLS_MAP_PLAYER,
+			(leaf) => new FiveEToolsMapPlayerView(leaf, this),
 		);
 
 		this.addCommand({
@@ -84,6 +89,7 @@ export default class FiveEToolsPlugin extends Plugin {
 	onunload () {
 		if (this._encounterSession) setEncounterInstance(this._encounterSession);
 		void flushEncounterSave(this);
+		teardownMapView(this, {closePlayer: true});
 	}
 
 	async openSearch () {
