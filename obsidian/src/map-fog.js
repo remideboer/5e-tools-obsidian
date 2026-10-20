@@ -90,6 +90,18 @@ export function fillFogPolygon (mask, points, mode = "reveal") {
 	ctx.globalCompositeOperation = "source-over";
 }
 
+export function fillFogCircle (mask, cx, cy, r, mode = "reveal") {
+	const radius = Number(r);
+	if (!mask || !(radius > 0)) return;
+	const ctx = mask.getContext("2d");
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.beginPath();
+	ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+	fogComposite(ctx, mode);
+	ctx.fill();
+	ctx.globalCompositeOperation = "source-over";
+}
+
 export function saveFogMask (filePath, mask) {
 	if (!filePath || !mask) return false;
 	try {

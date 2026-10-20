@@ -16,6 +16,7 @@ import {
 import {
 	coverFogAll,
 	createFogMask,
+	fillFogCircle,
 	fillFogPolygon,
 	fillFogRect,
 	fogPaths,
@@ -128,6 +129,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	let brushPx = DEFAULT_BRUSH;
 	let fogStroke = null;
 	let fogRect = null;
+	let fogCircle = null;
 	let fogPoly = null;
 	let fogSaveTimer = 0;
 	let raf = 0;
@@ -205,6 +207,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	const toolPanBtn = fogToolRow.createEl("button", {text: "Pan", cls: "fiveetools-btn fiveetools-btn--ghost is-active", attr: {type: "button"}});
 	const toolPencilBtn = fogToolRow.createEl("button", {text: "Pencil", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Brush fog or reveal"}});
 	const toolRectBtn = fogToolRow.createEl("button", {text: "Rect", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Rectangle cover or reveal"}});
+	const toolCircleBtn = fogToolRow.createEl("button", {text: "Circle", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Circle: click center, drag radius"}});
 	const toolPolyBtn = fogToolRow.createEl("button", {text: "Poly", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Polygon: click points, double-click or Enter to close"}});
 	const fogModeRow = fogBox.createDiv({cls: "fiveetools-map__fog-row"});
 	const modeCoverBtn = fogModeRow.createEl("button", {text: "Cover", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Add fog"}});
@@ -256,6 +259,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		toolPanBtn.classList.toggle("is-active", tool === "pan");
 		toolPencilBtn.classList.toggle("is-active", tool === "pencil");
 		toolRectBtn.classList.toggle("is-active", tool === "rect");
+		toolCircleBtn.classList.toggle("is-active", tool === "circle");
 		toolPolyBtn.classList.toggle("is-active", tool === "poly");
 		modeCoverBtn.classList.toggle("is-active", fogMode === "cover");
 		modeRevealBtn.classList.toggle("is-active", fogMode === "reveal");
@@ -300,7 +304,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			fog,
 			fogAlpha: FOG_GM_ALPHA,
 		});
-		if ((fogRect || fogPoly?.length) && fog) {
+		if ((fogRect || fogCircle || fogPoly?.length) && fog) {
 			const scale = state.camera.scale;
 			ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
 			ctx.strokeStyle = "rgba(255,220,80,0.9)";
@@ -312,6 +316,12 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 				const w = Math.abs(fogRect.x1 - fogRect.x0);
 				const h = Math.abs(fogRect.y1 - fogRect.y0);
 				ctx.strokeRect(x, y, w, h);
+			}
+			if (fogCircle && fogCircle.r > 0) {
+				ctx.beginPath();
+				ctx.arc(fogCircle.cx, fogCircle.cy, fogCircle.r, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.stroke();
 			}
 			if (fogPoly?.length) {
 				ctx.beginPath();
@@ -486,6 +496,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			schedule();
 			return;
 		}
+		if (tool === "circle") {
+			fogCircle = {cx: pt.x, cy: pt.y, r: 0};
+			schedule();
+			return;
+		}
 		if (tool === "pencil") {
 			fogStroke = {x: pt.x, y: pt.y};
 			paintFogBrush(fog, pt.x, pt.y, brushPx, fogMode);
@@ -497,6 +512,12 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
 			fogRect.x1 = pt.x;
 			fogRect.y1 = pt.y;
+			schedule();
+			return;
+		}
+		if (fogCircle) {
+			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+			fogCircle.r = Math.hypot(pt.x - fogCircle.cx, pt.y - fogCircle.cy);
 			schedule();
 			return;
 		}
@@ -519,6 +540,13 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			schedule();
 			return;
 		}
+		if (fogCircle && fog) {
+			if (fogCircle.r > 1) fillFogCircle(fog, fogCircle.cx, fogCircle.cy, fogCircle.r, fogMode);
+			fogCircle = null;
+			queueFogSave();
+			schedule();
+			return;
+		}
 		if (fogStroke) {
 			fogStroke = null;
 			queueFogSave();
@@ -537,6 +565,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		tool = next;
 		fogStroke = null;
 		fogRect = null;
+		fogCircle = null;
 		fogPoly = null;
 		syncToolUi();
 		schedule();
@@ -655,6 +684,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	toolPanBtn.addEventListener("click", () => setTool("pan"));
 	toolPencilBtn.addEventListener("click", () => setTool("pencil"));
 	toolRectBtn.addEventListener("click", () => setTool("rect"));
+	toolCircleBtn.addEventListener("click", () => setTool("circle"));
 	toolPolyBtn.addEventListener("click", () => setTool("poly"));
 	modeCoverBtn.addEventListener("click", () => {
 		fogMode = "cover";
