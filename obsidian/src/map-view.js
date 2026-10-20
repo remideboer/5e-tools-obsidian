@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import {ItemView, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./constants.js";
 import {ICON_ID} from "./icon.js";
@@ -20,7 +22,10 @@ import {
 } from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
 
-const IMAGE_EXT = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
+const IMAGE_FILTERS = [
+	{name: "Images", extensions: ["png", "jpg", "jpeg", "bmp", "webp"]},
+	{name: "All Files", extensions: ["*"]},
+];
 
 export function defaultMapSession () {
 	return {
@@ -83,12 +88,16 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	formEl.createEl("h3", {text: "Battle map"});
 	formEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Load a vault image. Set paper size or DPI (autodetected when the file has it). Pan and zoom, then open a player window. Actual size prints one grid cell at the cell inches on that screen.",
+		text: "Choose an image file. Set paper size or DPI (autodetected when the file has it). Pan and zoom, then open a player window. Actual size prints one grid cell at the cell inches on that screen.",
 	});
 
 	const fileRow = formEl.createDiv({cls: "fiveetools-map__row"});
-	const fileSelect = fileRow.createEl("select", {cls: "fiveetools-map__select", attr: {title: "Vault image"}});
-	const loadBtn = fileRow.createEl("button", {text: "Load", cls: "fiveetools-btn", attr: {type: "button"}});
+	const pathEl = fileRow.createEl("span", {
+		cls: "fiveetools-map__path",
+		text: state.filePath ? path.basename(state.filePath) : "No file chosen",
+		attr: {title: state.filePath || ""},
+	});
+	const browseBtn = fileRow.createEl("button", {text: "Browse", cls: "fiveetools-btn", attr: {type: "button"}});
 	const metaEl = formEl.createEl("p", {cls: "fiveetools-view__meta"});
 
 	const paperRow = formEl.createDiv({cls: "fiveetools-map__row"});
@@ -144,22 +153,6 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	const canvas = resultEl.createEl("canvas", {cls: "fiveetools-map__canvas"});
 	const ctx = canvas.getContext("2d");
 
-	const paintFiles = () => {
-		const files = vaultImages(app);
-		fileSelect.empty();
-		if (!files.length) {
-			fileSelect.createEl("option", {text: "No vault images", attr: {value: ""}});
-			return;
-		}
-		for (const file of files) {
-			const opt = fileSelect.createEl("option", {text: file.path, attr: {value: file.path}});
-			if (file.path === state.filePath) opt.selected = true;
-		}
-		if (state.filePath && !files.some(it => it.path === state.filePath)) {
-			fileSelect.createEl("option", {text: state.filePath, attr: {value: state.filePath}}).selected = true;
-		}
-	};
-
 	const sizeCanvas = () => {
 		const w = Math.max(1, resultEl.clientWidth || 400);
 		const h = Math.max(1, resultEl.clientHeight || 300);
@@ -202,12 +195,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	if (plugin) plugin._mapPaint = paint;
 
 	const syncPaperUi = () => {
+		pathEl.setText(state.filePath ? path.basename(state.filePath) : "No file chosen");
+		pathEl.setAttribute("title", state.filePath || "");
 		paperWEl.value = state.paperWidthInches ? fmtNum(state.paperWidthInches, 2) : "";
 		paperHEl.value = state.paperHeightInches ? fmtNum(state.paperHeightInches, 2) : "";
 		dpiEl.value = state.mapDpi ? fmtNum(state.mapDpi, 1) : "";
 		cellEl.value = String(state.cellPx);
 		if (!image) {
-			metaEl.setText("Load a vault image, then set paper size or DPI.");
+			metaEl.setText("Choose an image file, then set paper size or DPI.");
 			return;
 		}
 		const bits = [`${image.width} × ${image.height} px`];
@@ -242,14 +237,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		schedule();
 	});
 
-	const loadPath = async (path, {fromSession = false} = {}) => {
+	const loadPath = async (filePath, {fromSession = false} = {}) => {
 		const prevPath = state.filePath;
-		state.filePath = path;
+		state.filePath = filePath;
 		emit();
 		revokeImageUrl(image);
-		image = await loadVaultImage(app, path);
+		image = await loadMapImage(app, filePath);
 		if (!image) {
-			new Notice(path ? "Could not load that image." : "Pick a vault image.");
+			new Notice(filePath ? "Could not load that image." : "Choose an image file.");
 			syncPaperUi();
 			schedule();
 			return;
@@ -258,11 +253,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		state.camera = fitImage(image, canvas.width, canvas.height);
 		setLookAtFromView();
 		const keepPaper = fromSession && (state.mapDpi || state.paperWidthInches);
-		const found = keepPaper ? null : await detectVaultImageDpi(app, path);
+		const found = keepPaper ? null : await detectMapImageDpi(app, filePath);
 		if (found) {
 			applyDpi(found);
 			if (!fromSession) new Notice(`Map DPI ${found} from file.`);
-		} else if (!fromSession && prevPath !== path) {
+		} else if (!fromSession && prevPath !== filePath) {
 			state.mapDpi = null;
 			state.paperWidthInches = null;
 			state.paperHeightInches = null;
@@ -275,7 +270,15 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		schedule();
 	};
 
-	loadBtn.addEventListener("click", () => { void loadPath(fileSelect.value); });
+	browseBtn.addEventListener("click", () => {
+		const picked = pickMapFile(state.filePath);
+		if (picked == null) return;
+		if (!picked) {
+			new Notice("File picker needs the Obsidian desktop app.");
+			return;
+		}
+		void loadPath(picked);
+	});
 	paperWEl.addEventListener("change", () => {
 		const dpi = image ? mapDpiFromInches(image.width, paperWEl.value) : null;
 		if (!applyDpi(dpi)) paperWEl.value = state.paperWidthInches ? fmtNum(state.paperWidthInches, 2) : "";
@@ -350,27 +353,45 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		};
 	}
 
-	paintFiles();
 	sizeCanvas();
 	syncPaperUi();
 	if (state.filePath) void loadPath(state.filePath, {fromSession: true});
 	else schedule();
 }
 
-function vaultImages (app) {
-	return (app?.vault?.getFiles?.() || []).filter(f => IMAGE_EXT.has(String(f.extension || "").toLowerCase()));
+function pickMapFile (defaultPath) {
+	const dialog = window.electron?.remote?.dialog;
+	if (typeof dialog?.showOpenDialogSync !== "function") return "";
+	const opts = {
+		title: "Choose battle map",
+		properties: ["openFile", "dontAddToRecent"],
+		filters: IMAGE_FILTERS,
+	};
+	if (defaultPath && path.isAbsolute(defaultPath)) opts.defaultPath = defaultPath;
+	const picked = dialog.showOpenDialogSync(opts);
+	if (!picked?.length) return null;
+	return picked[0];
 }
 
-async function detectVaultImageDpi (app, path) {
-	const file = app?.vault?.getAbstractFileByPath?.(path);
-	if (!file || !app.vault.readBinary) return null;
+async function detectMapImageDpi (app, filePath) {
 	try {
-		const buf = await app.vault.readBinary(file);
+		const buf = await readMapBytes(app, filePath);
+		if (!buf) return null;
 		const slice = buf.byteLength > 262144 ? buf.slice(0, 262144) : buf;
 		return detectImageDpi(slice);
 	} catch (_) {
 		return null;
 	}
+}
+
+async function readMapBytes (app, filePath) {
+	if (!filePath) return null;
+	const vaultFile = app?.vault?.getAbstractFileByPath?.(filePath);
+	if (vaultFile && app.vault.readBinary) {
+		return app.vault.readBinary(vaultFile);
+	}
+	if (!fs.existsSync(filePath)) return null;
+	return fs.readFileSync(filePath);
 }
 
 function fmtNum (n, places) {
@@ -383,6 +404,7 @@ const IMAGE_MIME = {
 	png: "image/png",
 	jpg: "image/jpeg",
 	jpeg: "image/jpeg",
+	bmp: "image/bmp",
 	webp: "image/webp",
 	gif: "image/gif",
 };
@@ -392,14 +414,17 @@ function revokeImageUrl (image) {
 	if (url) URL.revokeObjectURL(url);
 }
 
-async function loadVaultImage (app, path) {
-	const file = app?.vault?.getAbstractFileByPath?.(path);
-	if (!file || !app.vault.readBinary) return null;
+function mapMime (filePath) {
+	const ext = String(path.extname(filePath || "")).replace(/^\./, "").toLowerCase();
+	return IMAGE_MIME[ext] || "application/octet-stream";
+}
+
+async function loadMapImage (app, filePath) {
 	let url = "";
 	try {
-		const buf = await app.vault.readBinary(file);
-		const type = IMAGE_MIME[String(file.extension || "").toLowerCase()] || "application/octet-stream";
-		url = URL.createObjectURL(new Blob([buf], {type}));
+		const buf = await readMapBytes(app, filePath);
+		if (!buf) return null;
+		url = URL.createObjectURL(new Blob([buf], {type: mapMime(filePath)}));
 	} catch (_) {
 		return null;
 	}

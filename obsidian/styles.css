@@ -1356,9 +1356,12 @@ a.fiveetools-inline-link {
 	gap: 8px;
 }
 
-.fiveetools-map__select {
+.fiveetools-map__path {
 	flex: 1;
 	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .fiveetools-map__num {
