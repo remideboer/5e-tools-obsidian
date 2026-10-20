@@ -8,6 +8,46 @@ export function clampScale (scale) {
 	return Math.min(8, Math.max(0.05, n));
 }
 
+const DEFAULT_BG = "#111";
+
+/** Average opaque RGB from a 1px strip on each image edge. */
+export function sampleEdgeColor (image) {
+	const w = image?.width | 0;
+	const h = image?.height | 0;
+	if (!w || !h) return DEFAULT_BG;
+	try {
+		const c = document.createElement("canvas");
+		c.width = w;
+		c.height = h;
+		const cctx = c.getContext("2d", {willReadFrequently: true});
+		if (!cctx) return DEFAULT_BG;
+		cctx.drawImage(image, 0, 0);
+		let r = 0;
+		let g = 0;
+		let b = 0;
+		let n = 0;
+		const add = (data) => {
+			for (let i = 0; i < data.length; i += 4) {
+				if (data[i + 3] < 16) continue;
+				r += data[i];
+				g += data[i + 1];
+				b += data[i + 2];
+				n++;
+			}
+		};
+		add(cctx.getImageData(0, 0, w, 1).data);
+		add(cctx.getImageData(0, h - 1, w, 1).data);
+		if (h > 2) {
+			add(cctx.getImageData(0, 1, 1, h - 2).data);
+			add(cctx.getImageData(w - 1, 1, 1, h - 2).data);
+		}
+		if (!n) return DEFAULT_BG;
+		return `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})`;
+	} catch (_) {
+		return DEFAULT_BG;
+	}
+}
+
 export function drawWorld (ctx, {
 	image,
 	camera,
@@ -17,9 +57,10 @@ export function drawWorld (ctx, {
 	showGrid = true,
 	width,
 	height,
+	bgColor = DEFAULT_BG,
 }) {
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	ctx.fillStyle = "#111";
+	ctx.fillStyle = bgColor || DEFAULT_BG;
 	ctx.fillRect(0, 0, width, height);
 	const scale = clampScale(camera.scale);
 	ctx.setTransform(scale, 0, 0, scale, -camera.x * scale, -camera.y * scale);

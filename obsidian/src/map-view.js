@@ -9,6 +9,7 @@ import {
 	defaultCamera,
 	drawWorld,
 	fitImage,
+	sampleEdgeColor,
 	worldCenter,
 } from "./map-canvas.js";
 import {
@@ -105,6 +106,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	delete state.zoomLocked;
 	if (state.viewLocked) state.scaleLocked = false;
 	let image = null;
+	let edgeColor = "#111";
 	let raf = 0;
 
 	const emit = () => onSessionChange?.({
@@ -217,12 +219,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			showGrid: state.showGrid,
 			width: canvas.width,
 			height: canvas.height,
+			bgColor: edgeColor,
 		});
 		try {
 			paintPlayer(plugin, {
 				image,
 				gm: state,
 				gmView: {width: canvas.width, height: canvas.height},
+				bgColor: edgeColor,
 			});
 		} catch (_) { /* player paint must not blank the GM canvas */ }
 	};
@@ -357,11 +361,13 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		revokeImageUrl(image);
 		image = await loadMapImage(app, filePath);
 		if (!image) {
+			edgeColor = "#111";
 			new Notice(filePath ? "Could not load that image." : "Choose an image file.");
 			syncPaperUi();
 			schedule();
 			return;
 		}
+		edgeColor = sampleEdgeColor(image);
 		sizeCanvas();
 		state.camera = fitImage(image, canvas.width, canvas.height);
 		setLookAtFromView();
@@ -729,7 +735,7 @@ function paintPlayer (plugin, draw) {
 	const view = playerView(plugin);
 	const frame = view?.frame;
 	if (!frame) return;
-	const {image, gm, gmView} = draw;
+	const {image, gm, gmView, bgColor} = draw;
 	const win = view.contentEl.win;
 	const width = Math.max(1, win?.innerWidth || 800);
 	const height = Math.max(1, win?.innerHeight || 600);
@@ -745,6 +751,7 @@ function paintPlayer (plugin, draw) {
 		showGrid: gm.showGrid,
 		width,
 		height,
+		bgColor,
 	});
 	try {
 		frame.src = blit.toDataURL("image/jpeg", 0.85);
