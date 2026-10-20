@@ -63,13 +63,30 @@ export function strokeFogBrush (mask, x0, y0, x1, y1, r, mode) {
 	}
 }
 
-export function clearFogRect (mask, x, y, w, h) {
+function fogComposite (ctx, mode) {
+	ctx.globalCompositeOperation = mode === "reveal" ? "destination-out" : "source-over";
+	ctx.fillStyle = "#000";
+}
+
+export function fillFogRect (mask, x, y, w, h, mode = "reveal") {
 	if (!mask) return;
 	const ctx = mask.getContext("2d");
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
-	ctx.globalCompositeOperation = "destination-out";
-	ctx.fillStyle = "#000";
+	fogComposite(ctx, mode);
 	ctx.fillRect(x, y, w, h);
+	ctx.globalCompositeOperation = "source-over";
+}
+
+export function fillFogPolygon (mask, points, mode = "reveal") {
+	if (!mask || !points?.length || points.length < 3) return;
+	const ctx = mask.getContext("2d");
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.beginPath();
+	ctx.moveTo(points[0].x, points[0].y);
+	for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+	ctx.closePath();
+	fogComposite(ctx, mode);
+	ctx.fill();
 	ctx.globalCompositeOperation = "source-over";
 }
 

@@ -1394,6 +1394,50 @@ a.fiveetools-inline-link {
 	cursor: crosshair;
 }
 
+.fiveetools-map__fog {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 100%;
+	margin: 4px 0;
+}
+
+.fiveetools-map__fog-title {
+	margin: 0;
+	font-size: 0.85em;
+	font-weight: 600;
+}
+
+.fiveetools-map__fog-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.fiveetools-map__fog-row .fiveetools-btn {
+	flex: 1 1 auto;
+	min-width: 4.5em;
+}
+
+.fiveetools-map__fog-brush {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+}
+
+.fiveetools-map__fog-slider {
+	flex: 1;
+	min-width: 0;
+}
+
+.fiveetools-map__fog-brush-val {
+	min-width: 2em;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
 .fiveetools-map .fiveetools-btn--ghost.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);

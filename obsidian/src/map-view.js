@@ -14,9 +14,10 @@ import {
 	worldCenter,
 } from "./map-canvas.js";
 import {
-	clearFogRect,
 	coverFogAll,
 	createFogMask,
+	fillFogPolygon,
+	fillFogRect,
 	fogPaths,
 	loadFogMask,
 	paintFogBrush,
@@ -123,9 +124,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	let fog = null;
 	let edgeColor = "#111";
 	let tool = "pan";
+	let fogMode = "reveal";
 	let brushPx = DEFAULT_BRUSH;
 	let fogStroke = null;
 	let fogRect = null;
+	let fogPoly = null;
 	let fogSaveTimer = 0;
 	let raf = 0;
 
@@ -196,19 +199,27 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		attr: {type: "button", title: "Player holds zoom; pan still follows"},
 	});
 
-	const fogRow = formEl.createDiv({cls: "fiveetools-map__row"});
-	const toolPanBtn = fogRow.createEl("button", {text: "Pan", cls: "fiveetools-btn fiveetools-btn--ghost is-active", attr: {type: "button"}});
-	const toolCoverBtn = fogRow.createEl("button", {text: "Cover", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Paint fog"}});
-	const toolRevealBtn = fogRow.createEl("button", {text: "Reveal", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Erase fog with pencil"}});
-	const toolRectBtn = fogRow.createEl("button", {text: "Rect reveal", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Clear fog in a rectangle"}});
-	fogRow.createEl("label", {text: "Brush"});
-	const brushEl = fogRow.createEl("input", {
-		cls: "fiveetools-map__num",
-		attr: {type: "number", min: "4", step: "1", value: String(brushPx)},
+	const fogBox = formEl.createDiv({cls: "fiveetools-map__fog"});
+	fogBox.createEl("h4", {text: "Fog", cls: "fiveetools-map__fog-title"});
+	const fogToolRow = fogBox.createDiv({cls: "fiveetools-map__fog-row"});
+	const toolPanBtn = fogToolRow.createEl("button", {text: "Pan", cls: "fiveetools-btn fiveetools-btn--ghost is-active", attr: {type: "button"}});
+	const toolPencilBtn = fogToolRow.createEl("button", {text: "Pencil", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Brush fog or reveal"}});
+	const toolRectBtn = fogToolRow.createEl("button", {text: "Rect", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Rectangle cover or reveal"}});
+	const toolPolyBtn = fogToolRow.createEl("button", {text: "Poly", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Polygon: click points, double-click or Enter to close"}});
+	const fogModeRow = fogBox.createDiv({cls: "fiveetools-map__fog-row"});
+	const modeCoverBtn = fogModeRow.createEl("button", {text: "Cover", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Add fog"}});
+	const modeRevealBtn = fogModeRow.createEl("button", {text: "Reveal", cls: "fiveetools-btn fiveetools-btn--ghost is-active", attr: {type: "button", title: "Remove fog"}});
+	const fogBrushRow = fogBox.createDiv({cls: "fiveetools-map__fog-brush"});
+	fogBrushRow.createEl("label", {text: "Brush"});
+	const brushSlider = fogBrushRow.createEl("input", {
+		cls: "fiveetools-map__fog-slider",
+		attr: {type: "range", min: "4", max: "200", step: "1", value: String(brushPx)},
 	});
-	const coverAllBtn = fogRow.createEl("button", {text: "Cover all", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
-	const saveStartBtn = fogRow.createEl("button", {text: "Save start", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Save current fog as reusable start state"}});
-	const resetStartBtn = fogRow.createEl("button", {text: "Reset start", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Restore fog from saved start state"}});
+	const brushValEl = fogBrushRow.createEl("span", {cls: "fiveetools-map__fog-brush-val", text: String(brushPx)});
+	const fogActionRow = fogBox.createDiv({cls: "fiveetools-map__fog-row"});
+	const coverAllBtn = fogActionRow.createEl("button", {text: "Cover all", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+	const saveStartBtn = fogActionRow.createEl("button", {text: "Save start", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Save current fog as reusable start state"}});
+	const resetStartBtn = fogActionRow.createEl("button", {text: "Reset start", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Restore fog from saved start state"}});
 
 	const sizeRow = formEl.createDiv({cls: "fiveetools-map__row"});
 	sizeRow.createEl("label", {text: "Screen \""});
@@ -243,10 +254,24 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 
 	const syncToolUi = () => {
 		toolPanBtn.classList.toggle("is-active", tool === "pan");
-		toolCoverBtn.classList.toggle("is-active", tool === "cover");
-		toolRevealBtn.classList.toggle("is-active", tool === "reveal");
+		toolPencilBtn.classList.toggle("is-active", tool === "pencil");
 		toolRectBtn.classList.toggle("is-active", tool === "rect");
+		toolPolyBtn.classList.toggle("is-active", tool === "poly");
+		modeCoverBtn.classList.toggle("is-active", fogMode === "cover");
+		modeRevealBtn.classList.toggle("is-active", fogMode === "reveal");
 		canvas.classList.toggle("fiveetools-map__canvas--fog", tool !== "pan");
+	};
+
+	const commitPoly = () => {
+		if (!fog || !fogPoly || fogPoly.length < 3) {
+			fogPoly = null;
+			schedule();
+			return;
+		}
+		fillFogPolygon(fog, fogPoly, fogMode);
+		fogPoly = null;
+		queueFogSave();
+		schedule();
 	};
 
 	const queueFogSave = () => {
@@ -275,16 +300,35 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			fog,
 			fogAlpha: FOG_GM_ALPHA,
 		});
-		if (fogRect && fog) {
+		if ((fogRect || fogPoly?.length) && fog) {
 			const scale = state.camera.scale;
-			const x = Math.min(fogRect.x0, fogRect.x1);
-			const y = Math.min(fogRect.y0, fogRect.y1);
-			const w = Math.abs(fogRect.x1 - fogRect.x0);
-			const h = Math.abs(fogRect.y1 - fogRect.y0);
 			ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
 			ctx.strokeStyle = "rgba(255,220,80,0.9)";
+			ctx.fillStyle = "rgba(255,220,80,0.15)";
 			ctx.lineWidth = 2 / scale;
-			ctx.strokeRect(x, y, w, h);
+			if (fogRect) {
+				const x = Math.min(fogRect.x0, fogRect.x1);
+				const y = Math.min(fogRect.y0, fogRect.y1);
+				const w = Math.abs(fogRect.x1 - fogRect.x0);
+				const h = Math.abs(fogRect.y1 - fogRect.y0);
+				ctx.strokeRect(x, y, w, h);
+			}
+			if (fogPoly?.length) {
+				ctx.beginPath();
+				ctx.moveTo(fogPoly[0].x, fogPoly[0].y);
+				for (let i = 1; i < fogPoly.length; i++) ctx.lineTo(fogPoly[i].x, fogPoly[i].y);
+				ctx.stroke();
+				if (fogPoly.length >= 3) {
+					ctx.closePath();
+					ctx.fill();
+				}
+				for (const p of fogPoly) {
+					ctx.beginPath();
+					ctx.arc(p.x, p.y, 4 / scale, 0, Math.PI * 2);
+					ctx.fillStyle = "rgba(255,220,80,0.95)";
+					ctx.fill();
+				}
+			}
 			ctx.setTransform(1, 0, 0, 1, 0, 0);
 		}
 		try {
@@ -429,16 +473,24 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 0 || tool === "pan" || !fog || !image) return;
-		canvas.setPointerCapture(evt.pointerId);
 		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+		if (tool === "poly") {
+			if (!fogPoly) fogPoly = [];
+			fogPoly.push({x: pt.x, y: pt.y});
+			schedule();
+			return;
+		}
+		canvas.setPointerCapture(evt.pointerId);
 		if (tool === "rect") {
 			fogRect = {x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y};
 			schedule();
 			return;
 		}
-		fogStroke = {x: pt.x, y: pt.y, mode: tool === "cover" ? "cover" : "reveal"};
-		paintFogBrush(fog, pt.x, pt.y, brushPx, fogStroke.mode);
-		schedule();
+		if (tool === "pencil") {
+			fogStroke = {x: pt.x, y: pt.y};
+			paintFogBrush(fog, pt.x, pt.y, brushPx, fogMode);
+			schedule();
+		}
 	});
 	canvas.addEventListener("pointermove", (evt) => {
 		if (fogRect) {
@@ -448,20 +500,20 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			schedule();
 			return;
 		}
-		if (!fogStroke || !fog) return;
+		if (!fogStroke || !fog || tool !== "pencil") return;
 		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
-		strokeFogBrush(fog, fogStroke.x, fogStroke.y, pt.x, pt.y, brushPx, fogStroke.mode);
+		strokeFogBrush(fog, fogStroke.x, fogStroke.y, pt.x, pt.y, brushPx, fogMode);
 		fogStroke.x = pt.x;
 		fogStroke.y = pt.y;
 		schedule();
 	});
-	const endFogPointer = (evt) => {
+	const endFogPointer = () => {
 		if (fogRect && fog) {
 			const x = Math.min(fogRect.x0, fogRect.x1);
 			const y = Math.min(fogRect.y0, fogRect.y1);
 			const w = Math.abs(fogRect.x1 - fogRect.x0);
 			const h = Math.abs(fogRect.y1 - fogRect.y0);
-			if (w > 1 && h > 1) clearFogRect(fog, x, y, w, h);
+			if (w > 1 && h > 1) fillFogRect(fog, x, y, w, h, fogMode);
 			fogRect = null;
 			queueFogSave();
 			schedule();
@@ -474,14 +526,35 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	};
 	canvas.addEventListener("pointerup", endFogPointer);
 	canvas.addEventListener("pointercancel", endFogPointer);
+	canvas.addEventListener("dblclick", (evt) => {
+		if (tool !== "poly" || !fogPoly) return;
+		evt.preventDefault();
+		if (fogPoly.length) fogPoly.pop();
+		commitPoly();
+	});
 
 	const setTool = (next) => {
 		tool = next;
 		fogStroke = null;
 		fogRect = null;
+		fogPoly = null;
 		syncToolUi();
 		schedule();
 	};
+
+	const onFogKey = (evt) => {
+		if (tool !== "poly" || !fogPoly) return;
+		if (evt.key === "Enter") {
+			evt.preventDefault();
+			commitPoly();
+		} else if (evt.key === "Escape") {
+			evt.preventDefault();
+			fogPoly = null;
+			schedule();
+		}
+	};
+	const fogKeyWin = canvas.win || window;
+	fogKeyWin.addEventListener("keydown", onFogKey);
 
 	const loadPath = async (filePath, {fromSession = false} = {}) => {
 		const prevPath = state.filePath;
@@ -580,13 +653,23 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		setScaleLocked(!state.scaleLocked);
 	});
 	toolPanBtn.addEventListener("click", () => setTool("pan"));
-	toolCoverBtn.addEventListener("click", () => setTool("cover"));
-	toolRevealBtn.addEventListener("click", () => setTool("reveal"));
+	toolPencilBtn.addEventListener("click", () => setTool("pencil"));
 	toolRectBtn.addEventListener("click", () => setTool("rect"));
-	brushEl.addEventListener("change", () => {
-		brushPx = Math.max(4, Number(brushEl.value) || DEFAULT_BRUSH);
-		brushEl.value = String(brushPx);
+	toolPolyBtn.addEventListener("click", () => setTool("poly"));
+	modeCoverBtn.addEventListener("click", () => {
+		fogMode = "cover";
+		syncToolUi();
 	});
+	modeRevealBtn.addEventListener("click", () => {
+		fogMode = "reveal";
+		syncToolUi();
+	});
+	const syncBrush = () => {
+		brushPx = Math.max(4, Math.min(200, Number(brushSlider.value) || DEFAULT_BRUSH));
+		brushSlider.value = String(brushPx);
+		brushValEl.setText(String(brushPx));
+	};
+	brushSlider.addEventListener("input", syncBrush);
 	coverAllBtn.addEventListener("click", () => {
 		if (!fog) return;
 		coverFogAll(fog);
@@ -654,6 +737,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	ro?.observe(resultEl);
 	if (plugin) {
 		plugin._mapResizeOff = () => {
+			fogKeyWin.removeEventListener("keydown", onFogKey);
 			ro?.disconnect();
 			if (raf) cancelAnimationFrame(raf);
 			raf = 0;
