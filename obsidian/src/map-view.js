@@ -296,21 +296,28 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		freezeZoomBtn.setText(state.scaleLocked ? "Zoom frozen" : "Freeze zoom");
 	};
 
+	const snapGmToPlayerView = () => {
+		const last = plugin?._mapPlayerView;
+		if (last?.center) state.lookAt = {...last.center};
+		if (last?.scale) state.playerScale = last.scale;
+		sizeCanvas();
+		if (state.lookAt) {
+			state.camera = cameraOnCenter(
+				state.lookAt,
+				canvas.width,
+				canvas.height,
+				state.playerScale || state.camera.scale,
+			);
+		}
+	};
+
 	const setViewLocked = (next) => {
 		if (next) {
 			state.viewLocked = true;
 			state.scaleLocked = false;
 			snapshotPlayerView();
 		} else {
-			sizeCanvas();
-			if (state.lookAt) {
-				state.camera = cameraOnCenter(
-					state.lookAt,
-					canvas.width,
-					canvas.height,
-					state.playerScale || state.camera.scale,
-				);
-			}
+			snapGmToPlayerView();
 			state.viewLocked = false;
 			state.playerScale = null;
 		}
@@ -325,6 +332,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			state.viewLocked = false;
 			snapshotPlayerView();
 		} else {
+			snapGmToPlayerView();
 			state.scaleLocked = false;
 			state.playerScale = null;
 		}
