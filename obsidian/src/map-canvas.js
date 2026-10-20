@@ -48,6 +48,15 @@ export function sampleEdgeColor (image) {
 	}
 }
 
+export function screenToWorld (camera, canvas, clientX, clientY) {
+	const rect = canvas.getBoundingClientRect();
+	const scale = clampScale(camera.scale);
+	return {
+		x: camera.x + (clientX - rect.left) / scale,
+		y: camera.y + (clientY - rect.top) / scale,
+	};
+}
+
 export function drawWorld (ctx, {
 	image,
 	camera,
@@ -58,6 +67,8 @@ export function drawWorld (ctx, {
 	width,
 	height,
 	bgColor = DEFAULT_BG,
+	fog = null,
+	fogAlpha = 1,
 }) {
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
 	ctx.fillStyle = bgColor || DEFAULT_BG;
@@ -66,6 +77,12 @@ export function drawWorld (ctx, {
 	ctx.setTransform(scale, 0, 0, scale, -camera.x * scale, -camera.y * scale);
 	if (image) {
 		try { ctx.drawImage(image, 0, 0); } catch (_) { /* popout documents cannot draw a main-window Image */ }
+	}
+	if (fog) {
+		const prev = ctx.globalAlpha;
+		ctx.globalAlpha = Math.max(0, Math.min(1, Number(fogAlpha) || 0));
+		try { ctx.drawImage(fog, 0, 0); } catch (_) { /* ignore */ }
+		ctx.globalAlpha = prev;
 	}
 	if (showGrid) {
 		const size = Number(cellPx) || 70;
@@ -87,10 +104,11 @@ export function drawWorld (ctx, {
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-export function bindMapPointer (canvas, getCamera, setCamera, onChange) {
+export function bindMapPointer (canvas, getCamera, setCamera, onChange, canPan = () => true) {
 	let drag = null;
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 0) return;
+		if (!canPan()) return;
 		canvas.setPointerCapture(evt.pointerId);
 		drag = {x: evt.clientX, y: evt.clientY, cam: {...getCamera()}};
 	});

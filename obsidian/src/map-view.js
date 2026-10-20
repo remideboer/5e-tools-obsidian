@@ -10,8 +10,19 @@ import {
 	drawWorld,
 	fitImage,
 	sampleEdgeColor,
+	screenToWorld,
 	worldCenter,
 } from "./map-canvas.js";
+import {
+	clearFogRect,
+	coverFogAll,
+	createFogMask,
+	fogPaths,
+	loadFogMask,
+	paintFogBrush,
+	saveFogMask,
+	strokeFogBrush,
+} from "./map-fog.js";
 import {
 	cellPxFromMapDpi,
 	cssPixelsPerWorldPixel,
@@ -22,6 +33,9 @@ import {
 	screenPpiCss,
 } from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
+
+const FOG_GM_ALPHA = 0.55;
+const DEFAULT_BRUSH = 40;
 
 const IMAGE_FILTERS = [
 	{name: "Images", extensions: ["png", "jpg", "jpeg", "bmp", "webp"]},
@@ -106,7 +120,13 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	delete state.zoomLocked;
 	if (state.viewLocked) state.scaleLocked = false;
 	let image = null;
+	let fog = null;
 	let edgeColor = "#111";
+	let tool = "pan";
+	let brushPx = DEFAULT_BRUSH;
+	let fogStroke = null;
+	let fogRect = null;
+	let fogSaveTimer = 0;
 	let raf = 0;
 
 	const emit = () => onSessionChange?.({
@@ -176,6 +196,20 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		attr: {type: "button", title: "Player holds zoom; pan still follows"},
 	});
 
+	const fogRow = formEl.createDiv({cls: "fiveetools-map__row"});
+	const toolPanBtn = fogRow.createEl("button", {text: "Pan", cls: "fiveetools-btn fiveetools-btn--ghost is-active", attr: {type: "button"}});
+	const toolCoverBtn = fogRow.createEl("button", {text: "Cover", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Paint fog"}});
+	const toolRevealBtn = fogRow.createEl("button", {text: "Reveal", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Erase fog with pencil"}});
+	const toolRectBtn = fogRow.createEl("button", {text: "Rect reveal", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Clear fog in a rectangle"}});
+	fogRow.createEl("label", {text: "Brush"});
+	const brushEl = fogRow.createEl("input", {
+		cls: "fiveetools-map__num",
+		attr: {type: "number", min: "4", step: "1", value: String(brushPx)},
+	});
+	const coverAllBtn = fogRow.createEl("button", {text: "Cover all", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+	const saveStartBtn = fogRow.createEl("button", {text: "Save start", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Save current fog as reusable start state"}});
+	const resetStartBtn = fogRow.createEl("button", {text: "Reset start", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Restore fog from saved start state"}});
+
 	const sizeRow = formEl.createDiv({cls: "fiveetools-map__row"});
 	sizeRow.createEl("label", {text: "Screen \""});
 	const diagEl = sizeRow.createEl("input", {
@@ -207,6 +241,24 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		}
 	};
 
+	const syncToolUi = () => {
+		toolPanBtn.classList.toggle("is-active", tool === "pan");
+		toolCoverBtn.classList.toggle("is-active", tool === "cover");
+		toolRevealBtn.classList.toggle("is-active", tool === "reveal");
+		toolRectBtn.classList.toggle("is-active", tool === "rect");
+		canvas.classList.toggle("fiveetools-map__canvas--fog", tool !== "pan");
+	};
+
+	const queueFogSave = () => {
+		if (!state.filePath || !fog) return;
+		if (fogSaveTimer) clearTimeout(fogSaveTimer);
+		fogSaveTimer = setTimeout(() => {
+			fogSaveTimer = 0;
+			const {live} = fogPaths(state.filePath);
+			if (!saveFogMask(live, fog)) new Notice("Could not save live fog.");
+		}, 500);
+	};
+
 	const paint = () => {
 		sizeCanvas();
 		if (!state.lookAt) state.lookAt = worldCenter(state.camera, canvas.width, canvas.height);
@@ -220,13 +272,28 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			width: canvas.width,
 			height: canvas.height,
 			bgColor: edgeColor,
+			fog,
+			fogAlpha: FOG_GM_ALPHA,
 		});
+		if (fogRect && fog) {
+			const scale = state.camera.scale;
+			const x = Math.min(fogRect.x0, fogRect.x1);
+			const y = Math.min(fogRect.y0, fogRect.y1);
+			const w = Math.abs(fogRect.x1 - fogRect.x0);
+			const h = Math.abs(fogRect.y1 - fogRect.y0);
+			ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
+			ctx.strokeStyle = "rgba(255,220,80,0.9)";
+			ctx.lineWidth = 2 / scale;
+			ctx.strokeRect(x, y, w, h);
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+		}
 		try {
 			paintPlayer(plugin, {
 				image,
 				gm: state,
 				gmView: {width: canvas.width, height: canvas.height},
 				bgColor: edgeColor,
+				fog,
 			});
 		} catch (_) { /* player paint must not blank the GM canvas */ }
 	};
@@ -342,17 +409,79 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		plugin._mapToggleScaleLock = () => setScaleLocked(!state.scaleLocked);
 	}
 
-	bindMapPointer(canvas, () => state.camera, (cam) => { state.camera = cam; }, (reason, cam, prev) => {
-		if (reason === "pan" && prev && !state.viewLocked) {
-			if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
-			state.lookAt = {
-				x: state.lookAt.x + (cam.x - prev.x),
-				y: state.lookAt.y + (cam.y - prev.y),
-			};
+	bindMapPointer(
+		canvas,
+		() => state.camera,
+		(cam) => { state.camera = cam; },
+		(reason, cam, prev) => {
+			if (reason === "pan" && prev && !state.viewLocked) {
+				if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
+				state.lookAt = {
+					x: state.lookAt.x + (cam.x - prev.x),
+					y: state.lookAt.y + (cam.y - prev.y),
+				};
+			}
+			emit();
+			schedule();
+		},
+		() => tool === "pan",
+	);
+
+	canvas.addEventListener("pointerdown", (evt) => {
+		if (evt.button !== 0 || tool === "pan" || !fog || !image) return;
+		canvas.setPointerCapture(evt.pointerId);
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+		if (tool === "rect") {
+			fogRect = {x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y};
+			schedule();
+			return;
 		}
-		emit();
+		fogStroke = {x: pt.x, y: pt.y, mode: tool === "cover" ? "cover" : "reveal"};
+		paintFogBrush(fog, pt.x, pt.y, brushPx, fogStroke.mode);
 		schedule();
 	});
+	canvas.addEventListener("pointermove", (evt) => {
+		if (fogRect) {
+			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+			fogRect.x1 = pt.x;
+			fogRect.y1 = pt.y;
+			schedule();
+			return;
+		}
+		if (!fogStroke || !fog) return;
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+		strokeFogBrush(fog, fogStroke.x, fogStroke.y, pt.x, pt.y, brushPx, fogStroke.mode);
+		fogStroke.x = pt.x;
+		fogStroke.y = pt.y;
+		schedule();
+	});
+	const endFogPointer = (evt) => {
+		if (fogRect && fog) {
+			const x = Math.min(fogRect.x0, fogRect.x1);
+			const y = Math.min(fogRect.y0, fogRect.y1);
+			const w = Math.abs(fogRect.x1 - fogRect.x0);
+			const h = Math.abs(fogRect.y1 - fogRect.y0);
+			if (w > 1 && h > 1) clearFogRect(fog, x, y, w, h);
+			fogRect = null;
+			queueFogSave();
+			schedule();
+			return;
+		}
+		if (fogStroke) {
+			fogStroke = null;
+			queueFogSave();
+		}
+	};
+	canvas.addEventListener("pointerup", endFogPointer);
+	canvas.addEventListener("pointercancel", endFogPointer);
+
+	const setTool = (next) => {
+		tool = next;
+		fogStroke = null;
+		fogRect = null;
+		syncToolUi();
+		schedule();
+	};
 
 	const loadPath = async (filePath, {fromSession = false} = {}) => {
 		const prevPath = state.filePath;
@@ -362,12 +491,17 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		image = await loadMapImage(app, filePath);
 		if (!image) {
 			edgeColor = "#111";
+			fog = null;
 			new Notice(filePath ? "Could not load that image." : "Choose an image file.");
 			syncPaperUi();
 			schedule();
 			return;
 		}
 		edgeColor = sampleEdgeColor(image);
+		const paths = fogPaths(filePath);
+		fog = await loadFogMask(paths.live, image.width, image.height)
+			|| await loadFogMask(paths.start, image.width, image.height)
+			|| createFogMask(image.width, image.height);
 		sizeCanvas();
 		state.camera = fitImage(image, canvas.width, canvas.height);
 		setLookAtFromView();
@@ -445,6 +579,38 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	freezeZoomBtn.addEventListener("click", () => {
 		setScaleLocked(!state.scaleLocked);
 	});
+	toolPanBtn.addEventListener("click", () => setTool("pan"));
+	toolCoverBtn.addEventListener("click", () => setTool("cover"));
+	toolRevealBtn.addEventListener("click", () => setTool("reveal"));
+	toolRectBtn.addEventListener("click", () => setTool("rect"));
+	brushEl.addEventListener("change", () => {
+		brushPx = Math.max(4, Number(brushEl.value) || DEFAULT_BRUSH);
+		brushEl.value = String(brushPx);
+	});
+	coverAllBtn.addEventListener("click", () => {
+		if (!fog) return;
+		coverFogAll(fog);
+		queueFogSave();
+		schedule();
+	});
+	saveStartBtn.addEventListener("click", () => {
+		if (!fog || !state.filePath) {
+			new Notice("Load a map before saving fog start.");
+			return;
+		}
+		const {start} = fogPaths(state.filePath);
+		if (saveFogMask(start, fog)) new Notice("Fog start state saved.");
+		else new Notice("Could not save fog start state.");
+	});
+	resetStartBtn.addEventListener("click", async () => {
+		if (!image || !state.filePath) return;
+		const {start} = fogPaths(state.filePath);
+		const loaded = await loadFogMask(start, image.width, image.height);
+		fog = loaded || createFogMask(image.width, image.height);
+		queueFogSave();
+		schedule();
+		new Notice(loaded ? "Fog reset to start state." : "No start state; fog cleared.");
+	});
 	canvas.addEventListener("contextmenu", (evt) => {
 		evt.preventDefault();
 		const menu = new Menu();
@@ -491,11 +657,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			ro?.disconnect();
 			if (raf) cancelAnimationFrame(raf);
 			raf = 0;
+			if (fogSaveTimer) clearTimeout(fogSaveTimer);
+			fogSaveTimer = 0;
 		};
 	}
 
 	sizeCanvas();
 	syncPaperUi();
+	syncToolUi();
 	if (state.filePath) void loadPath(state.filePath, {fromSession: true});
 	else schedule();
 }
@@ -735,7 +904,7 @@ function paintPlayer (plugin, draw) {
 	const view = playerView(plugin);
 	const frame = view?.frame;
 	if (!frame) return;
-	const {image, gm, gmView, bgColor} = draw;
+	const {image, gm, gmView, bgColor, fog} = draw;
 	const win = view.contentEl.win;
 	const width = Math.max(1, win?.innerWidth || 800);
 	const height = Math.max(1, win?.innerHeight || 600);
@@ -752,6 +921,8 @@ function paintPlayer (plugin, draw) {
 		width,
 		height,
 		bgColor,
+		fog,
+		fogAlpha: 1,
 	});
 	try {
 		frame.src = blit.toDataURL("image/jpeg", 0.85);

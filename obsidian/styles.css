@@ -1389,6 +1389,16 @@ a.fiveetools-inline-link {
 	cursor: grabbing;
 }
 
+.fiveetools-map__canvas--fog,
+.fiveetools-map__canvas--fog:active {
+	cursor: crosshair;
+}
+
+.fiveetools-map .fiveetools-btn--ghost.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
 .fiveetools-campaign__enchead {
 	display: flex;
 	align-items: center;
