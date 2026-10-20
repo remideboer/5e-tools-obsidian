@@ -729,8 +729,18 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		emit();
 		schedule();
 	});
-	playerBtn.addEventListener("click", () => {
-		void openPlayerWindow(plugin).then(() => schedule());
+	playerBtn.addEventListener("click", (evt) => {
+		castPlayerWindow(plugin, {
+			anchorEl: playerBtn,
+			mouseEvent: evt,
+			onReady: () => {
+				state.actualSize = true;
+				actualBtn.setText("Actual size on");
+				setLookAtFromView();
+				emit();
+				schedule();
+			},
+		});
 	});
 
 	const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => schedule()) : null;
@@ -922,25 +932,132 @@ function playerView (plugin) {
 	return view?.getViewType?.() === VIEW_TYPE_FIVEETOOLS_MAP_PLAYER ? view : null;
 }
 
-async function openPlayerWindow (plugin) {
+function electronRemote () {
+	return window.electron?.remote || null;
+}
+
+function listDisplays () {
+	try {
+		const displays = electronRemote()?.screen?.getAllDisplays?.();
+		return Array.isArray(displays) ? displays : [];
+	} catch (_) {
+		return [];
+	}
+}
+
+function primaryDisplay () {
+	try {
+		return electronRemote()?.screen?.getPrimaryDisplay?.() || listDisplays()[0] || null;
+	} catch (_) {
+		return listDisplays()[0] || null;
+	}
+}
+
+function browserWindowFor (win) {
+	if (!win) return null;
+	try {
+		if (typeof win.electron?.remote?.getCurrentWindow === "function") {
+			return win.electron.remote.getCurrentWindow();
+		}
+	} catch (_) { /* ignore */ }
+	try {
+		const req = win.require || window.require;
+		const remote = req?.("electron")?.remote;
+		if (typeof remote?.getCurrentWindow === "function") return remote.getCurrentWindow();
+	} catch (_) { /* ignore */ }
+	return null;
+}
+
+function placePopoutOnDisplay (win, display) {
+	if (!win || !display) return;
+	const bw = browserWindowFor(win);
+	if (!bw) return;
+	try {
+		const area = display.workArea || display.bounds;
+		if (area && typeof bw.setBounds === "function") {
+			bw.setBounds({
+				x: area.x | 0,
+				y: area.y | 0,
+				width: Math.max(200, area.width | 0),
+				height: Math.max(200, area.height | 0),
+			});
+		} else if (area && typeof bw.setPosition === "function") {
+			bw.setPosition(area.x | 0, area.y | 0);
+		}
+		if (typeof bw.maximize === "function") bw.maximize();
+	} catch (_) { /* ignore */ }
+}
+
+function displayLabel (display, index, primary) {
+	const size = display?.size || display?.bounds || {};
+	const w = size.width || display?.workAreaSize?.width || "?";
+	const h = size.height || display?.workAreaSize?.height || "?";
+	const tags = [];
+	if (primary && display?.id === primary.id) tags.push("primary");
+	if (display?.internal) tags.push("built-in");
+	const suffix = tags.length ? ` (${tags.join(", ")})` : "";
+	return `Screen ${index + 1} — ${w}×${h}${suffix}`;
+}
+
+async function openPlayerWindow (plugin, {display = null} = {}) {
 	const workspace = plugin.app?.workspace;
 	if (typeof workspace?.openPopoutLeaf !== "function") {
 		new Notice("Player window needs the Obsidian desktop app.");
 		return;
 	}
+	const target = display || primaryDisplay();
+	const area = target?.workAreaSize || target?.size;
 	try {
 		let leaf = workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_MAP_PLAYER)[0];
 		if (!leaf) {
-			leaf = workspace.openPopoutLeaf({size: {width: 1280, height: 720}});
+			const size = area
+				? {width: Math.max(800, area.width | 0), height: Math.max(600, area.height | 0)}
+				: {width: 1280, height: 720};
+			leaf = workspace.openPopoutLeaf({size});
 			await leaf.setViewState({
 				type: VIEW_TYPE_FIVEETOOLS_MAP_PLAYER,
 				active: true,
 			});
 		}
 		workspace.revealLeaf(leaf);
-		if (leaf.view?.getViewType?.() === VIEW_TYPE_FIVEETOOLS_MAP_PLAYER) markPlayerWindow(leaf.view, true);
+		const view = leaf.view;
+		if (view?.getViewType?.() === VIEW_TYPE_FIVEETOOLS_MAP_PLAYER) {
+			markPlayerWindow(view, true);
+			const win = view.contentEl?.win;
+			if (target && isPopoutWin(win)) {
+				requestAnimationFrame(() => placePopoutOnDisplay(win, target));
+			}
+		}
 	} catch (e) {
 		new Notice(e.message || "Could not open player window.");
+	}
+}
+
+function castPlayerWindow (plugin, {anchorEl, mouseEvent, onReady} = {}) {
+	const displays = listDisplays();
+	const primary = primaryDisplay();
+	const finish = async (display) => {
+		await openPlayerWindow(plugin, {display});
+		onReady?.();
+	};
+	if (displays.length <= 1) {
+		void finish(displays[0] || primary);
+		return;
+	}
+	const menu = new Menu();
+	displays.forEach((display, index) => {
+		menu.addItem((item) => {
+			item
+				.setTitle(displayLabel(display, index, primary))
+				.onClick(() => { void finish(display); });
+		});
+	});
+	if (mouseEvent) menu.showAtMouseEvent(mouseEvent);
+	else if (anchorEl) {
+		const r = anchorEl.getBoundingClientRect();
+		menu.showAtPosition({x: r.left, y: r.bottom});
+	} else {
+		void finish(primary);
 	}
 }
 
