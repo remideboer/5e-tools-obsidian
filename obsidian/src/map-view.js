@@ -55,7 +55,7 @@ export function defaultMapSession () {
 		camera: defaultCamera(),
 		lookAt: null,
 		rotation: 0,
-		showGrid: true,
+		showGrid: false,
 		viewLocked: false,
 		scaleLocked: false,
 		playerScale: null,
