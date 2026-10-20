@@ -297,18 +297,10 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	};
 
 	const snapGmToPlayerView = () => {
-		const last = plugin?._mapPlayerView;
-		if (last?.center) state.lookAt = {...last.center};
-		if (last?.scale) state.playerScale = last.scale;
 		sizeCanvas();
-		if (state.lookAt) {
-			state.camera = cameraOnCenter(
-				state.lookAt,
-				canvas.width,
-				canvas.height,
-				state.playerScale || state.camera.scale,
-			);
-		}
+		const view = resolvePlayerView(state, {width: canvas.width, height: canvas.height}, plugin);
+		state.lookAt = {...view.center};
+		state.camera = cameraOnCenter(view.center, canvas.width, canvas.height, view.scale);
 	};
 
 	const setViewLocked = (next) => {
@@ -715,6 +707,23 @@ function playerBlitCanvas (plugin, width, height) {
 	return el;
 }
 
+function resolvePlayerView (gm, gmView, plugin) {
+	const win = playerView(plugin)?.contentEl?.win;
+	const holdCenter = (gm.viewLocked || gm.scaleLocked || gm.actualSize) && gm.lookAt;
+	const holdScale = (gm.viewLocked || gm.scaleLocked) && gm.playerScale;
+	const center = holdCenter
+		? {x: gm.lookAt.x, y: gm.lookAt.y}
+		: worldCenter(gm.camera, gmView.width, gmView.height);
+	let scale = gm.camera.scale;
+	if (gm.actualSize && win?.screen) {
+		const ppi = screenPpiCss(win.screen.width, win.screen.height, gm.diagonalInches);
+		const next = cssPixelsPerWorldPixel(gm.cellPx, gm.cellInches, ppi);
+		if (next) scale = next;
+	}
+	if (holdScale) scale = gm.playerScale;
+	return {center, scale};
+}
+
 function paintPlayer (plugin, draw) {
 	if (plugin) plugin._mapLastDraw = draw;
 	const view = playerView(plugin);
@@ -724,18 +733,7 @@ function paintPlayer (plugin, draw) {
 	const win = view.contentEl.win;
 	const width = Math.max(1, win?.innerWidth || 800);
 	const height = Math.max(1, win?.innerHeight || 600);
-	const holdCenter = (gm.viewLocked || gm.scaleLocked || gm.actualSize) && gm.lookAt;
-	const holdScale = (gm.viewLocked || gm.scaleLocked) && gm.playerScale;
-	const center = holdCenter
-		? gm.lookAt
-		: worldCenter(gm.camera, gmView.width, gmView.height);
-	let scale = gm.camera.scale;
-	if (gm.actualSize && win?.screen) {
-		const ppi = screenPpiCss(win.screen.width, win.screen.height, gm.diagonalInches);
-		const next = cssPixelsPerWorldPixel(gm.cellPx, gm.cellInches, ppi);
-		if (next) scale = next;
-	}
-	if (holdScale) scale = gm.playerScale;
+	const {center, scale} = resolvePlayerView(gm, gmView, plugin);
 	if (plugin) plugin._mapPlayerView = {center: {x: center.x, y: center.y}, scale};
 	const blit = playerBlitCanvas(plugin, width, height);
 	drawWorld(blit.getContext("2d"), {
