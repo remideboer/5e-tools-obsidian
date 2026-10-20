@@ -1415,11 +1415,62 @@ a.fiveetools-inline-link {
 	height: 100%;
 }
 
-.fiveetools-map-player__canvas {
-	display: block;
-	width: 100%;
-	height: 100%;
-	flex: 1;
-	min-height: 0;
-	touch-action: none;
+body.fiveetools-map-player-window .fiveetools-map-player__frame {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	width: 100vw;
+	height: 100vh;
+	object-fit: fill;
+	background: #111;
+	-webkit-app-region: drag;
+}
+
+body.fiveetools-map-player-window {
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: #000 !important;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+body.fiveetools-map-player-window .workspace-ribbon,
+body.fiveetools-map-player-window .workspace-tab-header-container,
+body.fiveetools-map-player-window .view-header,
+body.fiveetools-map-player-window .status-bar,
+body.fiveetools-map-player-window .titlebar,
+body.fiveetools-map-player-window #titlebar,
+body.fiveetools-map-player-window .titlebar-button-container,
+body.fiveetools-map-player-window .mod-top-left-space,
+body.fiveetools-map-player-window .mod-top-right-space {
+	display: none !important;
+}
+
+.fiveetools-map-player__chrome {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 48px;
+	z-index: 4;
+	pointer-events: none;
+}
+
+.fiveetools-map-player__chrome:hover .fiveetools-map-player__title {
+	opacity: 1;
+}
+
+.fiveetools-map-player__title {
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(20, 20, 20, 0.92);
+	color: #ccc;
+	font-size: 13px;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	pointer-events: auto;
+	-webkit-app-region: drag;
 }

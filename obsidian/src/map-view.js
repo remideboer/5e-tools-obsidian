@@ -41,6 +41,7 @@ export function defaultMapSession () {
 }
 
 export function teardownMapView (plugin, {closePlayer = false} = {}) {
+	document.body.classList.remove("fiveetools-map-player-window");
 	plugin?._mapResizeOff?.();
 	if (plugin) {
 		plugin._mapResizeOff = null;
@@ -181,11 +182,13 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			width: canvas.width,
 			height: canvas.height,
 		});
-		paintPlayer(plugin, {
-			image,
-			gm: state,
-			gmView: {width: canvas.width, height: canvas.height},
-		});
+		try {
+			paintPlayer(plugin, {
+				image,
+				gm: state,
+				gmView: {width: canvas.width, height: canvas.height},
+			});
+		} catch (_) { /* player paint must not blank the GM canvas */ }
 	};
 
 	const schedule = () => {
@@ -243,6 +246,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		const prevPath = state.filePath;
 		state.filePath = path;
 		emit();
+		revokeImageUrl(image);
 		image = await loadVaultImage(app, path);
 		if (!image) {
 			new Notice(path ? "Could not load that image." : "Pick a vault image.");
@@ -375,14 +379,39 @@ function fmtNum (n, places) {
 	return String(Number(x.toFixed(places)));
 }
 
+const IMAGE_MIME = {
+	png: "image/png",
+	jpg: "image/jpeg",
+	jpeg: "image/jpeg",
+	webp: "image/webp",
+	gif: "image/gif",
+};
+
+function revokeImageUrl (image) {
+	const url = image?._fiveetoolsObjectUrl;
+	if (url) URL.revokeObjectURL(url);
+}
+
 async function loadVaultImage (app, path) {
 	const file = app?.vault?.getAbstractFileByPath?.(path);
-	if (!file || !app.vault.getResourcePath) return null;
+	if (!file || !app.vault.readBinary) return null;
+	let url = "";
+	try {
+		const buf = await app.vault.readBinary(file);
+		const type = IMAGE_MIME[String(file.extension || "").toLowerCase()] || "application/octet-stream";
+		url = URL.createObjectURL(new Blob([buf], {type}));
+	} catch (_) {
+		return null;
+	}
 	return new Promise((resolve) => {
 		const img = new Image();
 		img.onload = () => resolve(img);
-		img.onerror = () => resolve(null);
-		img.src = app.vault.getResourcePath(file);
+		img.onerror = () => {
+			URL.revokeObjectURL(url);
+			resolve(null);
+		};
+		img._fiveetoolsObjectUrl = url;
+		img.src = url;
 	});
 }
 
@@ -390,7 +419,7 @@ export class FiveEToolsMapPlayerView extends ItemView {
 	constructor (leaf, plugin) {
 		super(leaf);
 		this.plugin = plugin;
-		this.canvas = null;
+		this.frame = null;
 		this._ro = null;
 	}
 
@@ -409,7 +438,14 @@ export class FiveEToolsMapPlayerView extends ItemView {
 	async onOpen () {
 		this.contentEl.empty();
 		this.contentEl.addClass("fiveetools-map-player");
-		this.canvas = this.contentEl.createEl("canvas", {cls: "fiveetools-map-player__canvas"});
+		mountPlayerFrame(this);
+		markPlayerWindow(this, true);
+		this.contentEl.onWindowMigrated?.(() => {
+			mountPlayerFrame(this);
+			markPlayerWindow(this, true);
+			if (this.plugin._mapPaint) this.plugin._mapPaint();
+			else if (this.plugin._mapLastDraw) paintPlayer(this.plugin, this.plugin._mapLastDraw);
+		});
 		this._ro = typeof ResizeObserver === "function"
 			? new ResizeObserver(() => {
 				if (this.plugin._mapPaint) this.plugin._mapPaint();
@@ -422,8 +458,43 @@ export class FiveEToolsMapPlayerView extends ItemView {
 	async onClose () {
 		this._ro?.disconnect();
 		this._ro = null;
-		this.canvas = null;
+		this.frame?.remove();
+		this.frame = null;
+		markPlayerWindow(this, false);
 		this.contentEl.empty();
+	}
+}
+
+function mountPlayerFrame (view) {
+	const win = view.contentEl.win;
+	if (!isPopoutWin(win)) return;
+	view.frame?.remove();
+	const img = win.document.createElement("img");
+	img.className = "fiveetools-map-player__frame";
+	img.alt = "";
+	win.document.body.appendChild(img);
+	view.frame = img;
+}
+
+function isPopoutWin (win) {
+	return !!(win && win !== window);
+}
+
+function markPlayerWindow (view, on) {
+	document.body.classList.remove("fiveetools-map-player-window");
+	const win = view?.contentEl?.win;
+	const body = view?.contentEl?.doc?.body;
+	if (!isPopoutWin(win) || !body) return;
+	body.classList.toggle("fiveetools-map-player-window", on);
+	if (on) {
+		if (!view.frame || view.frame.ownerDocument !== win.document) mountPlayerFrame(view);
+		view.contentEl.doc.title = "Player map";
+		win.document.documentElement.style.background = "#000";
+		body.style.background = "#000";
+		requestAnimationFrame(() => {
+			if (view.plugin._mapPaint) view.plugin._mapPaint();
+			else if (view.plugin._mapLastDraw) paintPlayer(view.plugin, view.plugin._mapLastDraw);
+		});
 	}
 }
 
@@ -448,6 +519,7 @@ async function openPlayerWindow (plugin) {
 			});
 		}
 		workspace.revealLeaf(leaf);
+		if (leaf.view?.getViewType?.() === VIEW_TYPE_FIVEETOOLS_MAP_PLAYER) markPlayerWindow(leaf.view, true);
 	} catch (e) {
 		new Notice(e.message || "Could not open player window.");
 	}
@@ -458,22 +530,32 @@ function closePlayerWindow (plugin) {
 	for (const leaf of leaves) {
 		try { leaf.detach(); } catch (_) { /* ignore */ }
 	}
+	document.body.classList.remove("fiveetools-map-player-window");
+	if (plugin) plugin._mapBlit = null;
+}
+
+function playerBlitCanvas (plugin, width, height) {
+	let el = plugin._mapBlit;
+	if (!el) {
+		el = document.createElement("canvas");
+		plugin._mapBlit = el;
+	}
+	if (el.width !== width || el.height !== height) {
+		el.width = width;
+		el.height = height;
+	}
+	return el;
 }
 
 function paintPlayer (plugin, draw) {
 	if (plugin) plugin._mapLastDraw = draw;
 	const view = playerView(plugin);
-	const canvas = view?.canvas;
-	if (!canvas) return;
+	const frame = view?.frame;
+	if (!frame) return;
 	const {image, gm, gmView} = draw;
-	const host = view.contentEl;
-	const win = host.win || host.ownerDocument?.defaultView;
-	const width = Math.max(1, host.clientWidth || win?.innerWidth || 800);
-	const height = Math.max(1, host.clientHeight || win?.innerHeight || 600);
-	if (canvas.width !== width || canvas.height !== height) {
-		canvas.width = width;
-		canvas.height = height;
-	}
+	const win = view.contentEl.win;
+	const width = Math.max(1, win?.innerWidth || 800);
+	const height = Math.max(1, win?.innerHeight || 600);
 	const center = gm.actualSize && gm.lookAt
 		? gm.lookAt
 		: worldCenter(gm.camera, gmView.width, gmView.height);
@@ -483,7 +565,8 @@ function paintPlayer (plugin, draw) {
 		const next = cssPixelsPerWorldPixel(gm.cellPx, gm.cellInches, ppi);
 		if (next) scale = next;
 	}
-	drawWorld(canvas.getContext("2d"), {
+	const blit = playerBlitCanvas(plugin, width, height);
+	drawWorld(blit.getContext("2d"), {
 		image,
 		camera: cameraOnCenter(center, width, height, scale),
 		cellPx: gm.cellPx,
@@ -493,4 +576,12 @@ function paintPlayer (plugin, draw) {
 		width,
 		height,
 	});
+	try {
+		frame.src = blit.toDataURL("image/jpeg", 0.85);
+	} catch (e) {
+		if (!plugin._mapBlitWarned) {
+			plugin._mapBlitWarned = true;
+			new Notice(e.message || "Could not send the map to the player window.");
+		}
+	}
 }

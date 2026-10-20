@@ -23,7 +23,9 @@ export function drawWorld (ctx, {
 	ctx.fillRect(0, 0, width, height);
 	const scale = clampScale(camera.scale);
 	ctx.setTransform(scale, 0, 0, scale, -camera.x * scale, -camera.y * scale);
-	if (image) ctx.drawImage(image, 0, 0);
+	if (image) {
+		try { ctx.drawImage(image, 0, 0); } catch (_) { /* popout documents cannot draw a main-window Image */ }
+	}
 	if (showGrid) {
 		const size = Number(cellPx) || 70;
 		const w = image?.width || width / scale;
