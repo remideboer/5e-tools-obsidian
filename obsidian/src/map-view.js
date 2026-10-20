@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import {ItemView, Notice} from "obsidian";
+import {ItemView, Menu, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {
@@ -36,6 +36,7 @@ export function defaultMapSession () {
 		camera: defaultCamera(),
 		lookAt: null,
 		showGrid: true,
+		zoomLocked: false,
 		actualSize: false,
 		cellInches: DEFAULT_CELL_INCHES,
 		diagonalInches: DEFAULT_DIAGONAL_INCHES,
@@ -130,6 +131,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	});
 
 	const fitBtn = formEl.createEl("button", {text: "Fit map", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+	const freezeBtn = formEl.createEl("button", {
+		text: state.zoomLocked ? "Zoom frozen" : "Freeze zoom",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Lock the current zoom; pan still works"},
+	});
 
 	const sizeRow = formEl.createDiv({cls: "fiveetools-map__row"});
 	sizeRow.createEl("label", {text: "Screen \""});
@@ -225,17 +231,29 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		return true;
 	};
 
-	bindMapPointer(canvas, () => state.camera, (cam) => { state.camera = cam; }, (reason, cam, prev) => {
-		if (reason === "pan" && prev) {
-			if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
-			state.lookAt = {
-				x: state.lookAt.x + (cam.x - prev.x),
-				y: state.lookAt.y + (cam.y - prev.y),
-			};
-		}
+	const setZoomLocked = (next) => {
+		state.zoomLocked = !!next;
+		freezeBtn.setText(state.zoomLocked ? "Zoom frozen" : "Freeze zoom");
 		emit();
-		schedule();
-	});
+	};
+
+	bindMapPointer(
+		canvas,
+		() => state.camera,
+		(cam) => { state.camera = cam; },
+		(reason, cam, prev) => {
+			if (reason === "pan" && prev) {
+				if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
+				state.lookAt = {
+					x: state.lookAt.x + (cam.x - prev.x),
+					y: state.lookAt.y + (cam.y - prev.y),
+				};
+			}
+			emit();
+			schedule();
+		},
+		() => state.zoomLocked,
+	);
 
 	const loadPath = async (filePath, {fromSession = false} = {}) => {
 		const prevPath = state.filePath;
@@ -318,6 +336,19 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		setLookAtFromView();
 		emit();
 		schedule();
+	});
+	freezeBtn.addEventListener("click", () => {
+		setZoomLocked(!state.zoomLocked);
+	});
+	canvas.addEventListener("contextmenu", (evt) => {
+		evt.preventDefault();
+		const menu = new Menu();
+		menu.addItem((item) => {
+			item
+				.setTitle(state.zoomLocked ? "Unfreeze zoom" : "Freeze zoom")
+				.onClick(() => setZoomLocked(!state.zoomLocked));
+		});
+		menu.showAtMouseEvent(evt);
 	});
 	diagEl.addEventListener("change", () => {
 		state.diagonalInches = Math.max(1, Number(diagEl.value) || DEFAULT_DIAGONAL_INCHES);

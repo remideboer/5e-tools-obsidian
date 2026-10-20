@@ -46,7 +46,7 @@ export function drawWorld (ctx, {
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-export function bindMapPointer (canvas, getCamera, setCamera, onChange) {
+export function bindMapPointer (canvas, getCamera, setCamera, onChange, isZoomLocked = () => false) {
 	let drag = null;
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 0) return;
@@ -70,6 +70,7 @@ export function bindMapPointer (canvas, getCamera, setCamera, onChange) {
 	canvas.addEventListener("pointercancel", endDrag);
 	canvas.addEventListener("wheel", (evt) => {
 		evt.preventDefault();
+		if (isZoomLocked()) return;
 		const prev = getCamera();
 		const rect = canvas.getBoundingClientRect();
 		const mx = evt.clientX - rect.left;
