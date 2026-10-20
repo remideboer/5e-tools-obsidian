@@ -104,27 +104,53 @@ export function drawWorld (ctx, {
 	ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-export function bindMapPointer (canvas, getCamera, setCamera, onChange, canPan = () => true) {
+export function bindMapPointer (
+	canvas,
+	getCamera,
+	setCamera,
+	onChange,
+	canPan = () => true,
+	isPanButton = (evt) => evt.button === 0,
+	onPanEnd = null,
+) {
 	let drag = null;
 	canvas.addEventListener("pointerdown", (evt) => {
-		if (evt.button !== 0) return;
-		if (!canPan()) return;
+		if (!canPan() || !isPanButton(evt)) return;
+		if (evt.button === 2) evt.preventDefault();
 		canvas.setPointerCapture(evt.pointerId);
-		drag = {x: evt.clientX, y: evt.clientY, cam: {...getCamera()}};
+		drag = {
+			x: evt.clientX,
+			y: evt.clientY,
+			cam: {...getCamera()},
+			button: evt.button,
+			moved: false,
+		};
+		onPanEnd?.({moved: false, button: evt.button}, evt);
 	});
 	canvas.addEventListener("pointermove", (evt) => {
 		if (!drag) return;
+		const dx = evt.clientX - drag.x;
+		const dy = evt.clientY - drag.y;
+		if (!drag.moved && (dx * dx + dy * dy) > 16) {
+			drag.moved = true;
+			onPanEnd?.({moved: true, button: drag.button}, evt);
+		}
 		const prev = getCamera();
 		const scale = clampScale(prev.scale);
 		const next = {
 			...prev,
-			x: drag.cam.x - (evt.clientX - drag.x) / scale,
-			y: drag.cam.y - (evt.clientY - drag.y) / scale,
+			x: drag.cam.x - dx / scale,
+			y: drag.cam.y - dy / scale,
 		};
 		setCamera(next);
 		onChange("pan", next, prev);
 	});
-	const endDrag = () => { drag = null; };
+	const endDrag = (evt) => {
+		if (!drag) return;
+		const info = {moved: drag.moved, button: drag.button};
+		drag = null;
+		onPanEnd?.(info, evt);
+	};
 	canvas.addEventListener("pointerup", endDrag);
 	canvas.addEventListener("pointercancel", endDrag);
 	canvas.addEventListener("wheel", (evt) => {

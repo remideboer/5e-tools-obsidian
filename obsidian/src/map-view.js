@@ -463,6 +463,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		plugin._mapToggleScaleLock = () => setScaleLocked(!state.scaleLocked);
 	}
 
+	let rightPanMoved = false;
 	bindMapPointer(
 		canvas,
 		() => state.camera,
@@ -478,7 +479,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			emit();
 			schedule();
 		},
-		() => tool === "pan",
+		() => true,
+		(evt) => (tool === "pan" ? evt.button === 0 : evt.button === 2),
+		({moved, button}) => {
+			if (button === 2) rightPanMoved = !!moved;
+		},
 	);
 
 	canvas.addEventListener("pointerdown", (evt) => {
@@ -726,6 +731,10 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	});
 	canvas.addEventListener("contextmenu", (evt) => {
 		evt.preventDefault();
+		if (rightPanMoved) {
+			rightPanMoved = false;
+			return;
+		}
 		const menu = new Menu();
 		menu.addItem((item) => {
 			item
