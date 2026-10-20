@@ -4,11 +4,13 @@ import {ItemView, Menu, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {
+	applyWorldTransform,
 	bindMapPointer,
 	cameraOnCenter,
 	defaultCamera,
 	drawWorld,
 	fitImage,
+	normRotation,
 	sampleEdgeColor,
 	screenToWorld,
 	worldCenter,
@@ -52,6 +54,7 @@ export function defaultMapSession () {
 		offsetY: 0,
 		camera: defaultCamera(),
 		lookAt: null,
+		rotation: 0,
 		showGrid: true,
 		viewLocked: false,
 		scaleLocked: false,
@@ -116,6 +119,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		...session,
 		camera: {...defaultCamera(), ...session?.camera},
 		lookAt: session?.lookAt ? {...session.lookAt} : null,
+		rotation: normRotation(session?.rotation),
 		viewLocked: session?.viewLocked ?? session?.zoomLocked ?? false,
 		scaleLocked: !!session?.scaleLocked,
 	};
@@ -190,6 +194,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	});
 
 	const fitBtn = formEl.createEl("button", {text: "Fit map", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+	const rotateBtn = formEl.createEl("button", {
+		text: "Rotate 90°",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: `Rotation ${state.rotation}°`},
+	});
 	const freezeBtn = formEl.createEl("button", {
 		text: state.viewLocked ? "Player frozen" : "Freeze player",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
@@ -303,10 +312,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			bgColor: edgeColor,
 			fog,
 			fogAlpha: FOG_GM_ALPHA,
+			rotation: state.rotation,
 		});
 		if ((fogRect || fogCircle || fogPoly?.length) && fog) {
 			const scale = state.camera.scale;
-			ctx.setTransform(scale, 0, 0, scale, -state.camera.x * scale, -state.camera.y * scale);
+			applyWorldTransform(ctx, state.camera, state.rotation, canvas.width, canvas.height);
 			ctx.strokeStyle = "rgba(255,220,80,0.9)";
 			ctx.fillStyle = "rgba(255,220,80,0.15)";
 			ctx.lineWidth = 2 / scale;
@@ -484,11 +494,12 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		({moved, button}) => {
 			if (button === 2) rightPanMoved = !!moved;
 		},
+		() => state.rotation,
 	);
 
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 0 || tool === "pan" || !fog || !image) return;
-		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
 		if (tool === "poly") {
 			if (!fogPoly) fogPoly = [];
 			fogPoly.push({x: pt.x, y: pt.y});
@@ -514,20 +525,20 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	});
 	canvas.addEventListener("pointermove", (evt) => {
 		if (fogRect) {
-			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
 			fogRect.x1 = pt.x;
 			fogRect.y1 = pt.y;
 			schedule();
 			return;
 		}
 		if (fogCircle) {
-			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+			const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
 			fogCircle.r = Math.hypot(pt.x - fogCircle.cx, pt.y - fogCircle.cy);
 			schedule();
 			return;
 		}
 		if (!fogStroke || !fog || tool !== "pencil") return;
-		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY);
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
 		strokeFogBrush(fog, fogStroke.x, fogStroke.y, pt.x, pt.y, brushPx, fogMode);
 		fogStroke.x = pt.x;
 		fogStroke.y = pt.y;
@@ -610,7 +621,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			|| await loadFogMask(paths.start, image.width, image.height)
 			|| createFogMask(image.width, image.height);
 		sizeCanvas();
-		state.camera = fitImage(image, canvas.width, canvas.height);
+		state.camera = fitImage(image, canvas.width, canvas.height, state.rotation);
 		setLookAtFromView();
 		if (state.viewLocked || state.scaleLocked) state.playerScale = fallbackPlayerScale();
 		const keepPaper = fromSession && (state.mapDpi || state.paperWidthInches);
@@ -675,8 +686,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	fitBtn.addEventListener("click", () => {
 		if (!image) return;
 		sizeCanvas();
-		state.camera = fitImage(image, canvas.width, canvas.height);
+		state.camera = fitImage(image, canvas.width, canvas.height, state.rotation);
 		if (!state.viewLocked) setLookAtFromView();
+		emit();
+		schedule();
+	});
+	rotateBtn.addEventListener("click", () => {
+		state.rotation = normRotation(state.rotation + 90);
+		rotateBtn.setAttribute("title", `Rotation ${state.rotation}°`);
 		emit();
 		schedule();
 	});
@@ -1163,6 +1180,7 @@ function paintPlayer (plugin, draw) {
 		bgColor,
 		fog,
 		fogAlpha: 1,
+		rotation: gm.rotation,
 	});
 	try {
 		frame.src = blit.toDataURL("image/jpeg", 0.85);
