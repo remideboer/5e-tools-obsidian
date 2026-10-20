@@ -36,7 +36,8 @@ export function defaultMapSession () {
 		camera: defaultCamera(),
 		lookAt: null,
 		showGrid: true,
-		zoomLocked: false,
+		viewLocked: false,
+		scaleLocked: false,
 		playerScale: null,
 		actualSize: false,
 		cellInches: DEFAULT_CELL_INCHES,
@@ -53,11 +54,37 @@ export function teardownMapView (plugin, {closePlayer = false} = {}) {
 	if (plugin) {
 		plugin._mapResizeOff = null;
 		plugin._mapPaint = null;
+		plugin._mapToggleViewLock = null;
+		plugin._mapToggleScaleLock = null;
 	}
 	if (closePlayer) {
 		closePlayerWindow(plugin);
 		if (plugin) plugin._mapLastDraw = null;
 	}
+}
+
+export function toggleMapPlayerZoomFreeze (plugin) {
+	if (typeof plugin?._mapToggleScaleLock === "function") {
+		plugin._mapToggleScaleLock();
+		return;
+	}
+	const prev = plugin?._mapSession || {};
+	const next = {
+		...defaultMapSession(),
+		...prev,
+		camera: {...defaultCamera(), ...prev.camera},
+		lookAt: prev.lookAt ? {...prev.lookAt} : null,
+		viewLocked: prev.viewLocked ?? prev.zoomLocked ?? false,
+		scaleLocked: !(prev.scaleLocked),
+	};
+	if (next.scaleLocked) {
+		next.viewLocked = false;
+		if (!next.playerScale) next.playerScale = next.camera?.scale ?? 1;
+	} else {
+		next.playerScale = null;
+	}
+	if (plugin) plugin._mapSession = next;
+	new Notice(next.scaleLocked ? "Player zoom frozen" : "Player zoom unfrozen");
 }
 
 export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessionChange} = {}) {
@@ -72,7 +99,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		...session,
 		camera: {...defaultCamera(), ...session?.camera},
 		lookAt: session?.lookAt ? {...session.lookAt} : null,
+		viewLocked: session?.viewLocked ?? session?.zoomLocked ?? false,
+		scaleLocked: !!session?.scaleLocked,
 	};
+	delete state.zoomLocked;
+	if (state.viewLocked) state.scaleLocked = false;
 	let image = null;
 	let raf = 0;
 
@@ -133,9 +164,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 
 	const fitBtn = formEl.createEl("button", {text: "Fit map", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
 	const freezeBtn = formEl.createEl("button", {
-		text: state.zoomLocked ? "Player frozen" : "Freeze player",
+		text: state.viewLocked ? "Player frozen" : "Freeze player",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Player holds view; GM can pan, zoom, change maps"},
+	});
+	const freezeZoomBtn = formEl.createEl("button", {
+		text: state.scaleLocked ? "Zoom frozen" : "Freeze zoom",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Player holds zoom; pan still follows"},
 	});
 
 	const sizeRow = formEl.createDiv({cls: "fiveetools-map__row"});
@@ -232,7 +268,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		return true;
 	};
 
-	const snapshotPlayerScale = () => {
+	const fallbackPlayerScale = () => {
 		const view = playerView(plugin);
 		const win = view?.contentEl?.win;
 		if (state.actualSize && win?.screen) {
@@ -243,11 +279,28 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		return state.camera.scale;
 	};
 
-	const setZoomLocked = (next) => {
+	/** Capture what the player window is showing now (not the GM camera). */
+	const snapshotPlayerView = () => {
+		const last = plugin?._mapPlayerView;
+		if (last?.center && last.scale) {
+			state.lookAt = {...last.center};
+			state.playerScale = last.scale;
+			return;
+		}
+		if (!state.lookAt) setLookAtFromView();
+		state.playerScale = fallbackPlayerScale();
+	};
+
+	const syncFreezeButtons = () => {
+		freezeBtn.setText(state.viewLocked ? "Player frozen" : "Freeze player");
+		freezeZoomBtn.setText(state.scaleLocked ? "Zoom frozen" : "Freeze zoom");
+	};
+
+	const setViewLocked = (next) => {
 		if (next) {
-			state.zoomLocked = true;
-			if (!state.lookAt) setLookAtFromView();
-			state.playerScale = snapshotPlayerScale();
+			state.viewLocked = true;
+			state.scaleLocked = false;
+			snapshotPlayerView();
 		} else {
 			sizeCanvas();
 			if (state.lookAt) {
@@ -258,16 +311,35 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 					state.playerScale || state.camera.scale,
 				);
 			}
-			state.zoomLocked = false;
+			state.viewLocked = false;
 			state.playerScale = null;
 		}
-		freezeBtn.setText(state.zoomLocked ? "Player frozen" : "Freeze player");
+		syncFreezeButtons();
 		emit();
 		schedule();
 	};
 
+	const setScaleLocked = (next) => {
+		if (next) {
+			state.scaleLocked = true;
+			state.viewLocked = false;
+			snapshotPlayerView();
+		} else {
+			state.scaleLocked = false;
+			state.playerScale = null;
+		}
+		syncFreezeButtons();
+		emit();
+		schedule();
+	};
+
+	if (plugin) {
+		plugin._mapToggleViewLock = () => setViewLocked(!state.viewLocked);
+		plugin._mapToggleScaleLock = () => setScaleLocked(!state.scaleLocked);
+	}
+
 	bindMapPointer(canvas, () => state.camera, (cam) => { state.camera = cam; }, (reason, cam, prev) => {
-		if (reason === "pan" && prev && !state.zoomLocked) {
+		if (reason === "pan" && prev && !state.viewLocked) {
 			if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
 			state.lookAt = {
 				x: state.lookAt.x + (cam.x - prev.x),
@@ -293,7 +365,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		sizeCanvas();
 		state.camera = fitImage(image, canvas.width, canvas.height);
 		setLookAtFromView();
-		if (state.zoomLocked) state.playerScale = snapshotPlayerScale();
+		if (state.viewLocked || state.scaleLocked) state.playerScale = fallbackPlayerScale();
 		const keepPaper = fromSession && (state.mapDpi || state.paperWidthInches);
 		const found = keepPaper ? null : await detectMapImageDpi(app, filePath);
 		if (found) {
@@ -357,20 +429,28 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		if (!image) return;
 		sizeCanvas();
 		state.camera = fitImage(image, canvas.width, canvas.height);
-		if (!state.zoomLocked) setLookAtFromView();
+		if (!state.viewLocked) setLookAtFromView();
 		emit();
 		schedule();
 	});
 	freezeBtn.addEventListener("click", () => {
-		setZoomLocked(!state.zoomLocked);
+		setViewLocked(!state.viewLocked);
+	});
+	freezeZoomBtn.addEventListener("click", () => {
+		setScaleLocked(!state.scaleLocked);
 	});
 	canvas.addEventListener("contextmenu", (evt) => {
 		evt.preventDefault();
 		const menu = new Menu();
 		menu.addItem((item) => {
 			item
-				.setTitle(state.zoomLocked ? "Unfreeze player" : "Freeze player")
-				.onClick(() => setZoomLocked(!state.zoomLocked));
+				.setTitle(state.viewLocked ? "Unfreeze player" : "Freeze player")
+				.onClick(() => setViewLocked(!state.viewLocked));
+		});
+		menu.addItem((item) => {
+			item
+				.setTitle(state.scaleLocked ? "Unfreeze zoom" : "Freeze zoom")
+				.onClick(() => setScaleLocked(!state.scaleLocked));
 		});
 		menu.showAtMouseEvent(evt);
 	});
@@ -636,8 +716,9 @@ function paintPlayer (plugin, draw) {
 	const win = view.contentEl.win;
 	const width = Math.max(1, win?.innerWidth || 800);
 	const height = Math.max(1, win?.innerHeight || 600);
-	const holdView = gm.zoomLocked && gm.lookAt;
-	const center = (gm.actualSize || holdView) && gm.lookAt
+	const holdCenter = (gm.viewLocked || gm.scaleLocked || gm.actualSize) && gm.lookAt;
+	const holdScale = (gm.viewLocked || gm.scaleLocked) && gm.playerScale;
+	const center = holdCenter
 		? gm.lookAt
 		: worldCenter(gm.camera, gmView.width, gmView.height);
 	let scale = gm.camera.scale;
@@ -646,7 +727,8 @@ function paintPlayer (plugin, draw) {
 		const next = cssPixelsPerWorldPixel(gm.cellPx, gm.cellInches, ppi);
 		if (next) scale = next;
 	}
-	if (holdView && gm.playerScale) scale = gm.playerScale;
+	if (holdScale) scale = gm.playerScale;
+	if (plugin) plugin._mapPlayerView = {center: {x: center.x, y: center.y}, scale};
 	const blit = playerBlitCanvas(plugin, width, height);
 	drawWorld(blit.getContext("2d"), {
 		image,

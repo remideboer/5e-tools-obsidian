@@ -12,7 +12,7 @@ import {flushEncounterSave, getEncounterInstance, loadEncountersFromVault, setEn
 import {FiveEToolsSettingTab} from "./src/settings.js";
 import {registerLinkSuggest} from "./src/link-suggest.js";
 import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
-import {FiveEToolsMapPlayerView, teardownMapView} from "./src/map-view.js";
+import {FiveEToolsMapPlayerView, teardownMapView, toggleMapPlayerZoomFreeze} from "./src/map-view.js";
 
 export default class FiveEToolsPlugin extends Plugin {
 	async onload () {
@@ -46,6 +46,11 @@ export default class FiveEToolsPlugin extends Plugin {
 			id: "search",
 			name: "Search",
 			callback: () => this.openSearch(),
+		});
+		this.addCommand({
+			id: "toggle-map-player-zoom-freeze",
+			name: "Toggle freeze player zoom",
+			callback: () => toggleMapPlayerZoomFreeze(this),
 		});
 
 		this.addRibbonIcon(ICON_ID, "Open 5etools library", () => this.openLibrary());
