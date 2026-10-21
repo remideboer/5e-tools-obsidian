@@ -39,7 +39,7 @@ import {
 } from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
 import {listCampaigns} from "./campaign-store.js";
-import {createSceneToken} from "./map-tokens.js";
+import {createSceneToken, snapTokenCenter, tokenAtPoint, tokenRadius} from "./map-tokens.js";
 import {openTokenPicker, tokenDragDoc} from "./map-token-picker.js";
 import {
 	absoluteToVault,
@@ -377,6 +377,8 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		} catch (_) { /* player paint must not blank the GM canvas */ }
 	};
 
+	let selectedTokenId = null;
+
 	const paint = (sendPlayer = true) => {
 		sizeCanvas();
 		if (!state.lookAt) state.lookAt = worldCenter(state.camera, canvas.width, canvas.height);
@@ -431,6 +433,17 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 					ctx.fill();
 				}
 			}
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+		}
+		const selected = (sceneDoc?.tokens || []).find(token => token.id === selectedTokenId);
+		if (selected) {
+			const radius = tokenRadius(selected, state.cellPx);
+			applyWorldTransform(ctx, state.camera, state.rotation, canvas.width, canvas.height);
+			ctx.beginPath();
+			ctx.arc(Number(selected.x) || 0, Number(selected.y) || 0, radius, 0, Math.PI * 2);
+			ctx.strokeStyle = "rgba(255,220,80,0.95)";
+			ctx.lineWidth = 3 / (Number(state.camera.scale) || 1);
+			ctx.stroke();
 			ctx.setTransform(1, 0, 0, 1, 0, 0);
 		}
 		if (sendPlayer) sendPlayerFrame();
@@ -578,6 +591,12 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			finishGesture();
 		}, 80);
 	};
+	let tokenDrag = null;
+	const tokenUnderEvent = (evt) => {
+		if (!sceneDoc?.tokens?.length) return null;
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
+		return tokenAtPoint(sceneDoc.tokens, pt, state.cellPx);
+	};
 	bindMapPointer(
 		canvas,
 		() => state.camera,
@@ -600,7 +619,10 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			schedule();
 		},
 		() => true,
-		(evt) => (tool === "pan" ? evt.button === 0 : evt.button === 2),
+		(evt) => {
+			if (evt.button === 0 && tokenUnderEvent(evt)) return false;
+			return tool === "pan" ? evt.button === 0 : evt.button === 2;
+		},
 		({moved, button}, evt) => {
 			if (button === 2) rightPanMoved = !!moved;
 			const type = evt?.type;
@@ -622,7 +644,48 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 2) rightPanMoved = false;
+		if (evt.button !== 0) return;
+		const token = tokenUnderEvent(evt);
+		if (!token) {
+			if (selectedTokenId) {
+				selectedTokenId = null;
+				schedule();
+			}
+			return;
+		}
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
+		selectedTokenId = token.id;
+		tokenDrag = {
+			id: token.id,
+			dx: (Number(token.x) || 0) - pt.x,
+			dy: (Number(token.y) || 0) - pt.y,
+			pointerId: evt.pointerId,
+		};
+		canvas.setPointerCapture(evt.pointerId);
+		schedule();
 	});
+	canvas.addEventListener("pointermove", (evt) => {
+		if (!tokenDrag || evt.pointerId !== tokenDrag.pointerId) return;
+		const token = sceneDoc?.tokens?.find(item => item.id === tokenDrag.id);
+		if (!token) return;
+		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
+		token.x = pt.x + tokenDrag.dx;
+		token.y = pt.y + tokenDrag.dy;
+		schedule();
+	});
+	const endTokenDrag = (evt) => {
+		if (!tokenDrag || evt.pointerId !== tokenDrag.pointerId) return;
+		const token = sceneDoc?.tokens?.find(item => item.id === tokenDrag.id);
+		tokenDrag = null;
+		if (!token) return;
+		const snapped = snapTokenCenter(token, token.cells, state.cellPx, state.offsetX, state.offsetY);
+		token.x = snapped.x;
+		token.y = snapped.y;
+		scheduleSceneSave();
+		schedule();
+	};
+	canvas.addEventListener("pointerup", endTokenDrag);
+	canvas.addEventListener("pointercancel", endTokenDrag);
 	canvas.addEventListener("dragover", (evt) => {
 		const types = evt.dataTransfer?.types ? [...evt.dataTransfer.types] : [];
 		if (!types.includes("text/plain")) return;
@@ -639,6 +702,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 0 || tool === "pan" || !fog || !image) return;
+		if (tokenUnderEvent(evt)) return;
 		const pt = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
 		if (tool === "poly") {
 			if (!fogPoly) fogPoly = [];

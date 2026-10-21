@@ -30,6 +30,27 @@ export function cellsForCreatureSize (size) {
 	return SIZE_CELLS[key] || 1;
 }
 
+export function tokenRadius (token, cellPx) {
+	const cell = Math.max(1, Number(cellPx) || 70);
+	const cells = Number(token?.cells) > 0 ? Number(token.cells) : 1;
+	return (cells * cell) / 2;
+}
+
+/** Last matching token wins when discs overlap. */
+export function tokenAtPoint (tokens, world, cellPx) {
+	const list = tokens || [];
+	const x = Number(world?.x) || 0;
+	const y = Number(world?.y) || 0;
+	for (let i = list.length - 1; i >= 0; i--) {
+		const token = list[i];
+		const r = tokenRadius(token, cellPx);
+		const dx = x - (Number(token?.x) || 0);
+		const dy = y - (Number(token?.y) || 0);
+		if (dx * dx + dy * dy <= r * r) return token;
+	}
+	return null;
+}
+
 /** Odd footprints sit on a cell center. Even footprints sit on a grid corner. */
 export function snapTokenCenter (world, cells, cellPx, offsetX = 0, offsetY = 0) {
 	const size = Math.max(1, Number(cellPx) || 70);
