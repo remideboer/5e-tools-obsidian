@@ -76,6 +76,11 @@ async function ensureCachedFile (plugin, url) {
 	}
 }
 
+export async function cachedMediaPath (plugin, url) {
+	const cached = await ensureCachedFile(plugin, url);
+	return cached?.abs || "";
+}
+
 function cacheRoot (plugin) {
 	return path.join(getPluginDir(plugin), "cache");
 }

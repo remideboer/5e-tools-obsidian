@@ -54,6 +54,7 @@ export const LIBRARY_NAV = [
 			{id: "condition", label: "Conditions", categories: ["condition", "disease", "status"]},
 			{id: "rule", label: "Rules", categories: ["rule"]},
 			{id: "adventure", label: "Adventures", categories: ["adventure"]},
+			{id: "maps", label: "Maps", tool: "maps"},
 		],
 	},
 	{

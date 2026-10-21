@@ -790,6 +790,10 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 				state.paperHeightInches = null;
 			}
 		}
+		if (fit && layer.showGrid && layer.cellPx) {
+			state.cellPx = Math.max(8, Math.round(layer.cellPx));
+			state.showGrid = true;
+		}
 		gridBtn.setText(state.showGrid ? "Grid on" : "Grid off");
 		rotateBtn.setAttribute("title", `Rotation ${state.rotation}°`);
 		syncFreezeButtons();

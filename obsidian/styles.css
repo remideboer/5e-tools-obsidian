@@ -1394,6 +1394,81 @@ a.fiveetools-inline-link {
 	cursor: crosshair;
 }
 
+.fiveetools-map__search {
+	width: 100%;
+	margin: 4px 0;
+}
+
+.fiveetools-library__list.fiveetools-refmaps {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.fiveetools-refmaps__tree {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+
+.fiveetools-refmaps__source,
+.fiveetools-refmaps__chapter,
+.fiveetools-refmaps__pick {
+	display: block;
+	width: 100%;
+	text-align: left;
+	background: transparent;
+	border: none;
+	color: var(--text-normal);
+	cursor: pointer;
+	padding: 3px 4px;
+}
+
+.fiveetools-refmaps__source {
+	font-weight: 600;
+	margin-top: 8px;
+}
+
+.fiveetools-refmaps__chapter {
+	padding-left: 14px;
+	color: var(--text-muted);
+}
+
+.fiveetools-refmaps__source.is-selected,
+.fiveetools-refmaps__chapter.is-selected,
+.fiveetools-refmaps__map.is-selected .fiveetools-refmaps__pick {
+	color: var(--text-accent);
+}
+
+.fiveetools-refmaps__chapter-block {
+	margin: 12px 0 20px;
+}
+
+.fiveetools-refmaps__map {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	margin: 4px 0 10px;
+}
+
+.fiveetools-refmaps__pick {
+	width: auto;
+}
+
+.fiveetools-refmaps__preview {
+	padding: 4px 8px 16px;
+}
+
+.fiveetools-refmaps__image {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
 .fiveetools-map__fog {
 	display: flex;
 	flex-direction: column;

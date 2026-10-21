@@ -123,6 +123,7 @@ function copyBundledData () {
 		"data/generated/gendata-subclass-lookup.json",
 		"data/generated/gendata-tag-redirects.json",
 		"data/generated/gendata-variantrules.json",
+		"data/generated/gendata-maps.json",
 	];
 
 	for (const dir of dirs) {

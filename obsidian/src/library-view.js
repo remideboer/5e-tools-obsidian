@@ -10,6 +10,7 @@ import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
 import {renderMapTool, teardownMapView} from "./map-view.js";
+import {renderReferenceMaps} from "./map-reference-view.js";
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -334,6 +335,20 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
+		if (item?.tool === "maps") {
+			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._referenceMapSession || {};
+			renderReferenceMaps(this.listEl, this.readerEl, {
+				session,
+				plugin: this.plugin,
+				onSessionChange: (next) => { this.plugin._referenceMapSession = next; },
+				onOpenMap: () => this.selectNav("map"),
+			});
+			this.docs = [];
+			return;
+		}
+
 		this.searchEl.style.display = "";
 		if (this.filterEl) this.filterEl.style.display = item?.id === "bestiary" ? "" : "none";
 		this.docs = listEntities({
@@ -402,7 +417,7 @@ function sameDoc (a, b) {
 }
 
 function clearListToolClasses (el) {
-	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign", "fiveetools-map");
+	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign", "fiveetools-map", "fiveetools-refmaps");
 }
 
 function paintBestiaryFilters (hostEl, filters, onChange) {
