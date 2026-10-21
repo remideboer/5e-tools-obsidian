@@ -253,7 +253,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button"},
 	});
-	const snapBtn = gridRow.createEl("button", {
+	const snapBtn = formEl.createEl("button", {
 		text: state.snapToGrid ? "Snap on" : "Snap off",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Snap tokens to grid on place and drag end"},
@@ -1311,6 +1311,16 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			item
 				.setTitle(state.scaleLocked ? "Unfreeze zoom" : "Freeze zoom")
 				.onClick(() => setScaleLocked(!state.scaleLocked));
+		});
+		menu.addItem((item) => {
+			item
+				.setTitle(state.snapToGrid ? "Snap off" : "Snap on")
+				.onClick(() => {
+					state.snapToGrid = !state.snapToGrid;
+					snapBtn.setText(state.snapToGrid ? "Snap on" : "Snap off");
+					emit();
+					schedule();
+				});
 		});
 		menu.showAtMouseEvent(evt);
 	});
