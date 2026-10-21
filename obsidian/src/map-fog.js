@@ -114,6 +114,27 @@ export function saveFogMask (filePath, mask) {
 	}
 }
 
+export function saveFogMaskAsync (filePath, mask) {
+	if (!filePath || !mask) return Promise.resolve(false);
+	if (typeof mask.toBlob !== "function") return Promise.resolve(saveFogMask(filePath, mask));
+	return new Promise((resolve) => {
+		mask.toBlob((blob) => {
+			if (!blob) {
+				resolve(false);
+				return;
+			}
+			blob.arrayBuffer().then((buf) => {
+				try {
+					fs.writeFileSync(filePath, Buffer.from(buf));
+					resolve(true);
+				} catch (_) {
+					resolve(false);
+				}
+			}).catch(() => resolve(false));
+		}, "image/png");
+	});
+}
+
 export async function loadFogMask (filePath, w, h) {
 	const width = Math.max(1, w | 0);
 	const height = Math.max(1, h | 0);

@@ -21,10 +21,10 @@ import {
 	fillFogCircle,
 	fillFogPolygon,
 	fillFogRect,
-	fogPaths,
 	loadFogMask,
 	paintFogBrush,
 	saveFogMask,
+	saveFogMaskAsync,
 	strokeFogBrush,
 } from "./map-fog.js";
 import {
@@ -37,6 +37,17 @@ import {
 	screenPpiCss,
 } from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
+import {listCampaigns} from "./campaign-store.js";
+import {
+	absoluteToVault,
+	addSceneLayer,
+	copySceneToCampaign,
+	createSceneFromImage,
+	isSceneJson,
+	layerAbsolute,
+	readScene,
+	writeScene,
+} from "./map-scene.js";
 
 const FOG_GM_ALPHA = 0.55;
 const DEFAULT_BRUSH = 40;
@@ -49,6 +60,8 @@ const IMAGE_FILTERS = [
 export function defaultMapSession () {
 	return {
 		filePath: "",
+		scenePath: "",
+		activeLayerId: "",
 		cellPx: 70,
 		offsetX: 0,
 		offsetY: 0,
@@ -143,13 +156,19 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	let fogCircle = null;
 	let fogPoly = null;
 	let fogSaveTimer = 0;
+	let sceneSaveTimer = 0;
 	let raf = 0;
+	let sceneDoc = null;
+	let sceneVault = state.scenePath || "";
 
-	const emit = () => onSessionChange?.({
-		...state,
-		camera: {...state.camera},
-		lookAt: state.lookAt ? {...state.lookAt} : null,
-	});
+	const emit = () => {
+		onSessionChange?.({
+			...state,
+			camera: {...state.camera},
+			lookAt: state.lookAt ? {...state.lookAt} : null,
+		});
+		scheduleSceneSave();
+	};
 
 	const setLookAtFromView = () => {
 		sizeCanvas();
@@ -159,7 +178,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	formEl.createEl("h3", {text: "Battle map"});
 	formEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Choose an image file. Set paper size or DPI (autodetected when the file has it). Pan and zoom, then open a player window. Actual size prints one grid cell at the cell inches on that screen.",
+		text: "Choose an image to save a scene in the vault maps folder. Add levels, then pan and zoom. Actual size prints one grid cell at the cell inches on the player screen.",
 	});
 
 	const fileRow = formEl.createDiv({cls: "fiveetools-map__row"});
@@ -169,6 +188,28 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		attr: {title: state.filePath || ""},
 	});
 	const browseBtn = fileRow.createEl("button", {text: "Browse", cls: "fiveetools-btn", attr: {type: "button"}});
+	const layerRow = formEl.createDiv({cls: "fiveetools-map__row"});
+	const prevLayerBtn = layerRow.createEl("button", {
+		text: "Prev",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Previous level"},
+	});
+	const layerNameEl = layerRow.createEl("span", {cls: "fiveetools-map__path", text: "No layer"});
+	const nextLayerBtn = layerRow.createEl("button", {
+		text: "Next",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Next level"},
+	});
+	const addLayerBtn = layerRow.createEl("button", {
+		text: "Add layer",
+		cls: "fiveetools-btn",
+		attr: {type: "button", title: "Add another level to this scene"},
+	});
+	const copyCampaignBtn = layerRow.createEl("button", {
+		text: "Copy to campaign",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Copy this scene into a campaign Maps folder"},
+	});
 	const metaEl = formEl.createEl("p", {cls: "fiveetools-view__meta"});
 
 	const paperRow = formEl.createDiv({cls: "fiveetools-map__row"});
@@ -300,12 +341,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	};
 
 	const queueFogSave = () => {
-		if (!state.filePath || !fog) return;
+		if (!fog || !activeLayer()) return;
 		if (fogSaveTimer) clearTimeout(fogSaveTimer);
 		fogSaveTimer = setTimeout(() => {
 			fogSaveTimer = 0;
-			const {live} = fogPaths(state.filePath);
-			if (!saveFogMask(live, fog)) new Notice("Could not save live fog.");
+			flushFogSave();
 		}, 500);
 	};
 
@@ -385,8 +425,13 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	if (plugin) plugin._mapPaint = paint;
 
 	const syncPaperUi = () => {
-		pathEl.setText(state.filePath ? path.basename(state.filePath) : "No file chosen");
-		pathEl.setAttribute("title", state.filePath || "");
+		syncLayerUi();
+		const layer = activeLayer();
+		const label = sceneDoc?.name
+			? (layer?.name && sceneDoc.layers.length > 1 ? `${sceneDoc.name} — ${layer.name}` : sceneDoc.name)
+			: (state.filePath ? path.basename(state.filePath) : "No file chosen");
+		pathEl.setText(label);
+		pathEl.setAttribute("title", sceneVault || state.filePath || "");
 		paperWEl.value = state.paperWidthInches ? fmtNum(state.paperWidthInches, 2) : "";
 		paperHEl.value = state.paperHeightInches ? fmtNum(state.paperHeightInches, 2) : "";
 		dpiEl.value = state.mapDpi ? fmtNum(state.mapDpi, 1) : "";
@@ -613,46 +658,255 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	const fogKeyWin = canvas.win || window;
 	fogKeyWin.addEventListener("keydown", onFogKey);
 
-	const loadPath = async (filePath, {fromSession = false} = {}) => {
-		const prevPath = state.filePath;
-		state.filePath = filePath;
-		emit();
+	function activeLayer () {
+		const layers = sceneDoc?.layers || [];
+		return layers.find(it => it.id === state.activeLayerId) || layers[0] || null;
+	}
+
+	function layerFile (rel) {
+		return layerAbsolute(plugin, sceneVault, rel);
+	}
+
+	function syncLayerUi () {
+		const layers = sceneDoc?.layers || [];
+		const index = layers.findIndex(it => it.id === state.activeLayerId);
+		const layer = index >= 0 ? layers[index] : null;
+		layerNameEl.setText(layer ? `${index + 1}/${layers.length} ${layer.name}` : "No layer");
+	}
+
+	function captureLayer () {
+		const layer = activeLayer();
+		if (!layer || !sceneDoc) return;
+		sceneDoc.camera = {...state.camera};
+		sceneDoc.lookAt = state.lookAt ? {...state.lookAt} : null;
+		sceneDoc.rotation = state.rotation;
+		sceneDoc.activeLayerId = layer.id;
+		sceneDoc.cellInches = state.cellInches;
+		sceneDoc.diagonalInches = state.diagonalInches;
+		sceneDoc.viewLocked = state.viewLocked;
+		sceneDoc.scaleLocked = state.scaleLocked;
+		sceneDoc.playerScale = state.playerScale;
+		sceneDoc.actualSize = state.actualSize;
+		if (!Array.isArray(sceneDoc.tokens)) sceneDoc.tokens = [];
+	}
+
+	function scheduleSceneSave () {
+		if (!sceneDoc || !sceneVault) return;
+		if (sceneSaveTimer) clearTimeout(sceneSaveTimer);
+		sceneSaveTimer = setTimeout(() => {
+			sceneSaveTimer = 0;
+			void persistScene();
+		}, 400);
+	}
+
+	async function persistScene () {
+		if (!sceneDoc || !sceneVault) return;
+		captureLayer();
+		try {
+			await writeScene(plugin, sceneVault, sceneDoc);
+		} catch (e) {
+			new Notice(e.message || "Could not save the scene.");
+		}
+	}
+
+	function flushFogSave () {
+		if (fogSaveTimer) {
+			clearTimeout(fogSaveTimer);
+			fogSaveTimer = 0;
+		}
+		const live = layerFile(activeLayer()?.fogLive);
+		if (!live || !fog) return;
+		if (!saveFogMask(live, fog)) new Notice("Could not save live fog.");
+	}
+
+	function applySceneSettings () {
+		if (!sceneDoc) return;
+		if (sceneDoc.cellInches) state.cellInches = sceneDoc.cellInches;
+		if (sceneDoc.diagonalInches) state.diagonalInches = sceneDoc.diagonalInches;
+		state.viewLocked = !!sceneDoc.viewLocked;
+		state.scaleLocked = !!sceneDoc.scaleLocked;
+		state.playerScale = sceneDoc.playerScale ?? null;
+		state.actualSize = !!sceneDoc.actualSize;
+		if (state.viewLocked) state.scaleLocked = false;
+	}
+
+	async function showLayer (layer, {fit = false, keepSessionView = false} = {}) {
+		if (!layer) return;
+		state.activeLayerId = layer.id;
+		if (sceneDoc) sceneDoc.activeLayerId = layer.id;
+		const imageAbs = layerFile(layer.image);
+		const prev = state.filePath;
+		state.filePath = imageAbs;
+		state.scenePath = sceneVault;
 		revokeImageUrl(image);
-		image = await loadMapImage(app, filePath);
+		image = await loadMapImage(app, imageAbs);
 		if (!image) {
 			edgeColor = "#111";
 			fog = null;
-			new Notice(filePath ? "Could not load that image." : "Choose an image file.");
+			new Notice("Could not load that layer.");
+			syncLayerUi();
 			syncPaperUi();
 			schedule();
 			return;
 		}
-		edgeColor = sampleEdgeColor(image);
-		const paths = fogPaths(filePath);
-		fog = await loadFogMask(paths.live, image.width, image.height)
-			|| await loadFogMask(paths.start, image.width, image.height)
+		if (layer.edgeColor) edgeColor = layer.edgeColor;
+		else {
+			edgeColor = sampleEdgeColor(image);
+			layer.edgeColor = edgeColor;
+		}
+		fog = await loadFogMask(layerFile(layer.fogLive), image.width, image.height)
+			|| await loadFogMask(layerFile(layer.fogStart), image.width, image.height)
 			|| createFogMask(image.width, image.height);
 		sizeCanvas();
-		state.camera = fitImage(image, canvas.width, canvas.height, state.rotation);
-		setLookAtFromView();
-		if (state.viewLocked || state.scaleLocked) state.playerScale = fallbackPlayerScale();
-		const keepPaper = fromSession && (state.mapDpi || state.paperWidthInches);
-		const found = keepPaper ? null : await detectMapImageDpi(app, filePath);
-		if (found) {
-			applyDpi(found);
-			if (!fromSession) new Notice(`Map DPI ${found} from file.`);
-		} else if (!fromSession && prevPath !== filePath) {
-			state.mapDpi = null;
-			state.paperWidthInches = null;
-			state.paperHeightInches = null;
-			syncPaperUi();
-			new Notice("No DPI in file. Set width, height, or DPI.");
-		} else {
-			syncPaperUi();
+		if (!keepSessionView && fit) {
+			state.rotation = normRotation(layer.rotation || 0);
+			state.camera = fitImage(image, canvas.width, canvas.height, state.rotation);
+			setLookAtFromView();
+			state.offsetX = layer.offsetX || 0;
+			state.offsetY = layer.offsetY || 0;
+			state.showGrid = !!layer.showGrid;
+			state.cellPx = layer.cellPx || 70;
+			state.mapDpi = layer.mapDpi ?? null;
+			state.paperWidthInches = layer.paperWidthInches ?? null;
+			state.paperHeightInches = layer.paperHeightInches ?? null;
+		} else if (!keepSessionView) {
+			state.camera = {...defaultCamera(), ...layer.camera};
+			state.lookAt = layer.lookAt ? {...layer.lookAt} : null;
+			state.rotation = normRotation(layer.rotation);
+			state.offsetX = layer.offsetX || 0;
+			state.offsetY = layer.offsetY || 0;
+			state.showGrid = !!layer.showGrid;
+			state.cellPx = layer.cellPx || state.cellPx;
+			state.mapDpi = layer.mapDpi ?? null;
+			state.paperWidthInches = layer.paperWidthInches ?? null;
+			state.paperHeightInches = layer.paperHeightInches ?? null;
 		}
+		if (fit && !state.mapDpi) {
+			const found = await detectMapImageDpi(app, imageAbs);
+			if (found) applyDpi(found);
+			else if (prev !== imageAbs) {
+				state.mapDpi = null;
+				state.paperWidthInches = null;
+				state.paperHeightInches = null;
+			}
+		}
+		gridBtn.setText(state.showGrid ? "Grid on" : "Grid off");
+		rotateBtn.setAttribute("title", `Rotation ${state.rotation}°`);
+		syncFreezeButtons();
+		actualBtn.setText(state.actualSize ? "Actual size on" : "Actual size off");
+		inchEl.value = String(state.cellInches);
+		diagEl.value = String(state.diagonalInches);
+		cellEl.value = String(state.cellPx);
+		syncLayerUi();
+		syncPaperUi();
 		emit();
 		schedule();
-	};
+	}
+
+	async function openScene (vaultPath, {fromSession = false, reusePixels = false, fit = false} = {}) {
+		const loaded = await readScene(plugin, vaultPath);
+		if (!loaded) {
+			new Notice("Could not open that scene.");
+			return;
+		}
+		sceneDoc = loaded.scene;
+		sceneVault = loaded.scenePath;
+		state.scenePath = sceneVault;
+		if (!fromSession) applySceneSettings();
+		const preferred = fromSession && state.activeLayerId ? state.activeLayerId : sceneDoc.activeLayerId;
+		const layer = sceneDoc.layers.find(it => it.id === preferred) || sceneDoc.layers[0];
+		if (!layer) return;
+		if (reusePixels && image) {
+			state.activeLayerId = layer.id;
+			sceneDoc.activeLayerId = layer.id;
+			state.filePath = layerFile(layer.image) || state.filePath;
+			if (!fog) {
+				fog = await loadFogMask(layerFile(layer.fogLive), image.width, image.height)
+					|| await loadFogMask(layerFile(layer.fogStart), image.width, image.height)
+					|| createFogMask(image.width, image.height);
+			}
+			syncLayerUi();
+			syncPaperUi();
+			emit();
+			paint();
+			return;
+		}
+		if (fromSession && !fit) {
+			await showLayer(layer, {keepSessionView: true});
+			return;
+		}
+		if (!fit && (applySceneView() || applyLegacyLayerView(layer))) {
+			await showLayer(layer, {keepSessionView: true});
+			return;
+		}
+		await showLayer(layer, {fit: true});
+	}
+
+	function applySceneView () {
+		const cam = sceneDoc?.camera;
+		if (!cam || !(Number(cam.scale) > 0)) return false;
+		state.camera = {...defaultCamera(), ...cam};
+		state.lookAt = sceneDoc.lookAt ? {...sceneDoc.lookAt} : null;
+		state.rotation = normRotation(sceneDoc.rotation || 0);
+		return true;
+	}
+
+	function applyLegacyLayerView (layer) {
+		const cam = layer?.camera;
+		if (!cam) return false;
+		const moved = layer.lookAt || cam.x || cam.y || (Number(cam.scale) > 0 && cam.scale !== 1);
+		if (!moved) return false;
+		state.camera = {...defaultCamera(), ...cam};
+		state.lookAt = layer.lookAt ? {...layer.lookAt} : null;
+		state.rotation = normRotation(layer.rotation || 0);
+		return true;
+	}
+
+	async function adoptFile (filePath, {fromSession = false} = {}) {
+		try {
+			if (isSceneJson(filePath)) {
+				const folder = absoluteToVault(plugin, path.dirname(filePath));
+				if (!folder) throw new Error("Choose a scene saved in the vault.");
+				await openScene(folder, {fromSession, reusePixels: fromSession && !!image, fit: !fromSession});
+				return;
+			}
+			const created = await createSceneFromImage(plugin, filePath);
+			await openScene(created.scenePath, {
+				fromSession,
+				reusePixels: fromSession && !!image,
+				fit: !fromSession,
+			});
+			new Notice(`Saved scene ${created.scene.name}.`);
+		} catch (e) {
+			new Notice(e.message || "Could not save that map as a scene.");
+		}
+	}
+
+	async function switchLayer (id) {
+		const layer = sceneDoc?.layers?.find(it => it.id === id);
+		if (!layer || layer.id === state.activeLayerId) return;
+		const mask = fog;
+		const live = layerFile(activeLayer()?.fogLive);
+		if (fogSaveTimer) {
+			clearTimeout(fogSaveTimer);
+			fogSaveTimer = 0;
+		}
+		void saveFogMaskAsync(live, mask);
+		captureLayer();
+		fogStroke = null;
+		fogRect = null;
+		fogCircle = null;
+		fogPoly = null;
+		await showLayer(layer, {keepSessionView: true});
+	}
+
+	function stepLayer (delta) {
+		const layers = sceneDoc?.layers || [];
+		if (layers.length < 2) return;
+		const index = layers.findIndex(it => it.id === state.activeLayerId);
+		const next = layers[(Math.max(0, index) + delta + layers.length) % layers.length];
+		void switchLayer(next.id);
+	}
 
 	browseBtn.addEventListener("click", () => {
 		const picked = pickMapFile(state.filePath);
@@ -661,7 +915,64 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			new Notice("File picker needs the Obsidian desktop app.");
 			return;
 		}
-		void loadPath(picked);
+		void adoptFile(picked);
+	});
+	prevLayerBtn.addEventListener("click", () => stepLayer(-1));
+	nextLayerBtn.addEventListener("click", () => stepLayer(1));
+	addLayerBtn.addEventListener("click", () => {
+		if (!sceneVault || !sceneDoc) {
+			new Notice("Open a map before adding a layer.");
+			return;
+		}
+		const picked = pickMapFile("");
+		if (picked == null) return;
+		if (!picked) {
+			new Notice("File picker needs the Obsidian desktop app.");
+			return;
+		}
+		void (async () => {
+			try {
+				flushFogSave();
+				captureLayer();
+				const layer = await addSceneLayer(plugin, sceneVault, sceneDoc, picked);
+				await showLayer(layer, {fit: true});
+			} catch (e) {
+				new Notice(e.message || "Could not add that layer.");
+			}
+		})();
+	});
+	copyCampaignBtn.addEventListener("click", async (evt) => {
+		if (!sceneVault || !sceneDoc) {
+			new Notice("Open a map before copying it.");
+			return;
+		}
+		let campaigns = [];
+		try {
+			campaigns = await listCampaigns(plugin);
+		} catch (e) {
+			new Notice(e.message || "Could not list campaigns.");
+			return;
+		}
+		if (!campaigns.length) {
+			new Notice("Create a campaign first.");
+			return;
+		}
+		const menu = new Menu();
+		for (const campaign of campaigns) {
+			menu.addItem((item) => {
+				item.setTitle(campaign.name).onClick(async () => {
+					try {
+						flushFogSave();
+						await persistScene();
+						await copySceneToCampaign(plugin, sceneVault, campaign.slug);
+						new Notice(`Copied to ${campaign.name}.`);
+					} catch (e) {
+						new Notice(e.message || "Could not copy the scene.");
+					}
+				});
+			});
+		}
+		menu.showAtMouseEvent(evt);
 	});
 	paperWEl.addEventListener("change", () => {
 		const dpi = image ? mapDpiFromInches(image.width, paperWEl.value) : null;
@@ -741,17 +1052,17 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		schedule();
 	});
 	saveStartBtn.addEventListener("click", () => {
-		if (!fog || !state.filePath) {
+		const start = layerFile(activeLayer()?.fogStart);
+		if (!fog || !start) {
 			new Notice("Load a map before saving fog start.");
 			return;
 		}
-		const {start} = fogPaths(state.filePath);
 		if (saveFogMask(start, fog)) new Notice("Fog start state saved.");
 		else new Notice("Could not save fog start state.");
 	});
 	resetStartBtn.addEventListener("click", async () => {
-		if (!image || !state.filePath) return;
-		const {start} = fogPaths(state.filePath);
+		const start = layerFile(activeLayer()?.fogStart);
+		if (!image || !start) return;
 		const loaded = await loadFogMask(start, image.width, image.height);
 		fog = loaded || createFogMask(image.width, image.height);
 		queueFogSave();
@@ -829,17 +1140,24 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			ro?.disconnect();
 			if (raf) cancelAnimationFrame(raf);
 			raf = 0;
-			if (fogSaveTimer) clearTimeout(fogSaveTimer);
-			fogSaveTimer = 0;
+			flushFogSave();
+			if (sceneSaveTimer) clearTimeout(sceneSaveTimer);
+			sceneSaveTimer = 0;
+			void persistScene();
 		};
 	}
 
 	sizeCanvas();
 	syncPaperUi();
 	syncToolUi();
-	if (image) paint();
-	else if (state.filePath) void loadPath(state.filePath, {fromSession: true});
-	else schedule();
+	if (state.scenePath && image) {
+		paint();
+		void openScene(state.scenePath, {fromSession: true, reusePixels: true});
+	} else if (state.scenePath) {
+		void openScene(state.scenePath, {fromSession: !!state.filePath});
+	} else if (state.filePath) {
+		void adoptFile(state.filePath, {fromSession: true});
+	} else schedule();
 }
 
 function pickMapFile (defaultPath) {

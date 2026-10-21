@@ -197,6 +197,23 @@ export async function listEntries (plugin, slug, sectionId) {
 	const folder = vault.getAbstractFileByPath(folderPath);
 	if (!folder?.children) return [];
 	const out = [];
+	if (section.id === "maps") {
+		for (const child of folder.children) {
+			if (!child.children) continue;
+			const sceneFile = vault.getAbstractFileByPath(`${child.path}/scene.json`);
+			if (!sceneFile || sceneFile.children) continue;
+			try {
+				const scene = JSON.parse(await vault.read(sceneFile));
+				out.push({
+					path: child.path,
+					fields: {name: String(scene?.name || child.name), type: "map"},
+					body: "",
+					snapshot: null,
+					scene: true,
+				});
+			} catch (_) { /* skip */ }
+		}
+	}
 	for (const child of folder.children) {
 		if (child.children || !String(child.path || "").endsWith(".md")) continue;
 		try {

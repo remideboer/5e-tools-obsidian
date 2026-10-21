@@ -185,7 +185,19 @@ export function renderCampaignManager (formEl, resultEl, {
 				cls: `fiveetools-homebrew__hit${it.path === selectedPath ? " is-selected" : ""}`,
 			});
 			row.createEl("div", {cls: "fiveetools-modal__name", text: entryLabel(it)});
-			row.addEventListener("click", () => { void openPath(it.path); });
+			row.addEventListener("click", () => {
+				if (it.scene) {
+					plugin._mapSession = {
+						...(plugin._mapSession || {}),
+						scenePath: it.path,
+						filePath: "",
+						activeLayerId: "",
+					};
+					onOpenMap?.();
+					return;
+				}
+				void openPath(it.path);
+			});
 		}
 	};
 
