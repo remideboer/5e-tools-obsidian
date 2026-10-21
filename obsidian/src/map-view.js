@@ -129,6 +129,12 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	let image = null;
 	let fog = null;
 	let edgeColor = "#111";
+	const lastDraw = plugin?._mapLastDraw;
+	if (lastDraw?.image && lastDraw.gm?.filePath === state.filePath) {
+		image = lastDraw.image;
+		fog = lastDraw.fog || null;
+		edgeColor = lastDraw.bgColor || edgeColor;
+	}
 	let tool = "pan";
 	let fogMode = "reveal";
 	let brushPx = DEFAULT_BRUSH;
@@ -831,7 +837,8 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	sizeCanvas();
 	syncPaperUi();
 	syncToolUi();
-	if (state.filePath) void loadPath(state.filePath, {fromSession: true});
+	if (image) paint();
+	else if (state.filePath) void loadPath(state.filePath, {fromSession: true});
 	else schedule();
 }
 
@@ -1179,9 +1186,10 @@ function resolvePlayerView (gm, gmView, plugin) {
 }
 
 function paintPlayer (plugin, draw) {
-	if (plugin) plugin._mapLastDraw = draw;
 	const view = playerView(plugin);
 	const frame = view?.frame;
+	if (!draw?.image && (frame?.src || plugin?._mapLastDraw?.image)) return;
+	if (plugin) plugin._mapLastDraw = draw;
 	if (!frame) return;
 	const {image, gm, gmView, bgColor, fog} = draw;
 	const win = view.contentEl.win;
