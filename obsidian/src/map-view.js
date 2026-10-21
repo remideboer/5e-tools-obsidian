@@ -13,6 +13,7 @@ import {
 	normRotation,
 	sampleEdgeColor,
 	screenToWorld,
+	tokenDisc,
 	worldCenter,
 } from "./map-canvas.js";
 import {
@@ -38,6 +39,8 @@ import {
 } from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
 import {listCampaigns} from "./campaign-store.js";
+import {createSceneToken} from "./map-tokens.js";
+import {openTokenPicker, tokenDragDoc} from "./map-token-picker.js";
 import {
 	absoluteToVault,
 	addSceneLayer,
@@ -90,6 +93,8 @@ export function teardownMapView (plugin, {closePlayer = false} = {}) {
 		plugin._mapToggleViewLock = null;
 		plugin._mapToggleScaleLock = null;
 		plugin._syncPublicRollsBtn = null;
+		plugin._mapTokenOff?.();
+		plugin._mapTokenOff = null;
 	}
 	if (closePlayer) {
 		closePlayerWindow(plugin);
@@ -160,6 +165,13 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	let raf = 0;
 	let sceneDoc = null;
 	let sceneVault = state.scenePath || "";
+	const tokenBitmaps = new Map();
+	if (plugin) {
+		plugin._mapTokenOff = () => {
+			for (const img of tokenBitmaps.values()) revokeImageUrl(img);
+			tokenBitmaps.clear();
+		};
+	}
 
 	const emit = () => {
 		onSessionChange?.({
@@ -342,14 +354,30 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 
 	const queueFogSave = () => {
 		if (!fog || !activeLayer()) return;
+		fog._rev = (fog._rev || 0) + 1;
 		if (fogSaveTimer) clearTimeout(fogSaveTimer);
 		fogSaveTimer = setTimeout(() => {
 			fogSaveTimer = 0;
 			flushFogSave();
 		}, 500);
+		if (plugin?._mapLastDraw) paintPlayer(plugin, plugin._mapLastDraw);
 	};
 
-	const paint = () => {
+	const sendPlayerFrame = () => {
+		try {
+			paintPlayer(plugin, {
+				image,
+				gm: state,
+				gmView: {width: canvas.width, height: canvas.height},
+				bgColor: edgeColor,
+				fog,
+				tokens: sceneDoc?.tokens || [],
+				tokenImages: tokenBitmaps,
+			});
+		} catch (_) { /* player paint must not blank the GM canvas */ }
+	};
+
+	const paint = (sendPlayer = true) => {
 		sizeCanvas();
 		if (!state.lookAt) state.lookAt = worldCenter(state.camera, canvas.width, canvas.height);
 		drawWorld(ctx, {
@@ -365,6 +393,8 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			fog,
 			fogAlpha: FOG_GM_ALPHA,
 			rotation: state.rotation,
+			tokens: sceneDoc?.tokens || [],
+			tokenImages: tokenBitmaps,
 		});
 		if ((fogRect || fogCircle || fogPoly?.length) && fog) {
 			const scale = state.camera.scale;
@@ -403,15 +433,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			}
 			ctx.setTransform(1, 0, 0, 1, 0, 0);
 		}
-		try {
-			paintPlayer(plugin, {
-				image,
-				gm: state,
-				gmView: {width: canvas.width, height: canvas.height},
-				bgColor: edgeColor,
-				fog,
-			});
-		} catch (_) { /* player paint must not blank the GM canvas */ }
+		if (sendPlayer) sendPlayerFrame();
 	};
 
 	const schedule = () => {
@@ -531,28 +553,89 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	}
 
 	let rightPanMoved = false;
+	let gestured = false;
+	let pointerDown = false;
+	let wheelTimer = 0;
+	const finishGesture = () => {
+		if (wheelTimer) {
+			clearTimeout(wheelTimer);
+			wheelTimer = 0;
+		}
+		if (!gestured) return;
+		gestured = false;
+		if (raf) {
+			cancelAnimationFrame(raf);
+			raf = 0;
+		}
+		emit();
+		paint();
+	};
+	const armWheelEnd = () => {
+		if (pointerDown) return;
+		if (wheelTimer) clearTimeout(wheelTimer);
+		wheelTimer = setTimeout(() => {
+			wheelTimer = 0;
+			finishGesture();
+		}, 80);
+	};
 	bindMapPointer(
 		canvas,
 		() => state.camera,
 		(cam) => { state.camera = cam; },
 		(reason, cam, prev) => {
-			if (reason === "pan" && prev && !state.viewLocked) {
-				if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
-				state.lookAt = {
-					x: state.lookAt.x + (cam.x - prev.x),
-					y: state.lookAt.y + (cam.y - prev.y),
-				};
+			if ((reason === "pan" || reason === "zoom") && prev) {
+				if (reason === "pan" && !state.viewLocked) {
+					if (!state.lookAt) state.lookAt = worldCenter(prev, canvas.width, canvas.height);
+					state.lookAt = {
+						x: state.lookAt.x + (cam.x - prev.x),
+						y: state.lookAt.y + (cam.y - prev.y),
+					};
+				}
+				gestured = true;
+				if (reason === "zoom") armWheelEnd();
+				schedule();
+				return;
 			}
 			emit();
 			schedule();
 		},
 		() => true,
 		(evt) => (tool === "pan" ? evt.button === 0 : evt.button === 2),
-		({moved, button}) => {
+		({moved, button}, evt) => {
 			if (button === 2) rightPanMoved = !!moved;
+			const type = evt?.type;
+			if (type === "pointerdown") {
+				pointerDown = true;
+				if (wheelTimer) {
+					clearTimeout(wheelTimer);
+					wheelTimer = 0;
+				}
+				return;
+			}
+			if (type === "pointerup" || type === "pointercancel") {
+				pointerDown = false;
+				finishGesture();
+			}
 		},
 		() => state.rotation,
 	);
+
+	canvas.addEventListener("pointerdown", (evt) => {
+		if (evt.button !== 2) rightPanMoved = false;
+	});
+	canvas.addEventListener("dragover", (evt) => {
+		const types = evt.dataTransfer?.types ? [...evt.dataTransfer.types] : [];
+		if (!types.includes("text/plain")) return;
+		evt.preventDefault();
+		if (evt.dataTransfer) evt.dataTransfer.dropEffect = "copy";
+	});
+	canvas.addEventListener("drop", (evt) => {
+		const doc = tokenDragDoc(evt.dataTransfer);
+		if (!doc) return;
+		evt.preventDefault();
+		const at = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
+		void placeToken(doc, at);
+	});
 
 	canvas.addEventListener("pointerdown", (evt) => {
 		if (evt.button !== 0 || tool === "pan" || !fog || !image) return;
@@ -807,6 +890,47 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		schedule();
 	}
 
+	async function placeToken (doc, world) {
+		if (!sceneDoc || !sceneVault || !doc) {
+			new Notice("Open a map scene first.");
+			return;
+		}
+		try {
+			const token = await createSceneToken(plugin, sceneVault, {
+				doc,
+				world,
+				cellPx: state.cellPx,
+				offsetX: state.offsetX,
+				offsetY: state.offsetY,
+			});
+			if (!Array.isArray(sceneDoc.tokens)) sceneDoc.tokens = [];
+			sceneDoc.tokens.push(token);
+			scheduleSceneSave();
+			const img = await loadMapImage(app, layerFile(token.image));
+			if (img) tokenBitmaps.set(token.id, img);
+			schedule();
+			new Notice(`Placed ${token.name}.`);
+		} catch (e) {
+			new Notice(e.message || "Could not place that token.");
+		}
+	}
+
+	async function ensureTokenImages () {
+		const tokens = sceneDoc?.tokens || [];
+		const ids = new Set(tokens.map(token => token.id));
+		for (const id of [...tokenBitmaps.keys()]) {
+			if (ids.has(id)) continue;
+			revokeImageUrl(tokenBitmaps.get(id));
+			tokenBitmaps.delete(id);
+		}
+		await Promise.all(tokens.map(async (token) => {
+			if (!token?.id || tokenBitmaps.has(token.id)) return;
+			const img = await loadMapImage(app, layerFile(token.image));
+			if (img) tokenBitmaps.set(token.id, img);
+		}));
+		schedule();
+	}
+
 	async function openScene (vaultPath, {fromSession = false, reusePixels = false, fit = false} = {}) {
 		const loaded = await readScene(plugin, vaultPath);
 		if (!loaded) {
@@ -819,7 +943,10 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		if (!fromSession) applySceneSettings();
 		const preferred = fromSession && state.activeLayerId ? state.activeLayerId : sceneDoc.activeLayerId;
 		const layer = sceneDoc.layers.find(it => it.id === preferred) || sceneDoc.layers[0];
-		if (!layer) return;
+		if (!layer) {
+			void ensureTokenImages();
+			return;
+		}
 		if (reusePixels && image) {
 			state.activeLayerId = layer.id;
 			sceneDoc.activeLayerId = layer.id;
@@ -833,17 +960,21 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			syncPaperUi();
 			emit();
 			paint();
+			void ensureTokenImages();
 			return;
 		}
 		if (fromSession && !fit) {
 			await showLayer(layer, {keepSessionView: true});
+			void ensureTokenImages();
 			return;
 		}
 		if (!fit && (applySceneView() || applyLegacyLayerView(layer))) {
 			await showLayer(layer, {keepSessionView: true});
+			void ensureTokenImages();
 			return;
 		}
 		await showLayer(layer, {fit: true});
+		void ensureTokenImages();
 	}
 
 	function applySceneView () {
@@ -1079,7 +1210,16 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			rightPanMoved = false;
 			return;
 		}
+		const at = screenToWorld(state.camera, canvas, evt.clientX, evt.clientY, state.rotation);
 		const menu = new Menu();
+		if (sceneDoc && image) {
+			menu.addItem((item) => {
+				item.setTitle("Insert token");
+				item.onClick(() => {
+					openTokenPicker(app, plugin, {onPlace: (doc) => void placeToken(doc, at)});
+				});
+			});
+		}
 		menu.addItem((item) => {
 			item
 				.setTitle(state.viewLocked ? "Unfreeze player" : "Freeze player")
@@ -1147,6 +1287,9 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			flushFogSave();
 			if (sceneSaveTimer) clearTimeout(sceneSaveTimer);
 			sceneSaveTimer = 0;
+			if (wheelTimer) clearTimeout(wheelTimer);
+			wheelTimer = 0;
+			gestured = false;
 			void persistScene();
 		};
 	}
@@ -1299,11 +1442,10 @@ function mountPlayerFrame (view) {
 	const win = view.contentEl.win;
 	if (!isPopoutWin(win)) return;
 	view.frame?.remove();
-	const img = win.document.createElement("img");
-	img.className = "fiveetools-map-player__frame";
-	img.alt = "";
-	win.document.body.appendChild(img);
-	view.frame = img;
+	const canvas = win.document.createElement("canvas");
+	canvas.className = "fiveetools-map-player__frame";
+	win.document.body.appendChild(canvas);
+	view.frame = canvas;
 }
 
 function isPopoutWin (win) {
@@ -1474,20 +1616,33 @@ function closePlayerWindow (plugin) {
 		try { leaf.detach(); } catch (_) { /* ignore */ }
 	}
 	document.body.classList.remove("fiveetools-map-player-window");
-	if (plugin) plugin._mapBlit = null;
+	dropPlayerBitmaps(plugin);
 }
 
-function playerBlitCanvas (plugin, width, height) {
-	let el = plugin._mapBlit;
-	if (!el) {
-		el = document.createElement("canvas");
-		plugin._mapBlit = el;
+function closeBitmap (bitmap) {
+	try { bitmap?.close?.(); } catch (_) { /* already closed */ }
+}
+
+function dropPlayerBitmaps (plugin) {
+	if (!plugin) return;
+	closeBitmap(plugin._mapBitmap);
+	closeBitmap(plugin._mapFogBitmap);
+	plugin._mapBitmap = null;
+	plugin._mapFogBitmap = null;
+	plugin._mapBitmapSrc = null;
+	plugin._mapFogSrc = null;
+	plugin._mapFogRev = null;
+	plugin._mapBitmapTicket = (plugin._mapBitmapTicket || 0) + 1;
+	plugin._mapFogTicket = (plugin._mapFogTicket || 0) + 1;
+	if (plugin._mapTokenBitmaps) {
+		for (const entry of plugin._mapTokenBitmaps.values()) closeBitmap(entry?.bitmap);
+		plugin._mapTokenBitmaps.clear();
 	}
-	if (el.width !== width || el.height !== height) {
-		el.width = width;
-		el.height = height;
-	}
-	return el;
+	plugin._mapBlit = null;
+	plugin._mapPlayerEncode = false;
+	plugin._mapPlayerDirty = false;
+	if (plugin._mapPlayerUrl) URL.revokeObjectURL(plugin._mapPlayerUrl);
+	plugin._mapPlayerUrl = "";
 }
 
 function resolvePlayerView (gm, gmView, plugin) {
@@ -1510,36 +1665,145 @@ function resolvePlayerView (gm, gmView, plugin) {
 function paintPlayer (plugin, draw) {
 	const view = playerView(plugin);
 	const frame = view?.frame;
-	if (!draw?.image && (frame?.src || plugin?._mapLastDraw?.image)) return;
-	if (plugin) plugin._mapLastDraw = draw;
-	if (!frame) return;
-	const {image, gm, gmView, bgColor, fog} = draw;
+	if (!draw?.image && plugin?._mapLastDraw?.image) return;
+	if (!plugin) return;
+	plugin._mapLastDraw = draw;
+	if (!frame || frame.tagName !== "CANVAS") return;
+	const ctx = frame.getContext("2d");
+	if (!ctx) return;
+	ensurePlayerBitmaps(plugin, draw);
 	const win = view.contentEl.win;
 	const width = Math.max(1, win?.innerWidth || 800);
 	const height = Math.max(1, win?.innerHeight || 600);
-	const {center, scale} = resolvePlayerView(gm, gmView, plugin);
-	if (plugin) plugin._mapPlayerView = {center: {x: center.x, y: center.y}, scale};
-	const blit = playerBlitCanvas(plugin, width, height);
-	drawWorld(blit.getContext("2d"), {
-		image,
-		camera: cameraOnCenter(center, width, height, scale),
-		cellPx: gm.cellPx,
-		offsetX: gm.offsetX,
-		offsetY: gm.offsetY,
-		showGrid: gm.showGrid,
-		width,
-		height,
-		bgColor,
-		fog,
-		fogAlpha: 1,
-		rotation: gm.rotation,
-	});
-	try {
-		frame.src = blit.toDataURL("image/jpeg", 0.85);
-	} catch (e) {
-		if (!plugin._mapBlitWarned) {
-			plugin._mapBlitWarned = true;
-			new Notice(e.message || "Could not send the map to the player window.");
-		}
+	if (frame.width !== width || frame.height !== height) {
+		frame.width = width;
+		frame.height = height;
 	}
+	const {image: mapBitmap, fog: fogBitmap, discs} = playerSources(plugin);
+	const {gm, gmView, bgColor, tokens} = draw;
+	const {center, scale} = resolvePlayerView(gm, gmView, plugin);
+	plugin._mapPlayerView = {center: {x: center.x, y: center.y}, scale};
+	try {
+		drawWorld(ctx, {
+			image: mapBitmap,
+			camera: cameraOnCenter(center, width, height, scale),
+			cellPx: gm.cellPx,
+			offsetX: gm.offsetX,
+			offsetY: gm.offsetY,
+			showGrid: gm.showGrid,
+			width,
+			height,
+			bgColor,
+			fog: fogBitmap,
+			fogAlpha: 1,
+			rotation: gm.rotation,
+			tokens,
+			tokenImages: discs,
+		});
+	} catch (e) {
+		warnPlayerBlit(plugin, e);
+	}
+}
+
+function playerSources (plugin) {
+	const discs = new Map();
+	for (const [id, entry] of plugin._mapTokenBitmaps || []) {
+		if (entry?.bitmap) discs.set(id, entry.bitmap);
+	}
+	return {image: plugin._mapBitmap || null, fog: plugin._mapFogBitmap || null, discs};
+}
+
+function ensurePlayerBitmaps (plugin, draw) {
+	ensureMapBitmap(plugin, draw.image);
+	ensureFogBitmap(plugin, draw.fog);
+	ensureTokenBitmaps(plugin, draw.tokens, draw.tokenImages, draw.gm?.cellPx);
+}
+
+function ensureMapBitmap (plugin, image) {
+	if (!image || plugin._mapBitmapSrc === image) return;
+	plugin._mapBitmapSrc = image;
+	const ticket = (plugin._mapBitmapTicket || 0) + 1;
+	plugin._mapBitmapTicket = ticket;
+	createImageBitmap(image).then((bmp) => {
+		if (plugin._mapBitmapTicket !== ticket) {
+			closeBitmap(bmp);
+			return;
+		}
+		closeBitmap(plugin._mapBitmap);
+		plugin._mapBitmap = bmp;
+		if (plugin._mapLastDraw) paintPlayer(plugin, plugin._mapLastDraw);
+	}).catch((e) => warnPlayerBlit(plugin, e));
+}
+
+function ensureFogBitmap (plugin, fog) {
+	if (!fog) {
+		closeBitmap(plugin._mapFogBitmap);
+		plugin._mapFogBitmap = null;
+		plugin._mapFogSrc = null;
+		plugin._mapFogRev = null;
+		return;
+	}
+	const rev = fog._rev || 0;
+	if (plugin._mapFogSrc === fog && plugin._mapFogRev === rev) return;
+	if (plugin._mapFogPending === fog && plugin._mapFogPendingRev === rev) return;
+	plugin._mapFogPending = fog;
+	plugin._mapFogPendingRev = rev;
+	const ticket = (plugin._mapFogTicket || 0) + 1;
+	plugin._mapFogTicket = ticket;
+	createImageBitmap(fog).then((bmp) => {
+		if (plugin._mapFogTicket !== ticket) {
+			closeBitmap(bmp);
+			return;
+		}
+		closeBitmap(plugin._mapFogBitmap);
+		plugin._mapFogBitmap = bmp;
+		plugin._mapFogSrc = fog;
+		plugin._mapFogRev = rev;
+		plugin._mapFogPending = null;
+		if (plugin._mapLastDraw) paintPlayer(plugin, plugin._mapLastDraw);
+	}).catch((e) => warnPlayerBlit(plugin, e));
+}
+
+function ensureTokenBitmaps (plugin, tokens, images, cellPx) {
+	if (!plugin._mapTokenBitmaps) plugin._mapTokenBitmaps = new Map();
+	const cache = plugin._mapTokenBitmaps;
+	const live = new Set();
+	const cell = Math.max(1, Number(cellPx) || 70);
+	for (const token of tokens || []) {
+		if (!token?.id) continue;
+		live.add(token.id);
+		const img = images?.get?.(token.id);
+		if (!img || (typeof ImageBitmap === "function" && img instanceof ImageBitmap)) continue;
+		const cells = Number(token.cells) > 0 ? Number(token.cells) : 1;
+		const disc = tokenDisc(img, cells * cell);
+		if (!disc) continue;
+		const key = disc.width;
+		const hit = cache.get(token.id);
+		if (hit?.bitmap && hit.key === key) continue;
+		if (hit?.pending === key) continue;
+		cache.set(token.id, {key, pending: key, bitmap: hit?.bitmap || null});
+		createImageBitmap(disc).then((bmp) => {
+			const cur = cache.get(token.id);
+			if (!cur || cur.pending !== key) {
+				closeBitmap(bmp);
+				return;
+			}
+			closeBitmap(cur.bitmap);
+			cur.bitmap = bmp;
+			cur.key = key;
+			cur.pending = 0;
+			if (plugin._mapLastDraw) paintPlayer(plugin, plugin._mapLastDraw);
+		}).catch((e) => warnPlayerBlit(plugin, e));
+	}
+	for (const [id, entry] of cache) {
+		if (live.has(id)) continue;
+		closeBitmap(entry?.bitmap);
+		cache.delete(id);
+	}
+}
+
+function warnPlayerBlit (plugin, err) {
+	if (!plugin || plugin._mapBlitWarned) return;
+	plugin._mapBlitWarned = true;
+	new Notice(err?.message || "Could not send the map to the player window.");
 }

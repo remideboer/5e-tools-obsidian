@@ -3,6 +3,10 @@
 	margin: 0 0 8px;
 }
 
+body.fiveetools-token-dragging .modal-container {
+	pointer-events: none;
+}
+
 .fiveetools-modal__chips {
 	display: flex;
 	flex-wrap: wrap;
@@ -1553,7 +1557,6 @@ body.fiveetools-map-player-window .fiveetools-map-player__frame {
 	z-index: 1000;
 	width: 100vw;
 	height: 100vh;
-	object-fit: fill;
 	background: #111;
 	-webkit-app-region: drag;
 }
