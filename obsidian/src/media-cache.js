@@ -50,12 +50,19 @@ export function clearMediaCache (plugin) {
 	inFlight.clear();
 }
 
-async function ensureCachedFile (plugin, url) {
-	const rel = cacheRel(plugin, url);
-	if (!rel) return null;
+export function cachedMediaFile (plugin, url) {
+	const cached = cachedFilePaths(plugin, url);
+	if (!cached) return "";
+	try {
+		if (fs.existsSync(cached.abs) && fs.statSync(cached.abs).size > 0) return cached.abs;
+	} catch (_) { /* missing cache is a download */ }
+	return "";
+}
 
-	const abs = path.join(cacheRoot(plugin), "img", ...rel.split("/"));
-	const vaultPath = normalizePath(`${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}/cache/img/${rel}`);
+async function ensureCachedFile (plugin, url) {
+	const cached = cachedFilePaths(plugin, url);
+	if (!cached) return null;
+	const {abs, rel, vaultPath} = cached;
 	if (inFlight.has(rel)) return inFlight.get(rel);
 	if (fs.existsSync(abs) && fs.statSync(abs).size > 0) return {abs, rel, vaultPath};
 
@@ -83,6 +90,16 @@ export async function cachedMediaPath (plugin, url) {
 
 function cacheRoot (plugin) {
 	return path.join(getPluginDir(plugin), "cache");
+}
+
+function cachedFilePaths (plugin, url) {
+	const rel = cacheRel(plugin, url);
+	if (!rel) return null;
+	return {
+		abs: path.join(cacheRoot(plugin), "img", ...rel.split("/")),
+		rel,
+		vaultPath: normalizePath(`${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}/cache/img/${rel}`),
+	};
 }
 
 function cacheRel (plugin, url) {

@@ -1,11 +1,13 @@
 import {Notice} from "obsidian";
-import {cachedMediaSrc} from "./media-cache.js";
+import {cachedMediaFile, cachedMediaSrc} from "./media-cache.js";
 import {
 	createReferenceScene,
 	fetchReferenceMap,
 	listReferenceSources,
 	referenceImageUrl,
 } from "./map-reference.js";
+
+const DOWNLOAD_LIMIT = 3;
 
 export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessionChange, onOpenMap} = {}) {
 	listEl.empty();
@@ -19,10 +21,10 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 		openChapter: session?.openChapter || "",
 		selectedPath: session?.selectedPath || "",
 		fetched: {...(session?.fetched || {})},
-		fetching: "",
-		errorPath: "",
-		errorText: "",
+		loading: new Set(),
+		errors: {},
 	};
+	let loadGen = 0;
 
 	const emit = () => {
 		onSessionChange?.({
@@ -46,6 +48,13 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 	const findSource = (id) => {
 		if (!id) return null;
 		return listReferenceSources().find(source => source.id === id) || null;
+	};
+
+	const mapsForSelection = (source) => {
+		if (!source) return [];
+		if (!state.openChapter) return source.chapters.flatMap(chapter => chapter.maps);
+		const chapter = source.chapters.find(it => chapterKey(source.id, it.name) === state.openChapter);
+		return chapter?.maps || [];
 	};
 
 	const paintMenu = () => {
@@ -73,7 +82,7 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 				state.openChapter = "";
 				emit();
 				paintMenu();
-				void paintReader();
+				void loadMaps(mapsForSelection(source));
 			});
 			for (const chapter of source.chapters) {
 				const key = chapterKey(source.id, chapter.name);
@@ -87,14 +96,47 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 					state.openChapter = key;
 					emit();
 					paintMenu();
-					void paintReader({scrollTo: "chapter"});
+					void loadMaps(chapter.maps, {scrollTo: "chapter"});
 				});
 			}
 		}
 		menuEl.scrollTop = scroll;
 	};
 
-	const paintReader = async ({scrollTo = ""} = {}) => {
+	const paintMapRow = (row, map) => {
+		row.querySelector(".fiveetools-refmaps__status")?.remove();
+		row.querySelector(".fiveetools-refmaps__ready")?.remove();
+		if (state.loading.has(map.path)) {
+			row.createEl("p", {cls: "fiveetools-view__meta fiveetools-refmaps__status", text: "Loading map…"});
+			return;
+		}
+		if (state.errors[map.path] && !state.fetched[map.path]) {
+			row.createEl("p", {cls: "fiveetools-view__meta fiveetools-refmaps__status", text: state.errors[map.path]});
+			return;
+		}
+		if (!state.fetched[map.path]) return;
+		const ready = row.createDiv({cls: "fiveetools-refmaps__ready"});
+		const use = ready.createEl("button", {
+			text: "Use as map",
+			cls: "fiveetools-btn fiveetools-btn--ghost",
+			attr: {type: "button"},
+		});
+		use.addEventListener("click", () => void useMap(map));
+		const img = ready.createEl("img", {
+			cls: "fiveetools-refmaps__image",
+			attr: {alt: map.title},
+		});
+		void cachedMediaSrc(plugin, referenceImageUrl(plugin, map.path)).then(src => {
+			if (src && row.isConnected) img.src = src;
+		});
+	};
+
+	const refreshRow = (map) => {
+		const row = [...readerEl.querySelectorAll("[data-path]")].find(el => el.dataset.path === map.path);
+		if (row) paintMapRow(row, map);
+	};
+
+	const paintReader = ({scrollTo = ""} = {}) => {
 		readerEl.empty();
 		const box = readerEl.createDiv({cls: "fiveetools-refmaps__preview"});
 		let source = null;
@@ -109,7 +151,6 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 			return;
 		}
 		box.createEl("h3", {text: source.name});
-		const imageJobs = [];
 		for (const chapter of source.chapters) {
 			const key = chapterKey(source.id, chapter.name);
 			const section = box.createDiv({cls: "fiveetools-refmaps__chapter-block"});
@@ -117,78 +158,65 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 			section.createEl("h4", {text: chapter.name});
 			for (const map of chapter.maps) {
 				const kind = map.imageType === "mapPlayer" ? "Player" : "DM";
-				const row = section.createDiv({
-					cls: `fiveetools-refmaps__map${state.selectedPath === map.path ? " is-selected" : ""}`,
-				});
+				const row = section.createDiv({cls: "fiveetools-refmaps__map"});
 				row.dataset.path = map.path;
-				const pick = row.createEl("button", {
-					cls: "fiveetools-refmaps__pick",
-					text: `${map.title} (${kind})`,
-					attr: {type: "button"},
-				});
-				pick.addEventListener("click", () => void selectMap(map, source.id, key));
-				if (state.fetching === map.path) {
-					row.createEl("p", {cls: "fiveetools-view__meta", text: "Fetching map…"});
-				}
-				if (state.errorPath === map.path && state.errorText) {
-					row.createEl("p", {cls: "fiveetools-view__meta", text: state.errorText});
-				}
-				if (state.fetched[map.path]) {
-					const use = row.createEl("button", {
-						text: "Use as map",
-						cls: "fiveetools-btn fiveetools-btn--ghost",
-						attr: {type: "button"},
-					});
-					use.addEventListener("click", () => void useMap(map));
-					const img = row.createEl("img", {
-						cls: "fiveetools-refmaps__image",
-						attr: {alt: map.title},
-					});
-					imageJobs.push(cachedMediaSrc(plugin, referenceImageUrl(plugin, map.path)).then(src => {
-						if (src) img.src = src;
-					}));
-				}
+				row.createEl("div", {cls: "fiveetools-refmaps__pick", text: `${map.title} (${kind})`});
+				paintMapRow(row, map);
 			}
 		}
-		const target = scrollTo === "chapter"
-			? [...box.querySelectorAll("[data-chapter]")].find(el => el.dataset.chapter === state.openChapter)
-			: scrollTo === "map"
-				? [...box.querySelectorAll("[data-path]")].find(el => el.dataset.path === state.selectedPath)
-				: null;
-		target?.scrollIntoView({block: scrollTo === "chapter" ? "start" : "nearest"});
-		await Promise.all(imageJobs);
+		if (scrollTo === "chapter") {
+			const target = [...box.querySelectorAll("[data-chapter]")].find(el => el.dataset.chapter === state.openChapter);
+			target?.scrollIntoView({block: "start"});
+		}
 	};
 
-	const selectMap = async (map, sourceId, key) => {
-		state.selectedPath = map.path;
-		state.openSourceId = sourceId;
-		state.openChapter = key;
-		state.fetching = map.path;
-		state.errorPath = "";
-		state.errorText = "";
-		emit();
-		paintMenu();
-		await paintReader({scrollTo: "map"});
-		try {
-			const abs = await fetchReferenceMap(plugin, map.path);
-			state.fetched[map.path] = abs;
-			emit();
-		} catch (e) {
-			delete state.fetched[map.path];
-			state.errorPath = map.path;
-			state.errorText = e.message || "Could not fetch that map.";
-			emit();
-			new Notice(state.errorText);
-		} finally {
-			if (state.fetching === map.path) state.fetching = "";
-			if (state.selectedPath === map.path) await paintReader({scrollTo: "map"});
+	const loadMaps = async (maps, {scrollTo = ""} = {}) => {
+		const gen = ++loadGen;
+		const sourceId = state.openSourceId;
+		state.loading = new Set();
+		const missing = [];
+		for (const map of maps) {
+			if (state.fetched[map.path]) continue;
+			const abs = cachedMediaFile(plugin, referenceImageUrl(plugin, map.path));
+			if (abs) {
+				state.fetched[map.path] = abs;
+				delete state.errors[map.path];
+				continue;
+			}
+			missing.push(map);
+			state.loading.add(map.path);
+			delete state.errors[map.path];
 		}
+		emit();
+		paintReader({scrollTo});
+		let cursor = 0;
+		const worker = async () => {
+			while (cursor < missing.length) {
+				if (gen !== loadGen || state.openSourceId !== sourceId) return;
+				const map = missing[cursor++];
+				try {
+					const abs = await fetchReferenceMap(plugin, map.path);
+					if (gen !== loadGen || state.openSourceId !== sourceId) return;
+					state.fetched[map.path] = abs;
+					delete state.errors[map.path];
+				} catch (e) {
+					if (gen !== loadGen || state.openSourceId !== sourceId) return;
+					state.errors[map.path] = e.message || "Could not download that map.";
+				} finally {
+					if (gen === loadGen) state.loading.delete(map.path);
+				}
+				if (gen === loadGen && state.openSourceId === sourceId) refreshRow(map);
+			}
+		};
+		const width = Math.min(DOWNLOAD_LIMIT, missing.length);
+		if (width) await Promise.all(Array.from({length: width}, () => worker()));
+		if (gen === loadGen) emit();
 	};
 
 	const useMap = async (map) => {
 		const abs = state.fetched[map.path];
 		if (!abs) {
-			new Notice("Fetch the map first.");
+			new Notice("That map is not ready.");
 			return;
 		}
 		try {
@@ -214,5 +242,12 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 	});
 
 	paintMenu();
-	void paintReader();
+	let openSource = null;
+	try {
+		openSource = findSource(state.openSourceId);
+	} catch (_) {
+		openSource = null;
+	}
+	if (openSource) void loadMaps(mapsForSelection(openSource), {scrollTo: state.openChapter ? "chapter" : ""});
+	else paintReader();
 }
