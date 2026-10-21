@@ -64,7 +64,7 @@ export function snapTokenCenter (world, cells, cellPx, offsetX = 0, offsetY = 0)
 	};
 }
 
-export async function createSceneToken (plugin, scenePath, {doc, world, cellPx, offsetX, offsetY}) {
+export async function createSceneToken (plugin, scenePath, {doc, world, cellPx, offsetX, offsetY, snapToGrid}) {
 	const loaded = await loadEntity(doc);
 	const ent = loaded?.ent;
 	if (!ent) throw new Error("Could not read that creature.");
@@ -74,7 +74,9 @@ export async function createSceneToken (plugin, scenePath, {doc, world, cellPx, 
 	const abs = await cachedMediaPath(plugin, card.url);
 	if (!abs) throw new Error("Could not download that image.");
 	const cells = cellsForCreatureSize(ent.size);
-	const center = snapTokenCenter(world, cells, cellPx, offsetX, offsetY);
+	const center = snapToGrid
+		? snapTokenCenter(world, cells, cellPx, offsetX, offsetY)
+		: {x: Number(world?.x) || 0, y: Number(world?.y) || 0};
 	const id = `token-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 	const ext = path.extname(abs).toLowerCase() || ".webp";
 	const rel = `tokens/${id}${ext}`;

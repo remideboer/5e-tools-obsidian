@@ -210,6 +210,7 @@ function blankScene (name) {
 		scaleLocked: false,
 		playerScale: null,
 		actualSize: false,
+		snapToGrid: false,
 		camera: null,
 		lookAt: null,
 		rotation: 0,

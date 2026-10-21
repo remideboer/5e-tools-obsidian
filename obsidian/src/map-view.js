@@ -72,6 +72,7 @@ export function defaultMapSession () {
 		lookAt: null,
 		rotation: 0,
 		showGrid: false,
+		snapToGrid: false,
 		viewLocked: false,
 		scaleLocked: false,
 		playerScale: null,
@@ -251,6 +252,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		text: state.showGrid ? "Grid on" : "Grid off",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button"},
+	});
+	const snapBtn = gridRow.createEl("button", {
+		text: state.snapToGrid ? "Snap on" : "Snap off",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Snap tokens to grid on place and drag end"},
 	});
 
 	const fitBtn = formEl.createEl("button", {text: "Fit map", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
@@ -678,9 +684,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		const token = sceneDoc?.tokens?.find(item => item.id === tokenDrag.id);
 		tokenDrag = null;
 		if (!token) return;
-		const snapped = snapTokenCenter(token, token.cells, state.cellPx, state.offsetX, state.offsetY);
-		token.x = snapped.x;
-		token.y = snapped.y;
+		if (state.snapToGrid) {
+			const snapped = snapTokenCenter(token, token.cells, state.cellPx, state.offsetX, state.offsetY);
+			token.x = snapped.x;
+			token.y = snapped.y;
+		}
 		scheduleSceneSave();
 		schedule();
 	};
@@ -834,6 +842,14 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		sceneDoc.scaleLocked = state.scaleLocked;
 		sceneDoc.playerScale = state.playerScale;
 		sceneDoc.actualSize = state.actualSize;
+		sceneDoc.snapToGrid = state.snapToGrid;
+		layer.mapDpi = state.mapDpi ?? null;
+		layer.paperWidthInches = state.paperWidthInches ?? null;
+		layer.paperHeightInches = state.paperHeightInches ?? null;
+		layer.cellPx = state.cellPx;
+		layer.showGrid = !!state.showGrid;
+		layer.offsetX = state.offsetX || 0;
+		layer.offsetY = state.offsetY || 0;
 		if (!Array.isArray(sceneDoc.tokens)) sceneDoc.tokens = [];
 	}
 
@@ -874,6 +890,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		state.scaleLocked = !!sceneDoc.scaleLocked;
 		state.playerScale = sceneDoc.playerScale ?? null;
 		state.actualSize = !!sceneDoc.actualSize;
+		state.snapToGrid = !!sceneDoc.snapToGrid;
 		if (state.viewLocked) state.scaleLocked = false;
 	}
 
@@ -909,25 +926,18 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			state.rotation = normRotation(layer.rotation || 0);
 			state.camera = fitImage(image, canvas.width, canvas.height, state.rotation);
 			setLookAtFromView();
-			state.offsetX = layer.offsetX || 0;
-			state.offsetY = layer.offsetY || 0;
-			state.showGrid = !!layer.showGrid;
-			state.cellPx = layer.cellPx || 70;
-			state.mapDpi = layer.mapDpi ?? null;
-			state.paperWidthInches = layer.paperWidthInches ?? null;
-			state.paperHeightInches = layer.paperHeightInches ?? null;
 		} else if (!keepSessionView) {
 			state.camera = {...defaultCamera(), ...layer.camera};
 			state.lookAt = layer.lookAt ? {...layer.lookAt} : null;
 			state.rotation = normRotation(layer.rotation);
-			state.offsetX = layer.offsetX || 0;
-			state.offsetY = layer.offsetY || 0;
-			state.showGrid = !!layer.showGrid;
-			state.cellPx = layer.cellPx || state.cellPx;
-			state.mapDpi = layer.mapDpi ?? null;
-			state.paperWidthInches = layer.paperWidthInches ?? null;
-			state.paperHeightInches = layer.paperHeightInches ?? null;
 		}
+		state.offsetX = layer.offsetX || 0;
+		state.offsetY = layer.offsetY || 0;
+		state.showGrid = !!layer.showGrid;
+		state.cellPx = layer.cellPx || (fit ? 70 : state.cellPx);
+		state.mapDpi = layer.mapDpi ?? null;
+		state.paperWidthInches = layer.paperWidthInches ?? null;
+		state.paperHeightInches = layer.paperHeightInches ?? null;
 		if (fit && !state.mapDpi) {
 			const found = await detectMapImageDpi(app, imageAbs);
 			if (found) applyDpi(found);
@@ -942,6 +952,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			state.showGrid = true;
 		}
 		gridBtn.setText(state.showGrid ? "Grid on" : "Grid off");
+		snapBtn.setText(state.snapToGrid ? "Snap on" : "Snap off");
 		rotateBtn.setAttribute("title", `Rotation ${state.rotation}°`);
 		syncFreezeButtons();
 		actualBtn.setText(state.actualSize ? "Actual size on" : "Actual size off");
@@ -966,6 +977,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 				cellPx: state.cellPx,
 				offsetX: state.offsetX,
 				offsetY: state.offsetY,
+				snapToGrid: state.snapToGrid,
 			});
 			if (!Array.isArray(sceneDoc.tokens)) sceneDoc.tokens = [];
 			sceneDoc.tokens.push(token);
@@ -1202,6 +1214,12 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	gridBtn.addEventListener("click", () => {
 		state.showGrid = !state.showGrid;
 		gridBtn.setText(state.showGrid ? "Grid on" : "Grid off");
+		emit();
+		schedule();
+	});
+	snapBtn.addEventListener("click", () => {
+		state.snapToGrid = !state.snapToGrid;
+		snapBtn.setText(state.snapToGrid ? "Snap on" : "Snap off");
 		emit();
 		schedule();
 	});
