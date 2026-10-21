@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
 	imageBaseUrl: "https://5e.tools",
 	style: "one",
 	dice3d: false,
+	dicePublic: false,
 };
 
 export const MAX_SEARCH_RESULTS = 40;

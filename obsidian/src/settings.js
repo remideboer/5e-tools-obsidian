@@ -60,6 +60,17 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName("Public rolls")
+			.setDesc("Also show the dice roll and result on the player window when it is open.")
+			.addToggle(toggle => toggle
+				.setValue(!!this.plugin.settings.dicePublic)
+				.onChange(async (value) => {
+					this.plugin.settings.dicePublic = !!value;
+					await this.plugin.saveSettings();
+					this.plugin._syncPublicRollsBtn?.();
+				}));
+
+		new Setting(containerEl)
 			.setName("Statblock style")
 			.setDesc("Classic (2014) or modern (2024) compact rendering.")
 			.addDropdown(dropdown => dropdown

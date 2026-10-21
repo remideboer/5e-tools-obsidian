@@ -52,6 +52,16 @@ export default class FiveEToolsPlugin extends Plugin {
 			name: "Toggle freeze player zoom",
 			callback: () => toggleMapPlayerZoomFreeze(this),
 		});
+		this.addCommand({
+			id: "toggle-public-dice-rolls",
+			name: "Toggle public dice rolls",
+			callback: async () => {
+				this.settings.dicePublic = !this.settings.dicePublic;
+				await this.saveSettings();
+				this._syncPublicRollsBtn?.();
+				new Notice(this.settings.dicePublic ? "Public dice rolls on" : "Public dice rolls off");
+			},
+		});
 
 		this.addRibbonIcon(ICON_ID, "Open 5etools library", () => this.openLibrary());
 		this.addSettingTab(new FiveEToolsSettingTab(this.app, this));

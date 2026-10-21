@@ -4,58 +4,72 @@ import {getPluginDir} from "./plugin-dir.js";
 const SUPPORTED = new Set([4, 6, 8, 10, 12, 20, 100]);
 const DIE_SCALE = 1.5;
 const FADE_MS = 1000;
+const OVERLAY_ID = "fiveetools-dice-overlay";
 
-let rollerPromise = null;
-let unavailable = false;
-let hideToken = 0;
+const sessions = new Map();
+let diceRollerPromise = null;
 
-export async function showDice3d (plugin, result) {
-	if (unavailable || !plugin) return false;
+export async function showDice3d (plugin, result, doc = document) {
+	const session = sessionFor(doc);
+	if (session.unavailable || !plugin || !doc?.body) return false;
 	const dice = (result?.dice || []).filter(it => SUPPORTED.has(Number(it.faces)));
 	if (!dice.length) return false;
 	try {
-		if (!hasWebGl()) throw new Error("WebGL unavailable");
-		const roller = await getRoller(plugin);
+		if (!hasWebGl(doc)) throw new Error("WebGL unavailable");
+		const roller = await getRoller(plugin, doc);
 		if (!roller) return false;
-		const overlay = ensureOverlay();
+		const overlay = ensureOverlay(doc);
 		showOverlay(overlay);
-		const token = ++hideToken;
+		const token = ++session.hideToken;
 		if (typeof roller._handleResize === "function") roller._handleResize();
 		await roller.roll(dice.map(it => ({
 			dice: `d${it.faces}`,
 			rolled: Number(it.value),
 		})));
-		window.setTimeout(() => {
-			void fadeOutThenHide(roller, token);
+		const win = doc.defaultView || window;
+		win.setTimeout(() => {
+			void fadeOutThenHide(doc, token);
 		}, 1200);
 		return true;
 	} catch (e) {
-		unavailable = true;
-		rollerPromise = null;
-		hideOverlay();
+		session.unavailable = true;
+		session.rollerPromise = null;
+		hideOverlay(doc);
 		console.warn("5etools 3D dice failed", e);
 		return false;
 	}
 }
 
-async function getRoller (plugin) {
-	if (rollerPromise) return rollerPromise;
-	rollerPromise = loadRoller(plugin).catch((e) => {
-		unavailable = true;
+function sessionFor (doc) {
+	let session = sessions.get(doc);
+	if (!session) {
+		session = {rollerPromise: null, unavailable: false, hideToken: 0};
+		sessions.set(doc, session);
+	}
+	return session;
+}
+
+async function getRoller (plugin, doc) {
+	const session = sessionFor(doc);
+	if (session.rollerPromise) return session.rollerPromise;
+	session.rollerPromise = loadRoller(plugin, doc).catch((e) => {
+		session.unavailable = true;
+		session.rollerPromise = null;
 		console.warn("5etools 3D dice unavailable", e);
 		return null;
 	});
-	return rollerPromise;
+	return session.rollerPromise;
 }
 
-async function loadRoller (plugin) {
+async function loadRoller (plugin, doc) {
 	const DiceRoller = await loadDiceRoller(plugin);
-	const overlay = ensureOverlay();
+	const overlay = ensureOverlay(doc);
 	showOverlay(overlay);
+	const view = doc.defaultView || window;
 	const roller = new DiceRoller({
 		container: overlay,
-		width: Math.max(320, overlay.clientWidth || window.innerWidth || 800),
-		height: Math.max(240, overlay.clientHeight || window.innerHeight || 600),
+		width: Math.max(320, overlay.clientWidth || view.innerWidth || 800),
+		height: Math.max(240, overlay.clientHeight || view.innerHeight || 600),
 	});
 	fitDice(roller, overlay);
 	return roller;
@@ -105,30 +119,40 @@ function runtimeRequire (id) {
 	throw new Error("require unavailable");
 }
 
-async function loadDiceRoller (plugin) {
-	const file = path.join(getPluginDir(plugin), "dice", "dice-3d.js");
-	const mod = runtimeRequire(file);
-	const DiceRoller = mod?.DiceRoller || mod?.default?.DiceRoller || mod?.default;
-	if (typeof DiceRoller !== "function") throw new Error("open-dice-dnd DiceRoller missing");
-	return DiceRoller;
+function loadDiceRoller (plugin) {
+	if (!diceRollerPromise) {
+		diceRollerPromise = Promise.resolve().then(() => {
+			const file = path.join(getPluginDir(plugin), "dice", "dice-3d.js");
+			const mod = runtimeRequire(file);
+			const DiceRoller = mod?.DiceRoller || mod?.default?.DiceRoller || mod?.default;
+			if (typeof DiceRoller !== "function") throw new Error("open-dice-dnd DiceRoller missing");
+			return DiceRoller;
+		}).catch((e) => {
+			diceRollerPromise = null;
+			throw e;
+		});
+	}
+	return diceRollerPromise;
 }
 
-function hasWebGl () {
+function hasWebGl (doc) {
 	try {
-		const canvas = document.createElement("canvas");
+		const canvas = doc.createElement("canvas");
 		return !!(canvas.getContext("webgl2") || canvas.getContext("webgl"));
 	} catch (_) {
 		return false;
 	}
 }
 
-async function fadeOutThenHide (roller, token) {
-	if (token !== hideToken) return;
-	const el = ensureOverlay();
+async function fadeOutThenHide (doc, token) {
+	const session = sessionFor(doc);
+	if (token !== session.hideToken) return;
+	const el = ensureOverlay(doc);
 	el.style.opacity = "0";
-	await new Promise(resolve => window.setTimeout(resolve, FADE_MS));
-	if (token !== hideToken) return;
-	hideOverlay();
+	const win = doc.defaultView || window;
+	await new Promise(resolve => win.setTimeout(resolve, FADE_MS));
+	if (token !== session.hideToken) return;
+	hideOverlay(doc);
 }
 
 function showOverlay (el) {
@@ -139,20 +163,20 @@ function showOverlay (el) {
 	el.style.transition = `opacity ${FADE_MS}ms ease`;
 }
 
-function hideOverlay () {
-	const el = document.getElementById("fiveetools-dice-overlay");
+function hideOverlay (doc) {
+	const el = doc.getElementById(OVERLAY_ID);
 	if (!el) return;
 	el.style.display = "none";
 	el.style.opacity = "1";
 }
 
-function ensureOverlay () {
-	let el = document.getElementById("fiveetools-dice-overlay");
+function ensureOverlay (doc) {
+	let el = doc.getElementById(OVERLAY_ID);
 	if (el) return el;
-	el = document.createElement("div");
-	el.id = "fiveetools-dice-overlay";
+	el = doc.createElement("div");
+	el.id = OVERLAY_ID;
 	el.className = "fiveetools-dice-overlay";
 	el.style.display = "none";
-	document.body.appendChild(el);
+	doc.body.appendChild(el);
 	return el;
 }

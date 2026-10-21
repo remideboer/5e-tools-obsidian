@@ -76,6 +76,7 @@ export function teardownMapView (plugin, {closePlayer = false} = {}) {
 		plugin._mapPaint = null;
 		plugin._mapToggleViewLock = null;
 		plugin._mapToggleScaleLock = null;
+		plugin._syncPublicRollsBtn = null;
 	}
 	if (closePlayer) {
 		closePlayerWindow(plugin);
@@ -251,6 +252,11 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		attr: {type: "button", title: "Player window: 1 cell = cell inches on the calibrated screen"},
 	});
 	const playerBtn = formEl.createEl("button", {text: "Player window", cls: "fiveetools-btn", attr: {type: "button"}});
+	const publicBtn = formEl.createEl("button", {
+		text: plugin?.settings?.dicePublic ? "Public rolls on" : "Public rolls",
+		cls: "fiveetools-btn",
+		attr: {type: "button", title: "Show dice rolls on the player window"},
+	});
 
 	const canvas = resultEl.createEl("canvas", {cls: "fiveetools-map__canvas"});
 	const ctx = canvas.getContext("2d");
@@ -798,6 +804,16 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 			},
 		});
 	});
+	const syncPublicBtn = () => {
+		publicBtn.setText(plugin?.settings?.dicePublic ? "Public rolls on" : "Public rolls");
+	};
+	publicBtn.addEventListener("click", async () => {
+		if (!plugin) return;
+		plugin.settings.dicePublic = !plugin.settings.dicePublic;
+		await plugin.saveSettings();
+		syncPublicBtn();
+	});
+	if (plugin) plugin._syncPublicRollsBtn = syncPublicBtn;
 
 	const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => schedule()) : null;
 	ro?.observe(resultEl);
@@ -986,6 +1002,12 @@ function markPlayerWindow (view, on) {
 function playerView (plugin) {
 	const view = plugin.app?.workspace?.getLeavesOfType?.(VIEW_TYPE_FIVEETOOLS_MAP_PLAYER)?.[0]?.view;
 	return view?.getViewType?.() === VIEW_TYPE_FIVEETOOLS_MAP_PLAYER ? view : null;
+}
+
+export function mapPlayerDocument (plugin) {
+	const win = playerView(plugin)?.contentEl?.win;
+	if (!isPopoutWin(win)) return null;
+	return win.document || null;
 }
 
 function electronRemote () {

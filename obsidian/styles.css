@@ -1483,6 +1483,14 @@ body.fiveetools-map-player-window .fiveetools-map-player__frame {
 	-webkit-app-region: drag;
 }
 
+body.fiveetools-map-player-window .fiveetools-dice-overlay {
+	z-index: 1100;
+}
+
+body.fiveetools-map-player-window .fiveetools-roll-popup {
+	z-index: 1101;
+}
+
 body.fiveetools-map-player-window {
 	margin: 0;
 	padding: 0;

@@ -1,8 +1,9 @@
 import {showDice3d} from "./dice-3d.js";
+import {mapPlayerDocument} from "./map-view.js";
 
 const POPUP_ID = "fiveetools-roll-popup";
 const POPUP_MS = 4000;
-let popupTimer = null;
+const popupTimers = new Map();
 
 export function rollPacked (entry, evt = {}) {
 	const Renderer = globalThis.Renderer;
@@ -65,35 +66,49 @@ function formatBreakdown (result) {
 
 export function presentRoll (plugin, result) {
 	const text = formatRollNotice(result);
+	const docs = rollDocuments(plugin);
 	if (result?.total != null && plugin?.settings?.dice3d) {
-		void showDice3d(plugin, result).then(() => {
-			window.setTimeout(() => showRollPopup(text), 500);
-		});
+		for (const doc of docs) {
+			const win = doc.defaultView || window;
+			void showDice3d(plugin, result, doc).then(() => {
+				win.setTimeout(() => showRollPopup(text, doc), 500);
+			});
+		}
 		return result;
 	}
-	showRollPopup(text);
+	for (const doc of docs) showRollPopup(text, doc);
 	return result;
 }
 
-function showRollPopup (text) {
-	const el = ensureRollPopup();
-	el.textContent = text;
-	el.style.display = "";
-	if (popupTimer) window.clearTimeout(popupTimer);
-	popupTimer = window.setTimeout(() => {
-		el.style.display = "none";
-		popupTimer = null;
-	}, POPUP_MS);
+function rollDocuments (plugin) {
+	const docs = [document];
+	if (!plugin?.settings?.dicePublic) return docs;
+	const playerDoc = mapPlayerDocument(plugin);
+	if (playerDoc?.body && playerDoc !== document) docs.push(playerDoc);
+	return docs;
 }
 
-function ensureRollPopup () {
-	let el = document.getElementById(POPUP_ID);
+function showRollPopup (text, doc = document) {
+	const el = ensureRollPopup(doc);
+	el.textContent = text;
+	el.style.display = "";
+	const win = doc.defaultView || window;
+	const prev = popupTimers.get(doc);
+	if (prev) win.clearTimeout(prev);
+	popupTimers.set(doc, win.setTimeout(() => {
+		el.style.display = "none";
+		popupTimers.delete(doc);
+	}, POPUP_MS));
+}
+
+function ensureRollPopup (doc = document) {
+	let el = doc.getElementById(POPUP_ID);
 	if (el) return el;
-	el = document.createElement("div");
+	el = doc.createElement("div");
 	el.id = POPUP_ID;
 	el.className = "fiveetools-roll-popup";
 	el.style.display = "none";
-	document.body.appendChild(el);
+	doc.body.appendChild(el);
 	return el;
 }
 
