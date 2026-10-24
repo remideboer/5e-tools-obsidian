@@ -37,6 +37,7 @@ const MAGIC_TABLE_RARITY = {
 };
 
 let lootCache = null;
+let itemCorpusCache = null;
 
 export function listLootTables () {
 	const loot = loadLootJson();
@@ -425,26 +426,131 @@ function rollMagicItems (row, loot, Renderer, RollerUtil, crMin = null) {
 }
 
 function rollMagicItemTable (table, RollerUtil) {
-	const rowRoll = RollerUtil.randomise(100);
-	const hit = (table.table || []).find(it => rowRoll >= it.min && rowRoll <= it.max);
-	const matching = hit?.choose?.fromMatching;
-	if (matching) {
-		const rarity = String(matching.rarity || "magic");
-		return {
-			rowRoll,
-			items: [{label: `${capitalize(rarity)} magic item`, table: table.type}],
-		};
+	const rows = table.table || [];
+	if (!rows.length) {
+		return {rowRoll: null, items: [{label: table.name || "Magic item", table: table.type}]};
 	}
-	const parsed = parseItemTag(hit?.item);
+	const tableMax = Math.max(...rows.map(row => Number(row.max ?? row.min ?? 1) || 1));
+	const rowRoll = RollerUtil.randomise(table.diceType || tableMax || 100);
+	const hit = rows.find(it => rowRoll >= it.min && rowRoll <= (it.max ?? it.min));
+	if (!hit) {
+		return {rowRoll, items: [{label: "Nothing", table: table.type}]};
+	}
+
+	if (hit.choose?.fromMatching) {
+		const pool = itemsMatching(hit.choose.fromMatching);
+		const item = pool.length ? pool[RollerUtil.randomise(pool.length) - 1] : null;
+		return {rowRoll, items: [entryFromCorpusItem(item, table, hit.choose.fromMatching)]};
+	}
+
+	const chooseNames = hit.choose?.fromGeneric || hit.choose?.fromGroup || hit.choose?.fromItems;
+	if (chooseNames?.length) {
+		const pool = chooseNames.flatMap(name => expandItemChoices(resolveCorpusItem(name)));
+		const item = pool.length ? pool[RollerUtil.randomise(pool.length) - 1] : null;
+		return {rowRoll, items: [entryFromCorpusItem(item, table)]};
+	}
+
+	if (hit.table?.length) {
+		return rollMagicItemTable({name: table.name, type: table.type, table: hit.table}, RollerUtil);
+	}
+
+	const resolved = resolveCorpusItem(hit.item);
+	const parsed = parseItemTag(hit.item);
 	return {
 		rowRoll,
 		items: [{
-			label: parsed.name || table.name || `Table ${table.type || ""}`.trim(),
-			name: parsed.name || "",
-			source: parsed.source,
+			label: resolved?.name || parsed.name || table.name || `Table ${table.type || ""}`.trim(),
+			name: resolved?.name || parsed.name || "",
+			source: resolved?.source || parsed.source || "",
 			table: table.type,
 		}],
 	};
+}
+
+function entryFromCorpusItem (item, table, matching = null) {
+	if (!item) {
+		const rarity = String(matching?.rarity || "magic");
+		return {label: `${capitalize(rarity)} magic item`, table: table.type};
+	}
+	return {
+		label: item.name,
+		name: item.name,
+		source: item.source || "",
+		table: table.type,
+	};
+}
+
+function loadItemCorpus () {
+	if (itemCorpusCache) return itemCorpusCache;
+	const Renderer = getRenderer();
+	const root = getConfiguredRoot();
+	const itemsJson = JSON.parse(fs.readFileSync(joinUnderRoot(root, "data", "items.json"), "utf8"));
+	const baseJson = JSON.parse(fs.readFileSync(joinUnderRoot(root, "data", "items-base.json"), "utf8"));
+	const variantsJson = JSON.parse(fs.readFileSync(joinUnderRoot(root, "data", "magicvariants.json"), "utf8"));
+
+	const itemList = [...(itemsJson.item || [])];
+	for (const group of itemsJson.itemGroup || []) {
+		group._isItemGroup = true;
+		itemList.push(group);
+	}
+	Renderer.item._addBasePropertiesAndTypes(baseJson);
+	const baseItems = baseJson.baseitem || [];
+	const safeVariants = {
+		...variantsJson,
+		magicvariant: (variantsJson.magicvariant || []).filter(it => it?.inherits),
+	};
+	const [genericVariants, linkedLootTables] = Renderer.item._getAndProcGenericVariants(safeVariants);
+	const specificVariants = Renderer.item._createSpecificVariants(baseItems, genericVariants, {linkedLootTables});
+	const allItems = [...itemList, ...baseItems, ...genericVariants, ...specificVariants];
+	Renderer.item._enhanceItems(allItems);
+
+	const byUid = new Map();
+	for (const it of allItems) {
+		if (!it?.name) continue;
+		const name = String(it.name).toLowerCase();
+		const source = String(it.source || "").toLowerCase();
+		byUid.set(`${name}|${source}`, it);
+		if (!byUid.has(name)) byUid.set(name, it);
+	}
+	itemCorpusCache = {allItems, byUid};
+	return itemCorpusCache;
+}
+
+function itemsMatching (toMatch) {
+	if (!toMatch || typeof toMatch !== "object") return [];
+	const Parser = globalThis.Parser;
+	const DataUtil = globalThis.DataUtil;
+	const {allItems} = loadItemCorpus();
+	return allItems.filter(it => {
+		if (!it?.name || it._isItemGroup || it._isBaseItem) return false;
+		if (it.type && DataUtil?.itemType?.unpackUid) {
+			const abbr = DataUtil.itemType.unpackUid(it.type).abbreviation;
+			if (abbr === Parser.ITM_TYP_ABV__GENERIC_VARIANT) return false;
+		}
+		return Object.entries(toMatch).every(([k, v]) => it[k] === v);
+	});
+}
+
+function resolveCorpusItem (nameOrUid) {
+	if (!nameOrUid) return null;
+	const raw = String(nameOrUid).replace(/\{@item ([^}]+)\}/gi, "$1").trim();
+	if (!raw) return null;
+	const {byUid} = loadItemCorpus();
+	const uid = raw.includes("|") ? raw : `${raw}|${globalThis.Parser?.SRC_DMG || "DMG"}`;
+	const [name, source = ""] = uid.split("|");
+	const key = `${name.trim().toLowerCase()}|${String(source).trim().toLowerCase()}`;
+	return byUid.get(key) || byUid.get(name.trim().toLowerCase()) || null;
+}
+
+function expandItemChoices (item) {
+	if (!item) return [];
+	if (item.variants?.length) {
+		return item.variants.map(v => v.specificVariant).filter(Boolean);
+	}
+	if (item.items?.length) {
+		return item.items.map(name => resolveCorpusItem(name)).filter(Boolean);
+	}
+	return [item];
 }
 
 function rollListEntry (table, RollerUtil) {
