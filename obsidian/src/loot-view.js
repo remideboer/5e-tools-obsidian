@@ -80,7 +80,7 @@ export function rollSelectedTables (ids, count = 1) {
 	const items = [];
 	for (let i = 0; i < n; i++) {
 		const meta = pickWeightedTable(tables, RollerUtil);
-		items.push(rollOneItem(loot, meta));
+		items.push(...rollOneTableParts(loot, meta));
 	}
 	return {count: n, items};
 }
@@ -241,60 +241,115 @@ export function renderLootGenerator (formEl, resultEl, {
 	});
 }
 
-function rollOneItem (loot, meta) {
+function rollOneTableParts (loot, meta) {
 	const RollerUtil = globalThis.RollerUtil;
 	const Renderer = getRenderer();
 
 	if (meta.kind === "dragonMundaneItems") {
 		const {rowRoll, text} = rollMundaneRow(loot.dragonMundaneItems, RollerUtil);
-		return itemEntry({label: text, tableLabel: meta.label, rowRoll});
+		return [itemEntry({label: text, tableLabel: meta.label, rowRoll})];
 	}
 
 	const table = findRawTable(loot, meta);
 	if (!table) throw new Error(`Missing table ${meta.label}`);
 
 	if (meta.kind === "gems" || meta.kind === "artObjects") {
-		return listItemEntry(table, meta, RollerUtil);
+		return [listItemEntry(table, meta, RollerUtil)];
 	}
 
 	if (meta.kind === "magicItems") {
 		const {rowRoll, items} = rollMagicItemTable(table, RollerUtil);
-		return itemEntry({...items[0], tableLabel: meta.label, rowRoll});
+		return [itemEntry({...items[0], tableLabel: meta.label, rowRoll})];
 	}
 
 	if (meta.kind === "dragon") {
-		const fauxRow = {
-			gems: withResolvedType(table.gems, RollerUtil),
-			artObjects: withResolvedType(table.artObjects, RollerUtil),
-			magicItems: (table.magicItems || []).map(entry => ({
-				...entry,
-				type: resolveType(entry, RollerUtil),
-				amount: "1",
-			})),
-		};
-		const magic = rollMagicItems(fauxRow, loot, Renderer, RollerUtil)[0];
-		if (magic) return itemEntry({...magic, tableLabel: meta.label});
-		const gems = rollGemsArt({...fauxRow, gems: {...fauxRow.gems, amount: "1"}}, "gems", loot, RollerUtil, Renderer);
-		if (gems?.names?.[0]) return namedEntry(gems.names[0], meta);
-		const art = rollGemsArt({...fauxRow, artObjects: {...fauxRow.artObjects, amount: "1"}}, "artObjects", loot, RollerUtil, Renderer);
-		if (art?.names?.[0]) return namedEntry(art.names[0], meta);
-		const mundane = rollMundaneRow(loot.dragonMundaneItems, RollerUtil);
-		return itemEntry({label: mundane.text, tableLabel: meta.label, rowRoll: mundane.rowRoll});
+		return rollDragonParts(loot, meta, table, Renderer, RollerUtil);
 	}
 
 	const rowRoll = RollerUtil.randomise(100);
 	const row = (table.table || []).find(it => rowRoll >= it.min && rowRoll <= it.max) || {};
 	if (meta.kind === "hoard") {
-		const magic = rollMagicItems({...row, magicItems: (row.magicItems || []).map(entry => ({...entry, amount: "1"}))}, loot, Renderer, RollerUtil)[0];
-		if (magic) return itemEntry({...magic, tableLabel: meta.label, rowRoll});
-		const gems = rollGemsArt({...row, gems: row.gems ? {...row.gems, amount: "1"} : null}, "gems", loot, RollerUtil, Renderer);
-		if (gems?.names?.[0]) return namedEntry(gems.names[0], meta, rowRoll);
-		const art = rollGemsArt({...row, artObjects: row.artObjects ? {...row.artObjects, amount: "1"} : null}, "artObjects", loot, RollerUtil, Renderer);
-		if (art?.names?.[0]) return namedEntry(art.names[0], meta, rowRoll);
+		return rollHoardParts(loot, meta, table, row, rowRoll, Renderer, RollerUtil);
 	}
-	const coins = rollCoins(meta.kind === "hoard" ? (table.coins || {}) : (row.coins || {}), Renderer);
+
+	const coins = rollCoins(row.coins || {}, Renderer);
 	const coinText = Object.entries(coins).map(([type, amount]) => `${amount} ${type}`).join(", ");
-	return itemEntry({label: coinText || "Nothing", tableLabel: meta.label, rowRoll});
+	return [itemEntry({label: coinText || "Nothing", tableLabel: meta.label, rowRoll})];
+}
+
+function rollHoardParts (loot, meta, table, row, rowRoll, Renderer, RollerUtil) {
+	const parts = [];
+	pushCoinParts(parts, table.coins, meta, Renderer, rowRoll);
+	pushGemsArtParts(parts, row, "gems", loot, meta, RollerUtil, Renderer, rowRoll);
+	pushGemsArtParts(parts, row, "artObjects", loot, meta, RollerUtil, Renderer, rowRoll);
+	for (const magic of rollMagicItems(row, loot, Renderer, RollerUtil, meta.crMin)) {
+		parts.push(itemEntry({...magic, tableLabel: meta.label, rowRoll}));
+	}
+	if (!parts.length) {
+		parts.push(itemEntry({label: "Nothing", tableLabel: meta.label, rowRoll}));
+	}
+	return parts;
+}
+
+function rollDragonParts (loot, meta, table, Renderer, RollerUtil) {
+	const parts = [];
+	pushCoinParts(parts, table.coins, meta, Renderer);
+	const fauxRow = {
+		gems: withResolvedType(table.gems, RollerUtil),
+		artObjects: withResolvedType(table.artObjects, RollerUtil),
+		magicItems: table.magicItems || [],
+	};
+	pushGemsArtParts(parts, fauxRow, "gems", loot, meta, RollerUtil, Renderer);
+	pushGemsArtParts(parts, fauxRow, "artObjects", loot, meta, RollerUtil, Renderer);
+	for (const magic of rollMagicItems(fauxRow, loot, Renderer, RollerUtil, meta.crMin)) {
+		parts.push(itemEntry({...magic, tableLabel: meta.label}));
+	}
+	if (table.dragonMundaneItems) {
+		const mundaneCount = Math.max(0, Number(Renderer.dice.parseRandomise2(String(table.dragonMundaneItems.amount || "1"))) || 0);
+		for (let i = 0; i < mundaneCount; i++) {
+			const mundane = rollMundaneRow(loot.dragonMundaneItems, RollerUtil);
+			parts.push(itemEntry({label: mundane.text, tableLabel: meta.label, rowRoll: mundane.rowRoll}));
+		}
+	}
+	if (!parts.length) {
+		parts.push(itemEntry({label: "Nothing", tableLabel: meta.label}));
+	}
+	return parts;
+}
+
+function pushCoinParts (parts, coinsSource, meta, Renderer, rowRoll = null) {
+	const coins = rollCoins(coinsSource || {}, Renderer);
+	const coinText = Object.entries(coins).map(([type, amount]) => `${amount} ${type}`).join(", ");
+	if (coinText) parts.push(itemEntry({label: coinText, tableLabel: meta.label, rowRoll}));
+}
+
+function pushGemsArtParts (parts, row, prop, loot, meta, RollerUtil, Renderer, rowRoll = null) {
+	const rolled = rollGemsArt(row, prop, loot, RollerUtil, Renderer);
+	if (!rolled?.names?.length) return;
+	for (const raw of rolled.names) parts.push(namedEntry(raw, meta, rowRoll));
+}
+
+function byLevelTypeForCrMin (crMin) {
+	const n = Number(crMin);
+	if (n >= 17) return "byLevel.17-20";
+	if (n >= 11) return "byLevel.11-16";
+	if (n >= 5) return "byLevel.5-10";
+	return "byLevel.1-4";
+}
+
+function resolveMagicType (magic, RollerUtil, crMin) {
+	const type = resolveType(magic, RollerUtil);
+	if (type === "randomByLevel") return byLevelTypeForCrMin(crMin);
+	return type;
+}
+
+function findMagicItemTable (loot, type) {
+	const tables = (loot.magicItems || []).filter(it => it.type === type);
+	if (!tables.length) return null;
+	if (String(type).startsWith("byLevel.")) {
+		return tables.find(it => it.source === "XDMG") || tables[0];
+	}
+	return tables.find(it => it.source === "DMG") || tables[0];
 }
 
 function listItemEntry (table, meta, RollerUtil) {
@@ -346,19 +401,18 @@ function rollGemsArt (row, prop, loot, RollerUtil, Renderer) {
 	return {type: meta.type, count, names};
 }
 
-function rollMagicItems (row, loot, Renderer, RollerUtil) {
+function rollMagicItems (row, loot, Renderer, RollerUtil, crMin = null) {
 	const entries = [];
 	for (const magic of row.magicItems || []) {
 		const amountRaw = magic.amount == null ? "1" : String(magic.amount);
 		const count = Math.max(0, Number(Renderer.dice.parseRandomise2(amountRaw)) || 0);
 		if (!count) continue;
-		const type = resolveType(magic, RollerUtil);
-		if (!type || type === "randomByLevel") {
+		const type = resolveMagicType(magic, RollerUtil, crMin);
+		if (!type) {
 			entries.push({label: `${count} magic item${count === 1 ? "" : "s"}`});
 			continue;
 		}
-		const tables = (loot.magicItems || []).filter(it => it.type === type);
-		const table = tables.find(it => it.source === "DMG") || tables[0];
+		const table = findMagicItemTable(loot, type);
 		if (!table?.table?.length) {
 			entries.push({label: `${count}× Table ${type}`});
 			continue;
