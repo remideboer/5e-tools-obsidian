@@ -459,8 +459,17 @@ export function renderEncounterComposer (formEl, resultEl, {
 			});
 			row.addEventListener("click", () => {
 				pickedId = it.id;
-				emit();
 				paintSaves();
+				const saved = getSavedEncounter(it.id);
+				if (!saved) {
+					emit();
+					return;
+				}
+				if (savedId === saved.id) {
+					emit();
+					return;
+				}
+				loadPicked(saved.id);
 			});
 		}
 	};
@@ -485,6 +494,12 @@ export function renderEncounterComposer (formEl, resultEl, {
 		paintRoster();
 		if (selectedId) openSelected();
 		else showPlaceholder();
+	};
+
+	const loadPicked = (id) => {
+		const saved = getSavedEncounter(id ?? pickedId);
+		if (!saved) return;
+		applySaved(saved);
 	};
 
 	const paintBlank = () => {
@@ -604,21 +619,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			new Notice(e.message || "Could not save encounter.");
 		}
 	});
-	loadBtn.addEventListener("click", () => {
-		const saved = getSavedEncounter(pickedId);
-		if (!saved) return;
-		const replace = () => applySaved(saved);
-		if (combatants.length && savedId !== saved.id) {
-			confirmAction(app, {
-				title: "Load encounter",
-				message: `Replace the current roster with ${saved.name}?`,
-				confirmLabel: "Load",
-				onConfirm: replace,
-			});
-			return;
-		}
-		replace();
-	});
+	loadBtn.addEventListener("click", () => loadPicked(pickedId));
 	deleteBtn.addEventListener("click", () => {
 		const saved = getSavedEncounter(pickedId);
 		if (!saved) return;
