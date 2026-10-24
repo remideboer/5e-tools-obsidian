@@ -22,6 +22,7 @@ const RARITY_WEIGHT = {
 };
 
 const EYE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
+const DIE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"/></svg>`;
 
 const MAGIC_TABLE_RARITY = {
 	A: "common",
@@ -67,7 +68,7 @@ export function listLootTables () {
 export function rollSelectedTables (ids, count = 1) {
 	const wanted = (ids || []).map(id => String(id));
 	if (!wanted.length) throw new Error("Select at least one loot table.");
-	const n = Math.max(1, Math.min(99, Number(count) || 1));
+	const n = Math.max(1, Math.min(10, Number(count) || 1));
 	const loot = loadLootJson();
 	const byId = new Map(listLootTables().map(it => [it.id, it]));
 	const tables = wanted.map(id => {
@@ -108,12 +109,14 @@ export function renderLootGenerator (formEl, resultEl, {
 	const form = formEl.createDiv({cls: "fiveetools-loot__form"});
 	const countWrap = form.createDiv({cls: "fiveetools-loot__row"});
 	countWrap.createEl("span", {text: "Items"});
-	const countInput = countWrap.createEl("input", {
-		cls: "fiveetools-loot__count",
-		attr: {type: "number", min: "1", max: "99", value: String(Math.max(1, Math.min(99, Number(count) || 1)))},
-	});
+	const countSel = countWrap.createEl("select", {cls: "fiveetools-loot__count"});
+	const initialCount = Math.max(1, Math.min(10, Number(count) || 1));
+	for (let i = 1; i <= 10; i++) {
+		const opt = countSel.createEl("option", {text: String(i), attr: {value: String(i)}});
+		if (i === initialCount) opt.selected = true;
+	}
 	const actions = form.createDiv({cls: "fiveetools-loot__row"});
-	const rollBtn = actions.createEl("button", {text: "Roll", cls: "fiveetools-btn"});
+	const rollBtn = actions.createEl("button", {text: "Roll selected", cls: "fiveetools-btn"});
 	const clearBtn = actions.createEl("button", {text: "Clear results", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const tablesEl = form.createDiv({cls: "fiveetools-loot__tables"});
 	const grouped = groupTables(listLootTables());
@@ -124,7 +127,7 @@ export function renderLootGenerator (formEl, resultEl, {
 		clearBtn.toggleAttribute("disabled", !nextResults?.items?.length);
 		onSessionChange?.({
 			ids: selectedTableIds(),
-			count: Number(countInput.value) || 1,
+			count: Number(countSel.value) || 1,
 			results: nextResults,
 		});
 	};
@@ -149,6 +152,24 @@ export function renderLootGenerator (formEl, resultEl, {
 			const cb = name.createEl("input", {attr: {type: "checkbox", "data-loot-id": table.id}});
 			if (selected.has(table.id)) cb.checked = true;
 			name.createSpan({text: table.label});
+			const rollOneBtn = row.createEl("button", {
+				cls: "fiveetools-loot__roll",
+				attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
+			});
+			rollOneBtn.innerHTML = DIE_SVG;
+			rollOneBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				try {
+					const next = rollSelectedTables([table.id], countSel.value);
+					setViewedRow(null);
+					emitSession(next);
+					renderLootResults(resultEl, next, onOpenItem);
+				} catch (e) {
+					resultEl.empty();
+					resultEl.createEl("p", {text: e.message || "Failed to roll."});
+				}
+			});
 			const viewBtn = row.createEl("button", {
 				cls: "fiveetools-loot__view",
 				attr: {type: "button", title: "View table", "aria-label": "View table"},
@@ -186,7 +207,7 @@ export function renderLootGenerator (formEl, resultEl, {
 		syncGroup();
 	}
 
-	countInput.addEventListener("change", () => emitSession());
+	countSel.addEventListener("change", () => emitSession());
 
 	if (currentResults?.items?.length) renderLootResults(resultEl, currentResults, onOpenItem);
 	else showPlaceholder();
@@ -202,7 +223,7 @@ export function renderLootGenerator (formEl, resultEl, {
 		rollBtn.setAttr("disabled", "true");
 		resultEl.setText("Rolling…");
 		try {
-			const next = rollSelectedTables(ids, countInput.value);
+			const next = rollSelectedTables(ids, countSel.value);
 			setViewedRow(null);
 			emitSession(next);
 			renderLootResults(resultEl, next, onOpenItem);

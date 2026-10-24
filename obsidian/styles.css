@@ -521,6 +521,7 @@ a.fiveetools-inline-link {
 
 .fiveetools-loot__count {
 	width: 4.5em;
+	min-width: 4.5em;
 }
 
 .fiveetools-loot__tables {
@@ -564,6 +565,8 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-loot__opt input[type="checkbox"],
+.fiveetools-loot__roll,
+.fiveetools-loot__roll svg,
 .fiveetools-loot__view,
 .fiveetools-loot__view svg {
 	width: 1em;
@@ -575,9 +578,9 @@ a.fiveetools-inline-link {
 	flex: 0 0 auto;
 }
 
+.fiveetools-loot__roll,
 .fiveetools-loot__view {
 	flex: 0 0 auto;
-	margin-left: auto;
 	padding: 0;
 	border: 0;
 	background: transparent;
@@ -588,6 +591,11 @@ a.fiveetools-inline-link {
 	cursor: pointer;
 }
 
+.fiveetools-loot__roll {
+	margin-left: auto;
+}
+
+.fiveetools-loot__roll:hover,
 .fiveetools-loot__view:hover {
 	color: var(--text-normal);
 }

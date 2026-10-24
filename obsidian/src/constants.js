@@ -32,6 +32,16 @@ export const CATEGORY_CHIPS = [
 
 export const LIBRARY_NAV = [
 	{
+		group: "Tools",
+		items: [
+			{id: "loot", label: "Loot Generator", tool: "loot"},
+			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
+			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
+			{id: "campaign", label: "Campaigns", tool: "campaign"},
+			{id: "map", label: "Map", tool: "map"},
+		],
+	},
+	{
 		group: "Player",
 		items: [
 			{id: "class", label: "Classes", categories: ["class", "subclass"]},
@@ -54,16 +64,6 @@ export const LIBRARY_NAV = [
 			{id: "rule", label: "Rules", categories: ["rule"]},
 			{id: "adventure", label: "Adventures", categories: ["adventure"]},
 			{id: "maps", label: "Maps", tool: "maps"},
-		],
-	},
-	{
-		group: "Tools",
-		items: [
-			{id: "loot", label: "Loot Generator", tool: "loot"},
-			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
-			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
-			{id: "campaign", label: "Campaigns", tool: "campaign"},
-			{id: "map", label: "Map", tool: "map"},
 		],
 	},
 ];
