@@ -11,7 +11,6 @@ export const DEFAULT_SETTINGS = {
 };
 
 export const MAX_SEARCH_RESULTS = 40;
-export const MAX_LIBRARY_RESULTS = 250;
 
 export const CATEGORY_CHIPS = [
 	{id: "all", label: "All", aliases: []},

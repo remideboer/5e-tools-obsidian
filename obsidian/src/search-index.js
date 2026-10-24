@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import {decompressIndex} from "./decompress-index.js";
-import {CORPUS_PAGES, MAX_LIBRARY_RESULTS, MAX_SEARCH_RESULTS} from "./constants.js";
+import {CORPUS_PAGES, MAX_SEARCH_RESULTS} from "./constants.js";
 import {getElasticlunr, getParser, getSearchUtil, getStyleHint, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
 import {docMatchesBestiaryFilters, ensureMonsterMeta, hasBestiaryFilters, resetMonsterMeta} from "./bestiary-meta.js";
@@ -231,15 +231,17 @@ export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [
 	return out.slice(0, limit).map(it => it.doc);
 }
 
-export function listEntities ({categoriesExact = [], query = "", limit = MAX_LIBRARY_RESULTS, bestiaryFilters} = {}) {
+export function listEntities ({categoriesExact = [], query = "", limit = null, bestiaryFilters} = {}) {
 	if (!searchIndex) return [];
 	const cats = new Set((categoriesExact || []).map(it => String(it).toLowerCase()));
 	const term = String(query || "").trim();
 	const filtered = hasBestiaryFilters(bestiaryFilters);
+	const capped = Number.isFinite(limit) && limit > 0;
 
 	let docs;
 	if (term.length >= 2 && !filtered) {
-		docs = searchEntities(term, {categoriesExact, limit: Math.max(limit, 400)});
+		const searchLimit = capped ? Math.max(limit, 400) : Number.MAX_SAFE_INTEGER;
+		docs = searchEntities(term, {categoriesExact, limit: searchLimit});
 	} else {
 		docs = Object.values(searchIndex.documentStore.docs)
 			.filter(doc => doc && (!cats.size || cats.has(String(doc.cf || "").toLowerCase())));
@@ -254,7 +256,7 @@ export function listEntities ({categoriesExact = [], query = "", limit = MAX_LIB
 		});
 	}
 	if (filtered) docs = docs.filter(doc => docMatchesBestiaryFilters(doc, bestiaryFilters));
-	return docs.slice(0, limit);
+	return capped ? docs.slice(0, limit) : docs;
 }
 
 export function findEntityDoc (name, {categoriesExact = []} = {}) {
