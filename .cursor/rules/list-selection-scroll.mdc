@@ -1,0 +1,17 @@
+---
+description: Do not rebuild scrollable lists when only the selected row changes
+alwaysApply: true
+---
+
+# List selection must not jump scroll
+
+**Anti-pattern:** on row click, call `listEl.empty()` / rebuild the whole list so the selected item gets `is-selected`. That resets `scrollTop` and often leaves the selected row at the bottom of the viewport.
+
+**Do instead:**
+
+1. Keep the existing DOM rows on selection.
+2. Toggle `is-selected` (and buttons that depend on selection) in place — see `openDoc` in `obsidian/src/library-view.js`, `syncListSelection` in campaign/homebrew views.
+3. Rebuild the list only when its *contents* change (filter, tab, create, delete, reload).
+4. If a rebuild is required, save and restore `scrollTop` around `empty()`.
+
+Applies to library rows, campaign notes, homebrew entries, encounter rosters, and any similar scrollable hit list under `obsidian/`.

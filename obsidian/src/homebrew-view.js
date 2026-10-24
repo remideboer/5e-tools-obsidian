@@ -134,18 +134,27 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		}
 	};
 
-	const renderList = () => {
-		listEl.empty();
-		const ents = listBrewEntities(typeId);
+	const syncListSelection = () => {
 		editBtn.toggleAttribute("disabled", !selectedName);
 		deleteBtn.toggleAttribute("disabled", !selectedName);
+		listEl.querySelectorAll(".fiveetools-homebrew__hit").forEach((el) => {
+			el.classList.toggle("is-selected", el.dataset.name === selectedName);
+		});
+	};
+
+	const renderList = () => {
+		const scrollTop = listEl.scrollTop || 0;
+		listEl.empty();
+		const ents = listBrewEntities(typeId);
 		if (!ents.length) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No saved entries."});
+			syncListSelection();
 			return;
 		}
 		for (const ent of ents) {
 			const row = listEl.createEl("button", {
 				cls: `fiveetools-homebrew__hit${ent.name === selectedName ? " is-selected" : ""}`,
+				attr: {"data-name": ent.name},
 			});
 			row.createEl("div", {cls: "fiveetools-modal__name", text: ent.name});
 			row.addEventListener("click", () => {
@@ -154,12 +163,14 @@ export function renderHomebrewEditor (formEl, resultEl, {
 				previewKey = "";
 				draft = entityToForm(typeId, ent);
 				paintHits();
-				renderList();
+				syncListSelection();
 				renderForm();
 				previewEntity(ent);
 				emit();
 			});
 		}
+		listEl.scrollTop = scrollTop;
+		syncListSelection();
 	};
 
 	const bindText = (el, key) => {

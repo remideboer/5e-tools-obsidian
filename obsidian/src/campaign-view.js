@@ -168,7 +168,16 @@ export function renderCampaignManager (formEl, resultEl, {
 		}
 	};
 
+	const syncListSelection = () => {
+		deleteBtn.disabled = !selectedPath;
+		openComposerBtn.disabled = sectionId !== "encounters" || !selectedPath;
+		listEl.querySelectorAll(".fiveetools-homebrew__hit").forEach((el) => {
+			el.classList.toggle("is-selected", el.dataset.path === selectedPath);
+		});
+	};
+
 	const paintList = () => {
+		const scrollTop = listEl.scrollTop || 0;
 		listEl.empty();
 		const isOverview = sectionId === "overview";
 		searchEl.style.display = isOverview ? "none" : "";
@@ -177,15 +186,15 @@ export function renderCampaignManager (formEl, resultEl, {
 		newBtn.style.display = isOverview ? "none" : "";
 		deleteBtn.style.display = isOverview ? "none" : "";
 		noteNameEl.setAttribute("placeholder", "Name (optional)");
-		deleteBtn.disabled = !selectedPath;
-		openComposerBtn.disabled = sectionId !== "encounters" || !selectedPath;
 		syncChrome();
 		if (!slug) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "Create a campaign to begin."});
+			syncListSelection();
 			return;
 		}
 		if (isOverview) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "Campaign overview."});
+			syncListSelection();
 			return;
 		}
 		const needle = String(searchEl.value || "").trim().toLowerCase();
@@ -195,11 +204,13 @@ export function renderCampaignManager (formEl, resultEl, {
 		});
 		if (!shown.length) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No entries."});
+			syncListSelection();
 			return;
 		}
 		for (const it of shown) {
 			const row = listEl.createEl("button", {
 				cls: `fiveetools-homebrew__hit${it.path === selectedPath ? " is-selected" : ""}`,
+				attr: {"data-path": it.path},
 			});
 			row.createEl("div", {cls: "fiveetools-modal__name", text: entryLabel(it)});
 			row.addEventListener("click", () => {
@@ -216,6 +227,8 @@ export function renderCampaignManager (formEl, resultEl, {
 				void openPath(it.path);
 			});
 		}
+		listEl.scrollTop = scrollTop;
+		syncListSelection();
 	};
 
 	const editorHost = () => {
@@ -287,7 +300,14 @@ export function renderCampaignManager (formEl, resultEl, {
 			void renderEntityPanel(bodyEl, plugin, hit.doc);
 		};
 
+		const syncRosterSelection = () => {
+			rosterEl.querySelectorAll(".fiveetools-encounter__combatant").forEach((el) => {
+				el.classList.toggle("is-selected", el.dataset.id === selectedId);
+			});
+		};
+
 		const paintRoster = () => {
+			const scrollTop = rosterEl.scrollTop || 0;
 			rosterEl.empty();
 			if (!combatants.length) {
 				rosterEl.createEl("p", {
@@ -303,7 +323,7 @@ export function renderCampaignManager (formEl, resultEl, {
 					selected: combatant.id === selectedId,
 					onSelect: () => {
 						selectedId = combatant.id;
-						paintRoster();
+						syncRosterSelection();
 						openSelected();
 					},
 					onHp: (nextHp) => {
@@ -320,6 +340,7 @@ export function renderCampaignManager (formEl, resultEl, {
 					},
 				});
 			}
+			rosterEl.scrollTop = scrollTop;
 		};
 
 		paintRoster();
@@ -351,11 +372,11 @@ export function renderCampaignManager (formEl, resultEl, {
 		const text = filePath ? await readEntryText(plugin, filePath) : "";
 		parsed = parseCampaignMarkdown(text);
 		paintImport();
-		paintList();
 	};
 
 	const openPath = async (filePath) => {
 		selectedPath = filePath || "";
+		syncListSelection();
 		await refreshParsed(selectedPath);
 		await paintEditor();
 		emit();
@@ -501,6 +522,7 @@ export function renderCampaignManager (formEl, resultEl, {
 			const created = await createEntry(plugin, slug, sectionId, noteNameEl.value);
 			noteNameEl.value = "";
 			entries = await listEntries(plugin, slug, sectionId);
+			paintList();
 			await openPath(created.path);
 			new Notice(`Created ${entryLabel(created)}.`);
 		} catch (e) {
@@ -529,6 +551,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		try {
 			const written = await writeEntry(plugin, slug, "encounters", entryFromSavedEncounter(saved));
 			entries = await listEntries(plugin, slug, sectionId);
+			paintList();
 			await openPath(written.path);
 			new Notice(`Imported ${saved.name}.`);
 		} catch (e) {

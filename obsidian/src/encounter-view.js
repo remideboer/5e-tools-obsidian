@@ -348,12 +348,19 @@ export function renderEncounterComposer (formEl, resultEl, {
 		openDoc(doc);
 	};
 
+	const syncRosterSelection = () => {
+		rosterEl.querySelectorAll(".fiveetools-encounter__combatant").forEach((el) => {
+			el.classList.toggle("is-selected", !previewKey && el.dataset.id === selectedId);
+		});
+	};
+
 	const paintRoster = () => {
 		const grouped = groupCombatants(combatants);
 		const changed = grouped.length !== combatants.length
 			|| grouped.some((it, i) => it.id !== combatants[i]?.id);
 		combatants = grouped;
 		if (changed) emit();
+		const scrollTop = rosterEl.scrollTop || 0;
 		rosterEl.empty();
 		if (!combatants.length) {
 			rosterEl.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures yet."});
@@ -369,7 +376,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 					selectedId = combatant.id;
 					emit();
 					paintHits();
-					paintRoster();
+					syncRosterSelection();
 					openSelected();
 				},
 				onHp: (nextHp) => {
@@ -388,6 +395,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 				},
 			});
 		}
+		rosterEl.scrollTop = scrollTop;
 	};
 
 	const paintHits = () => {
@@ -661,6 +669,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 export function renderCombatantRow (parent, combatant, {app, plugin, selected, onSelect, onHp, onRemove}) {
 	const row = parent.createDiv({
 		cls: `fiveetools-encounter__combatant${selected ? " is-selected" : ""}${combatant.hpCurrent <= 0 ? " is-down" : ""}`,
+		attr: {"data-id": combatant.id},
 	});
 	row.addEventListener("click", (evt) => {
 		if (evt.target.closest(".fiveetools-encounter__hp, .fiveetools-encounter__init")) return;
