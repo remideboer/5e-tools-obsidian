@@ -136,6 +136,35 @@ export default class FiveEToolsPlugin extends Plugin {
 	}
 
 	async openPreview (doc) {
-		await this.openLibrary({doc});
+		if (!doc) return;
+		if (!await this.ensureReady()) return;
+		const {workspace} = this.app;
+		try {
+			let leaf = workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS)[0];
+			if (!leaf) {
+				if (typeof workspace.openPopoutLeaf === "function") {
+					leaf = workspace.openPopoutLeaf({size: {width: 560, height: 760}});
+				} else {
+					leaf = workspace.getLeaf("split") || workspace.getLeaf(true);
+				}
+				await leaf.setViewState({
+					type: VIEW_TYPE_FIVEETOOLS,
+					active: true,
+				});
+			}
+			workspace.revealLeaf(leaf);
+			const view = leaf.view;
+			if (view instanceof FiveEToolsView) {
+				await view.showDoc(doc);
+				return;
+			}
+			await leaf.setViewState({
+				type: VIEW_TYPE_FIVEETOOLS,
+				active: true,
+			});
+			if (leaf.view instanceof FiveEToolsView) await leaf.view.showDoc(doc);
+		} catch (e) {
+			new Notice(e.message || "Could not open preview.");
+		}
 	}
 }

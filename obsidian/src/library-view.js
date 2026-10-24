@@ -242,7 +242,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				selectedIds: session.ids,
 				count: session.count,
 				results: session.results,
-				onOpenItem: (doc) => this.navigateToDoc(doc),
+				onOpenItem: (doc) => { void this.plugin.openPreview(doc); },
 				onSessionChange: (next) => { this.plugin._lootSession = next; },
 			});
 			this.docs = [];

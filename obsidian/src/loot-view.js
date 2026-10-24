@@ -1,6 +1,8 @@
 import fs from "fs";
+import {Notice} from "obsidian";
 import {findEntityDoc} from "./search-index.js";
-import {getConfiguredRoot, getRenderer, joinUnderRoot} from "./fiveetools-host.js";
+import {cacheEntityInDataLoader} from "./homebrew-store.js";
+import {getConfiguredRoot, getParser, getRenderer, getUrlUtil, joinUnderRoot} from "./fiveetools-host.js";
 
 const TABLE_GROUPS = [
 	{kind: "individual", label: "Individual"},
@@ -749,9 +751,15 @@ function renderLootResults (el, results, onOpenItem) {
 		const li = list.createEl("li", {cls: "fiveetools-loot__hit"});
 		if (item.name && onOpenItem) {
 			const btn = li.createEl("button", {text: item.label, cls: "fiveetools-loot__item"});
-			btn.addEventListener("click", () => {
-				const doc = findEntityDoc(item.name, {categoriesExact: ["item"]});
-				if (doc) onOpenItem(doc);
+			btn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				const doc = resolveLootItemDoc(item);
+				if (!doc) {
+					new Notice(`Could not open item: ${item.name}`);
+					return;
+				}
+				onOpenItem(doc);
 			});
 		} else {
 			li.createSpan({text: item.label});
@@ -760,6 +768,33 @@ function renderLootResults (el, results, onOpenItem) {
 			li.createEl("div", {cls: "fiveetools-view__meta", text: item.tableLabel});
 		}
 	}
+}
+
+function resolveLootItemDoc (item) {
+	const name = String(item?.name || "").trim();
+	if (!name) return null;
+	const source = String(item.source || "").trim();
+	const corpus = resolveCorpusItem(source ? `${name}|${source}` : name);
+	if (corpus) cacheEntityInDataLoader(corpus, "item");
+
+	const found = findEntityDoc(name, {categoriesExact: ["item"], source});
+	if (found) return found;
+	return synthesizeItemDoc(name, source || corpus?.source || "");
+}
+
+function synthesizeItemDoc (name, source) {
+	const Parser = getParser();
+	const UrlUtil = getUrlUtil();
+	const src = source || Parser.SRC_DMG || "DMG";
+	const hashBuilder = UrlUtil.URL_TO_HASH_BUILDER[UrlUtil.PG_ITEMS];
+	const hash = hashBuilder ? hashBuilder({name, source: src}) : `${name}_${src}`.toLowerCase();
+	return {
+		n: name,
+		u: hash,
+		s: src,
+		c: Parser.CAT_ID_ITEM,
+		cf: Parser.pageCategoryToFull(Parser.CAT_ID_ITEM),
+	};
 }
 
 function capitalize (value) {

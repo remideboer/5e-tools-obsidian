@@ -259,11 +259,32 @@ export function listEntities ({categoriesExact = [], query = "", limit = null, b
 	return capped ? docs.slice(0, limit) : docs;
 }
 
-export function findEntityDoc (name, {categoriesExact = []} = {}) {
+export function findEntityDoc (name, {categoriesExact = [], source = ""} = {}) {
 	const needle = String(name || "").toLowerCase();
 	if (!needle || !searchIndex) return null;
-	const hits = searchEntities(name, {categoriesExact, limit: 20});
-	return hits.find(doc => String(doc.n || "").toLowerCase() === needle) || hits[0] || null;
+	const sourceLc = String(source || "").toLowerCase();
+	const pick = (docs) => {
+		if (!docs?.length) return null;
+		if (sourceLc) {
+			return docs.find(doc => String(doc.s || "").toLowerCase() === sourceLc)
+				|| docs.find(doc => String(doc.n || "").toLowerCase() === needle)
+				|| docs[0];
+		}
+		return docs.find(doc => String(doc.n || "").toLowerCase() === needle) || docs[0] || null;
+	};
+
+	const hits = searchEntities(name, {categoriesExact, limit: 40});
+	const fromSearch = pick(hits);
+	if (fromSearch && String(fromSearch.n || "").toLowerCase() === needle) return fromSearch;
+
+	const cats = new Set((categoriesExact || []).map(it => String(it).toLowerCase()));
+	const exact = Object.values(searchIndex.documentStore.docs).filter(doc => {
+		if (!doc || String(doc.n || "").toLowerCase() !== needle) return false;
+		if (cats.size && !cats.has(String(doc.cf || "").toLowerCase())) return false;
+		return true;
+	});
+	exact.sort((a, b) => sourcePriority(a) - sourcePriority(b));
+	return pick(exact) || fromSearch || null;
 }
 
 export function docFromHref (href, {linkText = ""} = {}) {
