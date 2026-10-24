@@ -1,0 +1,18 @@
+---
+description: Read and update docs/ architecture notes when changing the Obsidian plugin
+alwaysApply: true
+---
+
+# Architecture docs
+
+Before non-trivial work under `obsidian/` or `node/build-obsidian.js`, read [docs/README.md](docs/README.md) and open the relevant pages/ADRs (map flows → `docs/sequences.md` + ADR 0002/0003; build/data root → ADR 0001/0004).
+
+When a change alters modules, dataflow, vault scene layout, player/GM rendering, media cache, or the build allowlist:
+
+1. Update the matching doc or ADR in the same change.
+2. Add a new ADR under `docs/adr/` if the decision is new and lasting.
+3. Keep docs short; use Mermaid; do not paste large code dumps.
+
+Skip doc updates for typos, copy-only UI tweaks, and bugfixes with no architectural impact.
+
+The installed vault plugin is what Obsidian runs. After plugin source changes intended for testing, rebuild with `node/build-obsidian.js` (and `FIVEETOOLS_DEV_VAULTS` when installing). Do not assume the git tree is the runtime data root.

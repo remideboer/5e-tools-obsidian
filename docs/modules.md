@@ -1,0 +1,94 @@
+# Module map
+
+The plugin is mostly **ESM functions**, not a class hierarchy. Views subclass Obsidian `ItemView`. Treat this as a module dependency map.
+
+## Views and entry
+
+| Symbol | File | Role |
+|--------|------|------|
+| `FiveEToolsPlugin` | `obsidian/main.js` | Lifecycle, settings, `ensureReady`, open library |
+| `FiveEToolsLibraryView` | `library-view.js` | Main UI: nav, list, tools (map, loot, …) |
+| `FiveEToolsView` | `entity-view.js` | Entity preview leaf |
+| `FiveEToolsMapPlayerView` | `map-view.js` | Player popout; owns `frame` canvas |
+| View type ids | `constants.js` | `fiveetools-library`, `fiveetools-preview`, `fiveetools-map-player` |
+
+## Area map
+
+```mermaid
+flowchart TB
+  subgraph host [Host]
+    main[main.js]
+    fth[fiveetools-host.js]
+    pdir[plugin-dir.js]
+    lfs[local-fs.js]
+  end
+  subgraph search [Search_and_entities]
+    si[search-index.js]
+    el[entity-loader.js]
+    er[entity-reader.js]
+    ir[image-resolver.js]
+  end
+  subgraph ui [Library_UI]
+    lv[library-view.js]
+    mrv[map-reference-view.js]
+    mr[map-reference.js]
+  end
+  subgraph map [Map]
+    mv[map-view.js]
+    mc[map-canvas.js]
+    ms[map-scene.js]
+    mf[map-fog.js]
+    mt[map-tokens.js]
+    mtp[map-token-picker.js]
+  end
+  subgraph media [Media]
+    cache[media-cache.js]
+  end
+  main --> fth
+  main --> lv
+  main --> mv
+  lv --> mrv
+  lv --> mv
+  mrv --> mr
+  mr --> cache
+  mr --> ms
+  mv --> mc
+  mv --> ms
+  mv --> mf
+  mv --> mt
+  mv --> mtp
+  mt --> cache
+  fth --> si
+  si --> el
+```
+
+## Map stack (detail)
+
+| File | Responsibility |
+|------|----------------|
+| `map-view.js` | GM UI, pointer tools, fog gestures, token drag, `paint` / `paintPlayer`, player bitmaps |
+| `map-canvas.js` | Camera math, `drawWorld`, grid/token blit, `bindMapPointer` |
+| `map-scene.js` | Vault scene CRUD, layer paths, `scene.json` |
+| `map-fog.js` | Fog mask canvas, brush/shapes, PNG save/load |
+| `map-tokens.js` | Size footprints, snap, hit-test, create token asset |
+| `map-token-picker.js` | Bestiary search modal, drag payload |
+| `map-reference.js` | Load `gendata-maps.json`, fetch/cache map images, create scenes |
+| `map-reference-view.js` | References → Maps two-pane browser |
+| `map-scale.js` / `map-dpi.js` | Cell inches, DPI, actual-size player scale |
+
+## Other areas (short)
+
+| Area | Key files |
+|------|-----------|
+| Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
+| Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js` |
+| Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js` |
+| Homebrew | `homebrew-view.js`, `homebrew-store.js` |
+| Loot | `loot-view.js` |
+| Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
+
+## Import rules of thumb
+
+- `map-reference` must not pull `fiveetools-host` in a way that runs before root configure; call `getConfiguredRoot()` at search/load time.
+- Player popout cannot `drawImage` main-window `HTMLImageElement`s; use `ImageBitmap` (see ADR 0003).
+- Scene tokens live on `scene.tokens` (shared across layers); layer switches must not clear them.
