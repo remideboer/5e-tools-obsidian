@@ -38,6 +38,15 @@ export function renderCampaignManager (formEl, resultEl, {
 } = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-campaign");
+	resultEl.empty();
+	resultEl.addClass("fiveetools-campaign-reader");
+	const chromeEl = resultEl.createDiv({cls: "fiveetools-campaign__chrome"});
+	const addBtn = chromeEl.createEl("button", {
+		text: "+",
+		cls: "fiveetools-btn fiveetools-btn--ghost fiveetools-campaign__add",
+		attr: {type: "button", title: "New note"},
+	});
+	const bodyEl = resultEl.createDiv({cls: "fiveetools-campaign__body"});
 
 	let slug = session?.slug || "";
 	let sectionId = session?.sectionId || "overview";
@@ -86,18 +95,25 @@ export function renderCampaignManager (formEl, resultEl, {
 		formEl.querySelector(".fiveetools-encounter__creatures")?.remove();
 	};
 
+	const syncChrome = () => {
+		const show = !!slug && sectionId !== "overview";
+		chromeEl.style.display = show ? "" : "none";
+		addBtn.disabled = !show;
+	};
+
 	const showPlaceholder = (text) => {
 		closeCampaignNote(plugin);
 		clearEncounterRoster();
-		resultEl.empty();
-		resultEl.removeClass("fiveetools-campaign-reader");
+		bodyEl.empty();
+		resultEl.addClass("fiveetools-campaign-reader");
 		resultEl.removeClass("fiveetools-campaign-encounter");
-		resultEl.createEl("p", {
+		bodyEl.createEl("p", {
 			cls: "fiveetools-view__meta",
 			text: text || (sectionId === "encounters"
 				? "Create or import an encounter."
 				: "Create a campaign, then a note."),
 		});
+		syncChrome();
 	};
 
 	const currentSnapshot = () => parsed.snapshot;
@@ -163,6 +179,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		noteNameEl.setAttribute("placeholder", "Name (optional)");
 		deleteBtn.disabled = !selectedPath;
 		openComposerBtn.disabled = sectionId !== "encounters" || !selectedPath;
+		syncChrome();
 		if (!slug) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "Create a campaign to begin."});
 			return;
@@ -205,21 +222,23 @@ export function renderCampaignManager (formEl, resultEl, {
 		clearEncounterRoster();
 		resultEl.removeClass("fiveetools-campaign-encounter");
 		resultEl.addClass("fiveetools-campaign-reader");
-		let wrap = resultEl.querySelector(".fiveetools-campaign__editor");
+		let wrap = bodyEl.querySelector(".fiveetools-campaign__editor");
 		if (!wrap) {
-			resultEl.empty();
+			bodyEl.empty();
 			resultEl.addClass("fiveetools-campaign-reader");
-			wrap = resultEl.createDiv({cls: "fiveetools-campaign__editor"});
+			wrap = bodyEl.createDiv({cls: "fiveetools-campaign__editor"});
 		}
+		syncChrome();
 		return wrap;
 	};
 
 	const paintEncounterPane = () => {
 		closeCampaignNote(plugin);
-		resultEl.removeClass("fiveetools-campaign-reader");
+		resultEl.addClass("fiveetools-campaign-reader");
 		resultEl.removeClass("fiveetools-campaign-encounter");
-		resultEl.empty();
+		bodyEl.empty();
 		formEl.addClass("fiveetools-campaign--encounter");
+		syncChrome();
 		let creaturesEl = formEl.querySelector(".fiveetools-encounter__creatures");
 		if (!creaturesEl) {
 			creaturesEl = formEl.createDiv({cls: "fiveetools-encounter__creatures"});
@@ -258,14 +277,14 @@ export function renderCampaignManager (formEl, resultEl, {
 		const openSelected = () => {
 			const hit = combatants.find(it => it.id === selectedId);
 			if (!hit?.doc) {
-				resultEl.empty();
-				resultEl.createEl("p", {
+				bodyEl.empty();
+				bodyEl.createEl("p", {
 					cls: "fiveetools-view__meta",
 					text: combatants.length ? "Select a creature." : "No creatures yet.",
 				});
 				return;
 			}
-			void renderEntityPanel(resultEl, plugin, hit.doc);
+			void renderEntityPanel(bodyEl, plugin, hit.doc);
 		};
 
 		const paintRoster = () => {
@@ -459,7 +478,7 @@ export function renderCampaignManager (formEl, resultEl, {
 		emit();
 	});
 	searchEl.addEventListener("input", () => paintList());
-	newBtn.addEventListener("click", async () => {
+	const createNewInSection = async () => {
 		try {
 			if (sectionId === "encounters") {
 				if (!slug) throw new Error("Create a campaign first.");
@@ -487,7 +506,9 @@ export function renderCampaignManager (formEl, resultEl, {
 		} catch (e) {
 			new Notice(e.message || "Could not create note.");
 		}
-	});
+	};
+	newBtn.addEventListener("click", () => { void createNewInSection(); });
+	addBtn.addEventListener("click", () => { void createNewInSection(); });
 	deleteBtn.addEventListener("click", async () => {
 		if (!selectedPath) return;
 		const label = entryLabel({fields: parsed.fields, path: selectedPath});

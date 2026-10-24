@@ -230,6 +230,34 @@ a.fiveetools-inline-link {
 	overflow: hidden;
 }
 
+.fiveetools-campaign__chrome {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	flex: 0 0 auto;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-campaign__add {
+	min-width: 2em;
+	padding: 2px 8px;
+	font-size: 1.1em;
+	line-height: 1.2;
+}
+
+.fiveetools-campaign__body {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+}
+
+.fiveetools-campaign__body > .fiveetools-view__meta {
+	padding: 12px 16px;
+}
+
 .fiveetools-library__listcol:has(.fiveetools-campaign--encounter) {
 	width: 560px;
 	min-width: 420px;
