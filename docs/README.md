@@ -19,6 +19,7 @@ Upstream 5etools (`js/`, `data/`) is only covered where the plugin depends on it
 | Vault `scene.json`, layers, tokens | [0002](adr/0002-map-scene-storage.md) |
 | Player window rendering / pan performance | [0003](adr/0003-player-window-bitmaps.md) |
 | Media cache, image URLs, map index | [0004](adr/0004-media-cache-and-roots.md) |
+| Upstream `data/` sync | [0005](adr/0005-upstream-data-sync.md) |
 
 ## Build and install
 
@@ -30,6 +31,19 @@ node node/build-obsidian.js
 ```
 
 The running plugin is the **installed vault copy** (`.obsidian/plugins/5etools`), not the git checkout. Reload the plugin in Obsidian after install.
+
+## Upstream data sync
+
+Pull only content from the 5etools mirror (not Obsidian code):
+
+```powershell
+npm run sync:upstream-data
+# review staged data/, then commit
+$env:FIVEETOOLS_DEV_VAULTS = "C:\Users\remid\Documents\Obsidian Vault"
+npm run sync:upstream-data:install
+```
+
+See [ADR 0005](adr/0005-upstream-data-sync.md).
 
 ## Agent note
 

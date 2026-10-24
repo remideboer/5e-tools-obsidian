@@ -41,6 +41,8 @@
 		"build:sw:dev": "node node/build-sw.mjs --skip-prerelease --skip-homebrew",
 		"build:sw:prod": "node node/build-sw.mjs --prod",
 		"build:obsidian": "node node/build-obsidian.js",
+		"sync:upstream-data": "node node/sync-upstream-data.js",
+		"sync:upstream-data:install": "node node/sync-upstream-data.js --install",
 		"build": "npm run clean-jsons && npm run gen && npm run build:css && npm run build:sw:prod",
 		"preversion": "npm test",
 		"version": "node node/version-bump.js",
