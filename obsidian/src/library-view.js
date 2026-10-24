@@ -182,10 +182,12 @@ export class FiveEToolsLibraryView extends ItemView {
 	async showDoc (doc) {
 		if (!doc) return;
 		const navItem = navItemForDoc(doc);
+		const navChanged = !!(navItem && navItem.id !== this.navId);
 		if (navItem) this.navId = navItem.id;
 		this.selectedDoc = doc;
 		this.renderNav();
-		this.refreshList();
+		const inList = (this.docs || []).some(it => sameDoc(it, doc));
+		if (navChanged || !inList) this.refreshList();
 		await this.openDoc(doc);
 	}
 
@@ -205,6 +207,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	refreshList () {
+		const scrollTop = this.listEl?.scrollTop || 0;
 		const globalTerm = String(this.globalQuery || "").trim();
 		const item = currentNavItem(this.navId);
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
@@ -225,6 +228,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.listEl.empty();
 			this.docs = searchEntities(globalTerm);
 			this.renderDocRows();
+			this.listEl.scrollTop = scrollTop;
 			return;
 		}
 
@@ -358,6 +362,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		});
 
 		this.renderDocRows();
+		this.listEl.scrollTop = scrollTop;
 	}
 
 	renderDocRows () {
