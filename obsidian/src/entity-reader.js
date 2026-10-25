@@ -1,3 +1,4 @@
+import {Notice} from "obsidian";
 import {loadEntity} from "./entity-loader.js";
 import {escapeHtml, isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
@@ -7,8 +8,10 @@ import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
 import {docFromHref, docFromVetLink} from "./search-index.js";
 import {bindDiceRollers} from "./dice-roll.js";
+import {addCombatants} from "./encounter-view.js";
+import {emptyInstance, getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 
-export async function renderEntityPanel (containerEl, plugin, doc) {
+export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 	containerEl.empty();
 	containerEl.addClass("fiveetools-view");
 
@@ -32,6 +35,10 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 	openBtn.addEventListener("click", () => {
 		window.open(siteUrlForDoc(doc, plugin.settings.imageBaseUrl), "_blank", "noopener");
 	});
+	const addEncounterBtn = isCreatureDoc(doc)
+		? actions.createEl("button", {text: "Add to encounter", cls: "fiveetools-btn fiveetools-btn--ghost"})
+		: null;
+	if (addEncounterBtn) addEncounterBtn.setAttr("disabled", "true");
 
 	const body = containerEl.createDiv({cls: "fiveetools-view__body"});
 	body.setText("Loading…");
@@ -99,15 +106,72 @@ export async function renderEntityPanel (containerEl, plugin, doc) {
 					imageSrc: images[0] ? await cachedMediaSrc(plugin, toPreviewSrc(images[0])) : "",
 				});
 			});
+			if (addEncounterBtn && isCreatureEntity(loaded.ent, doc)) {
+				addEncounterBtn.removeAttribute("disabled");
+				addEncounterBtn.addEventListener("click", async () => {
+					addEncounterBtn.setAttr("disabled", "true");
+					try {
+						const next = await addCreatureToEncounter(plugin, doc);
+						new Notice(`Added ${doc.n || loaded.ent.name || "creature"} to encounter.`);
+						opts.onAddedToEncounter?.(next);
+					} catch (e) {
+						new Notice(e.message || "Could not add to encounter.");
+					} finally {
+						addEncounterBtn.removeAttribute("disabled");
+					}
+				});
+			} else if (addEncounterBtn) {
+				addEncounterBtn.remove();
+			}
 		} else {
 			insertBtn.setAttr("disabled", "true");
+			addEncounterBtn?.remove();
 			body.createEl("p", {text: `No JSON found for ${doc.n}.`});
 		}
 	} catch (e) {
 		insertBtn.setAttr("disabled", "true");
+		addEncounterBtn?.remove();
 		body.empty();
 		body.createEl("p", {text: `Failed to load: ${e.message}`});
 	}
+}
+
+function isCreatureDoc (doc) {
+	if (!doc) return false;
+	if (Number(doc.c) === 1) return true;
+	return String(doc.cf || "").toLowerCase() === "bestiary";
+}
+
+function isCreatureEntity (ent, doc) {
+	if (ent?.__prop === "monster") return true;
+	return isCreatureDoc(doc);
+}
+
+function encounterSessionForAdd (plugin) {
+	const session = plugin._encounterSession || getEncounterInstance() || emptyInstance();
+	const hasRoster = !!(session.combatants || []).length;
+	const hasIdentity = !!(session.savedId || String(session.name || "").trim());
+	if (!hasRoster && !hasIdentity) return {...emptyInstance(), party: session.party || emptyInstance().party};
+	return {
+		...emptyInstance(),
+		...session,
+		combatants: [...(session.combatants || [])],
+		party: session.party || emptyInstance().party,
+	};
+}
+
+async function addCreatureToEncounter (plugin, doc) {
+	const session = encounterSessionForAdd(plugin);
+	const added = await addCombatants(session, doc, 1);
+	const next = {
+		...session,
+		combatants: added.combatants,
+		selectedId: added.selectedId,
+	};
+	plugin._encounterSession = next;
+	setEncounterInstance(next);
+	queueSaveEncountersToVault(plugin);
+	return next;
 }
 
 export function bindInternalLinks (el, plugin) {

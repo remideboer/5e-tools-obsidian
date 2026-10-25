@@ -255,7 +255,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				session,
 				plugin: this.plugin,
 				app: this.app,
-				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
+				onOpenDoc: (doc) => this.openEntityPanel(doc),
 				onSessionChange: (next) => { this.plugin._encounterSession = next; },
 				onSaved: async (saved) => {
 					const ret = this.plugin._campaignReturn;
@@ -289,7 +289,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				session,
 				plugin: this.plugin,
 				app: this.app,
-				onOpenDoc: (doc) => renderEntityPanel(this.readerEl, this.plugin, doc),
+				onOpenDoc: (doc) => this.openEntityPanel(doc),
 				onSessionChange: (next) => { this.plugin._homebrewSession = next; },
 			});
 			this.docs = [];
@@ -425,7 +425,15 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listEl.querySelectorAll(".fiveetools-library__row").forEach(el => el.classList.remove("is-selected"));
 		const idx = this.docs.findIndex(it => it.u === doc.u && it.s === doc.s && it.n === doc.n);
 		if (idx >= 0) this.listEl.children[idx]?.classList.add("is-selected");
-		await renderEntityPanel(this.readerEl, this.plugin, doc);
+		await this.openEntityPanel(doc);
+	}
+
+	openEntityPanel (doc) {
+		return renderEntityPanel(this.readerEl, this.plugin, doc, {
+			onAddedToEncounter: () => {
+				if (this.navId === "encounter") this.selectNav("encounter");
+			},
+		});
 	}
 }
 
