@@ -22,6 +22,14 @@ import {
 	upsertSavedEncounter,
 } from "./encounter-store.js";
 import {encounterDifficulty, normalizeParty} from "./encounter-difficulty.js";
+import {
+	DIFFICULTY_OPTIONS,
+	ENCOUNTER_TYPES,
+	generateRandomEncounter,
+	habitatSelectOptions,
+	SETTING_OPTIONS,
+	THEME_OPTIONS,
+} from "./encounter-random.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
 
 let nextCombatantId = 1;
@@ -261,6 +269,11 @@ export function renderEncounterComposer (formEl, resultEl, {
 	fillNumberSelect(countInput, 1, 10, 1);
 	const blankRow = addRow.createDiv({cls: "fiveetools-encounter__row"});
 	const blankBtn = blankRow.createEl("button", {text: "Blank creature", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+	const randomBtn = blankRow.createEl("button", {
+		text: "Random encounter",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button"},
+	});
 	const hitsEl = addRow.createDiv({cls: "fiveetools-encounter__hits"});
 	const blankEl = composerEl.createDiv({cls: "fiveetools-encounter__blank is-hidden"});
 	const actions = composerEl.createDiv({cls: "fiveetools-encounter__row"});
@@ -586,6 +599,48 @@ export function renderEncounterComposer (formEl, resultEl, {
 			openSelected();
 		}
 	});
+	randomBtn.addEventListener("click", () => {
+		openRandomEncounterModal(app, {
+			party,
+			onGenerate: async (opts) => {
+				const apply = async () => {
+					randomBtn.setAttr("disabled", "true");
+					try {
+						const result = await generateRandomEncounter(opts);
+						combatants = result.combatants;
+						selectedId = result.selectedId;
+						party = normalizeParty(result.party);
+						playersEl.value = String(party.count);
+						levelEl.value = String(party.level);
+						previewKey = null;
+						showBlank = false;
+						emit();
+						paintBlank();
+						paintHits();
+						paintRoster();
+						openSelected();
+						if (result.warning) new Notice(result.warning);
+						else new Notice(`Random encounter: ${result.info.label} (${result.info.totalXp.toLocaleString()} XP)`);
+					} catch (e) {
+						new Notice(e.message || "Could not generate encounter.");
+						throw e;
+					} finally {
+						randomBtn.removeAttribute("disabled");
+					}
+				};
+				if (combatants.length) {
+					confirmAction(app, {
+						title: "Replace encounter?",
+						message: "Random encounter will replace the current roster. Continue?",
+						confirmLabel: "Replace",
+						onConfirm: () => { void apply(); },
+					});
+				} else {
+					await apply();
+				}
+			},
+		});
+	});
 	newBtn.addEventListener("click", () => {
 		combatants = [];
 		selectedId = null;
@@ -754,6 +809,87 @@ class ConfirmActionModal extends Modal {
 	onClose () {
 		this.contentEl.empty();
 	}
+}
+
+class RandomEncounterModal extends Modal {
+	constructor (app, {party, onGenerate}) {
+		super(app);
+		this.party = normalizeParty(party);
+		this.onGenerate = onGenerate;
+	}
+
+	onOpen () {
+		const {contentEl} = this;
+		contentEl.empty();
+		contentEl.addClass("fiveetools-encounter-random");
+		contentEl.createEl("h2", {text: "Random encounter"});
+		contentEl.createEl("p", {
+			cls: "fiveetools-view__meta",
+			text: "Builds a 2024 XP budget for the party size below. Official and homebrew creatures are included.",
+		});
+
+		const form = contentEl.createDiv({cls: "fiveetools-encounter-random__form"});
+		const players = addSelectField(form, "Players", 1, 12, this.party.count);
+		const level = addSelectField(form, "Level", 1, 20, this.party.level);
+		const difficulty = addOptionField(form, "Difficulty", DIFFICULTY_OPTIONS, "moderate");
+		const type = addOptionField(form, "Type", ENCOUNTER_TYPES, "group");
+		const setting = addOptionField(form, "Setting", SETTING_OPTIONS, "");
+		const habitat = addOptionField(form, "Habitat", habitatSelectOptions(), "");
+		const theme = addOptionField(form, "Theme", THEME_OPTIONS, "");
+
+		const actions = contentEl.createDiv({cls: "fiveetools-encounter__row"});
+		const cancel = actions.createEl("button", {text: "Cancel", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+		const ok = actions.createEl("button", {text: "Generate", cls: "fiveetools-btn", attr: {type: "button"}});
+		cancel.addEventListener("click", () => this.close());
+		ok.addEventListener("click", async () => {
+			ok.setAttr("disabled", "true");
+			try {
+				await this.onGenerate?.({
+					party: normalizeParty({count: players.value, level: level.value}),
+					difficulty: difficulty.value || "moderate",
+					type: type.value || "group",
+					setting: setting.value || "",
+					habitat: habitat.value || "",
+					theme: theme.value || "",
+				});
+				this.close();
+			} catch (e) {
+				new Notice(e.message || "Could not generate encounter.");
+				ok.removeAttribute("disabled");
+			}
+		});
+	}
+
+	onClose () {
+		this.contentEl.empty();
+	}
+}
+
+function openRandomEncounterModal (app, {party, onGenerate}) {
+	if (!app) {
+		new Notice("Random encounter needs the Obsidian app.");
+		return;
+	}
+	new RandomEncounterModal(app, {party, onGenerate}).open();
+}
+
+function addSelectField (host, label, min, max, value) {
+	const wrap = host.createDiv({cls: "fiveetools-homebrew__field"});
+	wrap.createEl("label", {text: label});
+	const sel = wrap.createEl("select");
+	fillNumberSelect(sel, min, max, value);
+	return sel;
+}
+
+function addOptionField (host, label, options, value) {
+	const wrap = host.createDiv({cls: "fiveetools-homebrew__field"});
+	wrap.createEl("label", {text: label});
+	const sel = wrap.createEl("select");
+	for (const opt of options) {
+		sel.createEl("option", {attr: {value: String(opt.id)}, text: opt.label});
+	}
+	sel.value = String(value ?? "");
+	return sel;
 }
 
 function confirmAction (app, {title, message, confirmLabel, onConfirm}) {

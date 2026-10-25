@@ -81,7 +81,7 @@ flowchart TB
 | Area | Key files |
 |------|-----------|
 | Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
-| Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js` |
+| Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js`, `encounter-random.js` (Random encounter: 2024 XP shapes, habitat/theme, homebrew) |
 | Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js`; Tools → Dice roller via `dice-roller-view.js` + `dice-icons.js` (polyhedral tap-to-roll, adv/disadv) |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
 | Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |

@@ -1278,6 +1278,21 @@ a.fiveetools-inline-link {
 	margin: 4px 0;
 }
 
+.fiveetools-encounter-random__form {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px 12px;
+	margin: 12px 0 16px;
+}
+
+.fiveetools-encounter-random__form .fiveetools-homebrew__field {
+	margin: 0;
+}
+
+.fiveetools-encounter-random__form select {
+	width: 100%;
+}
+
 .fiveetools-encounter__name,
 .fiveetools-encounter__search {
 	flex: 1;

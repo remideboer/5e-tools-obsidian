@@ -30,6 +30,31 @@ export function xpFromCr (cr) {
 	return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * 2024 (style "one") XP budget band for a party at a difficulty tier.
+ * @param {object} party
+ * @param {"low"|"moderate"|"high"} [tier]
+ * @returns {{min: number, target: number, max: number, budgets: object}}
+ */
+export function xpBudgetRange (party, tier = "moderate") {
+	const {count, level} = normalizeParty(party);
+	const budgets = scaleBudgets(XP_ONE, level, count);
+	budgets.absurd = budgets.high + (budgets.high - budgets.moderate);
+	const key = String(tier || "moderate").toLowerCase();
+	const target = budgets[key] || budgets.moderate || 0;
+	const next = key === "low"
+		? budgets.moderate
+		: key === "moderate"
+			? budgets.high
+			: budgets.absurd;
+	return {
+		min: Math.floor(target * 0.85),
+		target,
+		max: Math.max(target, Math.floor(Number(next) || target)),
+		budgets,
+	};
+}
+
 export function encounterDifficulty ({combatants = [], party, style} = {}) {
 	const {count, level} = normalizeParty(party);
 	const styleHint = style || getStyleHint() || "one";
