@@ -852,6 +852,10 @@ a.fiveetools-inline-link {
 	width: 4.5em;
 }
 
+.fiveetools-dice-roller__mod {
+	min-width: 4.5em;
+}
+
 .fiveetools-dice-roller__flags {
 	display: flex;
 	flex-wrap: wrap;

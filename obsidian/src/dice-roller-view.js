@@ -7,6 +7,7 @@ export function emptyDiceSession () {
 	return {
 		amount: "1",
 		customAmount: 1,
+		modifier: 0,
 		advantage: false,
 		disadvantage: false,
 		history: [],
@@ -32,6 +33,7 @@ export function renderDiceRoller (listEl, readerEl, {
 	const state = {
 		amount: String(session.amount ?? "1"),
 		customAmount: clampAmount(session.customAmount ?? 1),
+		modifier: clampModifier(session.modifier ?? 0),
 		advantage: !!session.advantage,
 		disadvantage: !!session.disadvantage && !session.advantage,
 		history: Array.isArray(session.history) ? [...session.history] : [],
@@ -41,6 +43,7 @@ export function renderDiceRoller (listEl, readerEl, {
 		onSessionChange?.({
 			amount: state.amount,
 			customAmount: state.customAmount,
+			modifier: state.modifier,
 			advantage: state.advantage,
 			disadvantage: state.disadvantage,
 			history: state.history,
@@ -88,6 +91,21 @@ export function renderDiceRoller (listEl, readerEl, {
 	customInput.addEventListener("change", () => {
 		state.customAmount = clampAmount(customInput.value);
 		customInput.value = String(state.customAmount);
+		emit();
+	});
+
+	amountRow.createEl("label", {text: "Mod", cls: "fiveetools-dice-roller__label"});
+	const modSel = amountRow.createEl("select", {
+		cls: "fiveetools-dice-roller__mod",
+		attr: {"aria-label": "Modifier"},
+	});
+	for (let m = -5; m <= 10; m++) {
+		const label = m > 0 ? `+${m}` : String(m);
+		const opt = modSel.createEl("option", {text: label, attr: {value: String(m)}});
+		if (state.modifier === m) opt.selected = true;
+	}
+	modSel.addEventListener("change", () => {
+		state.modifier = clampModifier(modSel.value);
 		emit();
 	});
 
@@ -166,21 +184,30 @@ export function renderDiceRoller (listEl, readerEl, {
 }
 
 function rollDie (faces, state) {
+	const modStr = formatMod(state.modifier);
 	// Adv/disadv is a single d20 check (amount ignored while either flag is on).
 	if (Number(faces) === 20 && (state.advantage || state.disadvantage)) {
+		const toRoll = `1d20${modStr}`;
 		return rollPacked({
-			toRoll: "1d20",
+			toRoll,
+			d20mod: modStr,
 			subType: "d20",
-			name: "1d20",
-			displayText: "1d20",
+			name: toRoll,
+			displayText: toRoll,
 		}, {
 			shiftKey: !!state.advantage,
 			ctrlKey: !!state.disadvantage,
 		});
 	}
 	const n = resolvedAmount(state);
-	const toRoll = `${n}d${faces}`;
+	const toRoll = `${n}d${faces}${modStr}`;
 	return rollPacked({toRoll, name: toRoll, displayText: toRoll}, {});
+}
+
+function formatMod (mod) {
+	const n = clampModifier(mod);
+	if (!n) return "";
+	return n > 0 ? `+${n}` : String(n);
 }
 
 function resolvedAmount (state) {
@@ -192,6 +219,12 @@ function clampAmount (value) {
 	const n = Math.floor(Number(value));
 	if (!Number.isFinite(n) || n < 1) return 1;
 	return Math.min(99, n);
+}
+
+function clampModifier (value) {
+	const n = Math.floor(Number(value));
+	if (!Number.isFinite(n)) return 0;
+	return Math.max(-5, Math.min(10, n));
 }
 
 function paintHistory (readerEl, history) {
