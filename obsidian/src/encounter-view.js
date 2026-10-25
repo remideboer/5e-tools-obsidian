@@ -123,7 +123,7 @@ export function listKindGroups (list) {
 	}
 	return groups.map((g) => {
 		const first = g.members[0];
-		const scores = g.members.map(it => it.initScore).filter(n => Number.isFinite(Number(n)));
+		const scores = g.members.map(it => finiteScore(it.initScore)).filter(n => n != null);
 		return {
 			key: g.key,
 			label: groupBaseLabel(first),
@@ -131,7 +131,7 @@ export function listKindGroups (list) {
 			bonus: first?.initiative ?? null,
 			dex: combatantDex(first),
 			passive: combatantPassive(first),
-			initScore: scores.length ? Number(scores[0]) : null,
+			initScore: scores.length ? scores[0] : null,
 		};
 	});
 }
@@ -146,11 +146,11 @@ export function sortGroupsByDex (groups) {
 
 export function sortGroupsByInitiative (groups) {
 	return [...groups].sort((a, b) => {
-		const sa = a.initScore;
-		const sb = b.initScore;
-		const aHas = Number.isFinite(Number(sa));
-		const bHas = Number.isFinite(Number(sb));
-		if (aHas && bHas && Number(sa) !== Number(sb)) return Number(sb) - Number(sa);
+		const sa = finiteScore(a.initScore);
+		const sb = finiteScore(b.initScore);
+		const aHas = sa != null;
+		const bHas = sb != null;
+		if (aHas && bHas && sa !== sb) return sb - sa;
 		if (aHas && !bHas) return -1;
 		if (!aHas && bHas) return 1;
 		const da = a.dex ?? -Infinity;
@@ -172,10 +172,17 @@ export function sortCombatantsByDex (list) {
 }
 
 export function applyGroupInitScore (combatants, key, score) {
-	const n = Number(score);
+	const n = finiteScore(score);
 	for (const c of combatants || []) {
-		if (kindKey(c) === key) c.initScore = Number.isFinite(n) ? n : null;
+		if (kindKey(c) === key) c.initScore = n;
 	}
+}
+
+/** Reject null/"" — Number(null) is 0 and must not count as a rolled score. */
+function finiteScore (v) {
+	if (v == null || v === "") return null;
+	const n = Number(v);
+	return Number.isFinite(n) ? n : null;
 }
 
 function combatantDex (combatant) {
@@ -287,14 +294,16 @@ function sharedInitScoreForDoc (combatants, doc, ent = null) {
 	const probe = {doc: serializeDoc(doc), ent, label: doc?.n || ent?.name};
 	const key = kindKey(probe);
 	for (const c of combatants || []) {
-		if (kindKey(c) === key && Number.isFinite(Number(c.initScore))) return Number(c.initScore);
+		if (kindKey(c) !== key) continue;
+		const score = finiteScore(c.initScore);
+		if (score != null) return score;
 	}
 	return null;
 }
 
 /** Keep initiative order if any scores exist; otherwise default Dex grouping. */
 function finalizeRosterOrder (combatants) {
-	const hasScores = (combatants || []).some(c => Number.isFinite(Number(c.initScore)));
+	const hasScores = (combatants || []).some(c => finiteScore(c.initScore) != null);
 	if (hasScores) {
 		return reorderCombatantsByGroups(sortGroupsByInitiative(listKindGroups(combatants)));
 	}
@@ -858,7 +867,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 			}
 		}
 		for (const left of byId.values()) restored.push(left);
+		for (const c of restored) c.initScore = null;
 		combatants = groupCombatants(restored);
+		initOrderBaseline = null;
 		emit();
 		paintRoster();
 	});
