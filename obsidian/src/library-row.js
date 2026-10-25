@@ -103,8 +103,9 @@ export function paintLibraryRow (rowEl, doc) {
 	if (packed.sub) {
 		rowEl.createEl("div", {cls: "fiveetools-library__row-sub", text: packed.sub});
 	}
+	// Native title only — Obsidian turns aria-label into a second black tooltip.
 	rowEl.setAttr("title", packed.tooltip);
-	rowEl.setAttr("aria-label", packed.tooltip);
+	rowEl.removeAttribute("aria-label");
 }
 
 function rowKind (doc) {
@@ -135,6 +136,8 @@ function packRow (doc, kind) {
 		const tipParts = [
 			name,
 			cr ? `CR ${cr}` : "",
+			meta?.hp != null ? `HP ${meta.hp}` : "",
+			meta?.ac != null ? `AC ${meta.ac}` : "",
 			type,
 			alignFull,
 			source || category,

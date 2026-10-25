@@ -70,6 +70,8 @@ export function monsterMetaFromEnt (ent) {
 		types: typeKeys(ent),
 		sizes: sizeKeys(ent),
 		alignments: alignmentKeys(ent),
+		hp: hpAverage(ent),
+		ac: acPrimary(ent),
 		copy: ent?._copy?.name
 			? {name: ent._copy.name, source: ent._copy.source || ent.source}
 			: null,
@@ -166,7 +168,10 @@ function metaKey (id, source) {
 
 function inheritMeta (meta, map, depth = 0) {
 	if (!meta || depth > 6) return meta;
-	if (meta.cr && meta.types.length && meta.sizes.length && meta.alignments.length) return meta;
+	if (
+		meta.cr && meta.types.length && meta.sizes.length && meta.alignments.length
+		&& meta.hp != null && meta.ac != null
+	) return meta;
 	if (!meta.copy) {
 		if (!meta.cr) meta.cr = "0";
 		return meta;
@@ -181,8 +186,29 @@ function inheritMeta (meta, map, depth = 0) {
 	if (!meta.types.length) meta.types = [...parent.types];
 	if (!meta.sizes.length) meta.sizes = [...parent.sizes];
 	if (!meta.alignments.length) meta.alignments = [...parent.alignments];
+	if (meta.hp == null) meta.hp = parent.hp;
+	if (meta.ac == null) meta.ac = parent.ac;
 	if (!meta.cr) meta.cr = "0";
 	return meta;
+}
+
+function hpAverage (ent) {
+	const hp = ent?.hp;
+	if (hp == null) return null;
+	if (typeof hp === "number" && Number.isFinite(hp)) return hp;
+	const avg = Number(hp.average);
+	return Number.isFinite(avg) ? avg : null;
+}
+
+function acPrimary (ent) {
+	const ac = ent?.ac;
+	if (ac == null) return null;
+	if (typeof ac === "number" && Number.isFinite(ac)) return ac;
+	if (!Array.isArray(ac) || !ac.length) return null;
+	const first = ac[0];
+	if (typeof first === "number" && Number.isFinite(first)) return first;
+	const n = Number(first?.ac);
+	return Number.isFinite(n) ? n : null;
 }
 
 function typeKeys (ent) {
