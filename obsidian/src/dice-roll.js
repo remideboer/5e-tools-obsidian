@@ -31,6 +31,7 @@ export function rollPacked (entry, evt = {}) {
 		diceTotal: lastOnce.diceTotal,
 		mod: lastOnce.mod,
 		subType: packed.subType || "",
+		context: packed.context || null,
 		mode: rollMode(packed.subType, shiftKey, ctrlKey),
 	};
 }
@@ -53,6 +54,11 @@ export function rollInitiative (bonus, evt = {}, label = "Initiative") {
 
 export function formatRollNotice (result) {
 	if (result?.total == null) return "Could not roll.";
+	if (result.context?.type === "hit") {
+		const nat = Number(result.diceTotal);
+		if (nat === 1) return "1 : FAIL!";
+		if (nat === 20) return "20 : CRITICAL!";
+	}
 	const mode = result.mode ? ` (${result.mode})` : "";
 	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
 	const mod = Number(result.mod) || 0;

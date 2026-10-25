@@ -222,7 +222,12 @@ function jpegWithDpi (dpi) {
 	if (initRoll.dice.length !== 1 || initRoll.total < 3 || initRoll.total > 22) throw new Error(`initiative ${JSON.stringify(initRoll)}`);
 	const notice = host.formatRollNotice(hitRoll);
 	const hitDie = hitRoll.diceTotal;
-	if (notice !== `${hitDie} + 5: ${hitRoll.total}`) throw new Error(`hit notice ${notice}`);
+	const expectHit = hitDie === 1
+		? "1 : FAIL!"
+		: hitDie === 20
+			? "20 : CRITICAL!"
+			: `${hitDie} + 5: ${hitRoll.total}`;
+	if (notice !== expectHit) throw new Error(`hit notice ${notice}`);
 	const dmgNotice = host.formatRollNotice(host.rollPacked(Renderer.utils.getTagEntry("@damage", "2d6+3")));
 	if (/d6/i.test(dmgNotice) || !/\d+ \+ 3: \d+/.test(dmgNotice)) throw new Error(`damage notice ${dmgNotice}`);
 	const dice3d = path.join(pluginDir, "dice", "dice-3d.js");
