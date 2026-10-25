@@ -19,6 +19,7 @@ export function emptyInstance () {
 		showBlank: false,
 		blankDraft: null,
 		saveToHomebrew: false,
+		initOrderBaseline: null,
 	};
 }
 
@@ -110,7 +111,7 @@ export function getSavedEncounter (id) {
 	return hit ? copyJson(hit) : null;
 }
 
-export function upsertSavedEncounter ({id, name, combatants, selectedId, party} = {}) {
+export function upsertSavedEncounter ({id, name, combatants, selectedId, party, initOrderBaseline} = {}) {
 	const trimmed = String(name || "").trim();
 	if (!trimmed) throw new Error("Name is required.");
 	const catalog = normalizeCatalog(catalogJson);
@@ -125,6 +126,7 @@ export function upsertSavedEncounter ({id, name, combatants, selectedId, party} 
 		selectedId: selectedId || null,
 		party: normalizeParty(party),
 		combatants: cloneCombatants(combatants),
+		initOrderBaseline: Array.isArray(initOrderBaseline) ? initOrderBaseline.map(String) : null,
 	};
 	if (ix >= 0) catalog.encounters[ix] = saved;
 	else catalog.encounters.push(saved);
@@ -161,6 +163,7 @@ function normalizeEncounter (raw) {
 		selectedId: raw.selectedId || null,
 		party: normalizeParty(raw.party),
 		combatants: cloneCombatants(raw.combatants),
+		initOrderBaseline: Array.isArray(raw.initOrderBaseline) ? raw.initOrderBaseline.map(String) : null,
 	};
 }
 
@@ -176,6 +179,7 @@ function normalizeInstance (raw) {
 		showBlank: !!raw.showBlank,
 		blankDraft: raw.blankDraft ? copyJson(raw.blankDraft) : null,
 		saveToHomebrew: !!raw.saveToHomebrew,
+		initOrderBaseline: Array.isArray(raw.initOrderBaseline) ? raw.initOrderBaseline.map(String) : null,
 	};
 }
 

@@ -84,7 +84,9 @@ export function snapshotCombatants (combatants) {
 		ac: it.ac ?? null,
 		cr: it.cr ?? "",
 		dex: it.dex ?? null,
+		passive: it.passive ?? null,
 		initiative: it.initiative ?? null,
+		initScore: it.initScore ?? null,
 		doc: it.doc ? {n: it.doc.n, u: it.doc.u, s: it.doc.s, c: it.doc.c, cf: it.doc.cf, sA: it.doc.sA} : null,
 	}));
 }

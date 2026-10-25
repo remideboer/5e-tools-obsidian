@@ -81,6 +81,21 @@ export function dexFromEnt (ent) {
 	return Number.isFinite(n) ? n : null;
 }
 
+export function passiveFromEnt (ent) {
+	if (ent?.passive != null) {
+		const n = Number(ent.passive);
+		if (Number.isFinite(n)) return n;
+	}
+	if (typeof ent?.wis === "number") {
+		const Parser = globalThis.Parser;
+		const mod = Parser?.getAbilityModNumber
+			? Parser.getAbilityModNumber(ent.wis)
+			: Math.floor((ent.wis - 10) / 2);
+		return 10 + (Number.isFinite(mod) ? mod : 0);
+	}
+	return null;
+}
+
 export function kindKey (combatant) {
 	if (combatant?.doc?.u && combatant?.doc?.s) return `${combatant.doc.u}|${combatant.doc.s}`;
 	const custom = String(combatant?.ent?.name || "").trim();
@@ -88,23 +103,88 @@ export function kindKey (combatant) {
 	return String(combatant?.label || "").replace(/\s+\d+$/, "").trim().toLowerCase() || "creature";
 }
 
-export function groupCombatants (list) {
+export function groupBaseLabel (combatant) {
+	return String(combatant?.doc?.n || combatant?.ent?.name || combatant?.label || "Creature")
+		.replace(/\s+\d+$/, "")
+		.trim() || "Creature";
+}
+
+/** Cluster by kind, preserving first-seen group order (no Dex re-sort). */
+export function listKindGroups (list) {
 	const groups = [];
 	const ix = new Map();
 	for (const combatant of list || []) {
 		const key = kindKey(combatant);
 		if (!ix.has(key)) {
 			ix.set(key, groups.length);
-			groups.push([]);
+			groups.push({key, members: []});
 		}
-		groups[ix.get(key)].push(combatant);
+		groups[ix.get(key)].members.push(combatant);
 	}
-	groups.sort((a, b) => (combatantDex(b[0]) ?? -Infinity) - (combatantDex(a[0]) ?? -Infinity));
-	return groups.flat();
+	return groups.map((g) => {
+		const first = g.members[0];
+		const scores = g.members.map(it => it.initScore).filter(n => Number.isFinite(Number(n)));
+		return {
+			key: g.key,
+			label: groupBaseLabel(first),
+			members: g.members,
+			bonus: first?.initiative ?? null,
+			dex: combatantDex(first),
+			passive: combatantPassive(first),
+			initScore: scores.length ? Number(scores[0]) : null,
+		};
+	});
+}
+
+export function groupCombatants (list) {
+	return listKindGroups(list).flatMap(g => g.members);
+}
+
+export function sortGroupsByDex (groups) {
+	return [...groups].sort((a, b) => (b.dex ?? -Infinity) - (a.dex ?? -Infinity));
+}
+
+export function sortGroupsByInitiative (groups) {
+	return [...groups].sort((a, b) => {
+		const sa = a.initScore;
+		const sb = b.initScore;
+		const aHas = Number.isFinite(Number(sa));
+		const bHas = Number.isFinite(Number(sb));
+		if (aHas && bHas && Number(sa) !== Number(sb)) return Number(sb) - Number(sa);
+		if (aHas && !bHas) return -1;
+		if (!aHas && bHas) return 1;
+		const da = a.dex ?? -Infinity;
+		const db = b.dex ?? -Infinity;
+		if (da !== db) return db - da;
+		const pa = a.passive ?? -Infinity;
+		const pb = b.passive ?? -Infinity;
+		if (pa !== pb) return pb - pa;
+		return String(a.label || "").localeCompare(String(b.label || ""), undefined, {sensitivity: "base"});
+	});
+}
+
+export function reorderCombatantsByGroups (groups) {
+	return (groups || []).flatMap(g => g.members || []);
+}
+
+export function sortCombatantsByDex (list) {
+	return reorderCombatantsByGroups(sortGroupsByDex(listKindGroups(list)));
+}
+
+export function applyGroupInitScore (combatants, key, score) {
+	const n = Number(score);
+	for (const c of combatants || []) {
+		if (kindKey(c) === key) c.initScore = Number.isFinite(n) ? n : null;
+	}
 }
 
 function combatantDex (combatant) {
 	const n = combatant?.dex ?? dexFromEnt(combatant?.ent);
+	return Number.isFinite(Number(n)) ? Number(n) : null;
+}
+
+function combatantPassive (combatant) {
+	const n = combatant?.passive ?? passiveFromEnt(combatant?.ent);
 	return Number.isFinite(Number(n)) ? Number(n) : null;
 }
 
@@ -132,8 +212,10 @@ export async function addCombatants (session, doc, count = 1) {
 	const ac = acFromEnt(ent);
 	const initiative = initiativeFromEnt(ent);
 	const dex = dexFromEnt(ent);
+	const passive = passiveFromEnt(ent);
 	const combatants = [...(session?.combatants || [])];
 	bumpIdCounter(combatants);
+	const existingScore = sharedInitScoreForDoc(combatants, doc);
 	const added = [];
 	for (let i = 0; i < n; i++) {
 		const combatant = {
@@ -146,12 +228,14 @@ export async function addCombatants (session, doc, count = 1) {
 			ac,
 			initiative,
 			dex,
+			passive,
+			initScore: existingScore,
 		};
 		combatants.push(combatant);
 		added.push(combatant);
 	}
 	return {
-		combatants: groupCombatants(combatants),
+		combatants: finalizeRosterOrder(combatants),
 		selectedId: added[added.length - 1].id,
 		added,
 	};
@@ -167,8 +251,10 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 	const ac = acFromEnt(ent);
 	const initiative = initiativeFromEnt(ent);
 	const dex = dexFromEnt(ent);
+	const passive = passiveFromEnt(ent);
 	const combatants = [...(session?.combatants || [])];
 	bumpIdCounter(combatants);
+	const existingScore = sharedInitScoreForDoc(combatants, doc, ent);
 	const added = [];
 	const snapshot = JSON.parse(JSON.stringify(ent));
 	for (let i = 0; i < n; i++) {
@@ -184,15 +270,35 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 			ac,
 			initiative,
 			dex,
+			passive,
+			initScore: existingScore,
 		};
 		combatants.push(combatant);
 		added.push(combatant);
 	}
 	return {
-		combatants: groupCombatants(combatants),
+		combatants: finalizeRosterOrder(combatants),
 		selectedId: added[added.length - 1].id,
 		added,
 	};
+}
+
+function sharedInitScoreForDoc (combatants, doc, ent = null) {
+	const probe = {doc: serializeDoc(doc), ent, label: doc?.n || ent?.name};
+	const key = kindKey(probe);
+	for (const c of combatants || []) {
+		if (kindKey(c) === key && Number.isFinite(Number(c.initScore))) return Number(c.initScore);
+	}
+	return null;
+}
+
+/** Keep initiative order if any scores exist; otherwise default Dex grouping. */
+function finalizeRosterOrder (combatants) {
+	const hasScores = (combatants || []).some(c => Number.isFinite(Number(c.initScore)));
+	if (hasScores) {
+		return reorderCombatantsByGroups(sortGroupsByInitiative(listKindGroups(combatants)));
+	}
+	return sortCombatantsByDex(combatants);
 }
 
 export function adjustHp (current, max, delta) {
@@ -222,6 +328,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let showBlank = !!session?.showBlank;
 	let blankDraft = normalizeMonsterForm(session?.blankDraft || emptyForm("monster"));
 	let saveToHomebrew = !!session?.saveToHomebrew;
+	let initOrderBaseline = Array.isArray(session?.initOrderBaseline)
+		? session.initOrderBaseline.map(String)
+		: null;
 	bumpIdCounter(combatants);
 
 	const composerEl = formEl.createDiv({cls: "fiveetools-encounter__composer"});
@@ -280,13 +389,31 @@ export function renderEncounterComposer (formEl, resultEl, {
 	const clearBtn = actions.createEl("button", {text: "Clear encounter", cls: "fiveetools-btn fiveetools-btn--ghost"});
 
 	const creaturesEl = formEl.createDiv({cls: "fiveetools-encounter__creatures"});
-	creaturesEl.createEl("h3", {text: "Creatures"});
+	const creaturesHead = creaturesEl.createDiv({cls: "fiveetools-encounter__creatures-head"});
+	creaturesHead.createEl("h3", {text: "Creatures"});
+	const initToolbar = creaturesHead.createDiv({cls: "fiveetools-encounter__init-toolbar"});
+	const rollAllBtn = initToolbar.createEl("button", {
+		text: "Roll initiative",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Roll initiative for each creature group"},
+	});
+	const resetOrderBtn = initToolbar.createEl("button", {
+		text: "Reset order",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Restore order from before initiative"},
+	});
 	const rosterEl = creaturesEl.createDiv({cls: "fiveetools-encounter__roster"});
+
+	const syncInitToolbar = () => {
+		rollAllBtn.toggleAttribute("disabled", !combatants.length);
+		resetOrderBtn.toggleAttribute("disabled", !initOrderBaseline?.length);
+	};
 
 	const emit = () => {
 		clearBtn.toggleAttribute("disabled", !combatants.length);
 		loadBtn.toggleAttribute("disabled", !pickedId);
 		deleteBtn.toggleAttribute("disabled", !pickedId);
+		syncInitToolbar();
 		paintDifficulty();
 		const next = {
 			combatants: cloneCombatants(combatants),
@@ -298,6 +425,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			showBlank,
 			blankDraft: normalizeMonsterForm(blankDraft),
 			saveToHomebrew,
+			initOrderBaseline: initOrderBaseline ? [...initOrderBaseline] : null,
 		};
 		onSessionChange?.(next);
 		setEncounterInstance(next);
@@ -367,46 +495,102 @@ export function renderEncounterComposer (formEl, resultEl, {
 		});
 	};
 
+	const captureBaselineIfNeeded = () => {
+		if (!initOrderBaseline?.length) {
+			initOrderBaseline = combatants.map(it => it.id);
+		}
+	};
+
+	const rollGroupInitiative = async (group, {reorder = false} = {}) => {
+		const label = group.members.length > 1
+			? `${group.label} ×${group.members.length}`
+			: group.label;
+		const result = rollInitiative(group.bonus, {}, `${label} initiative`);
+		await presentRoll(plugin, result);
+		const score = Number(result?.total);
+		if (!Number.isFinite(score)) return;
+		applyGroupInitScore(combatants, group.key, score);
+		if (reorder) {
+			captureBaselineIfNeeded();
+			combatants = reorderCombatantsByGroups(sortGroupsByInitiative(listKindGroups(combatants)));
+		}
+		emit();
+		paintRoster();
+	};
+
 	const paintRoster = () => {
-		const grouped = groupCombatants(combatants);
-		const changed = grouped.length !== combatants.length
-			|| grouped.some((it, i) => it.id !== combatants[i]?.id);
-		combatants = grouped;
+		const groups = listKindGroups(combatants);
+		const flat = reorderCombatantsByGroups(groups);
+		const changed = flat.length !== combatants.length
+			|| flat.some((it, i) => it.id !== combatants[i]?.id);
+		combatants = flat;
 		if (changed) emit();
+		else syncInitToolbar();
 		const scrollTop = rosterEl.scrollTop || 0;
 		rosterEl.empty();
 		if (!combatants.length) {
 			rosterEl.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures yet."});
+			syncInitToolbar();
 			return;
 		}
-		for (const combatant of combatants) {
-			renderCombatantRow(rosterEl, combatant, {
-				app,
-				plugin,
-				selected: !previewKey && combatant.id === selectedId,
-				onSelect: () => {
-					previewKey = null;
-					selectedId = combatant.id;
-					emit();
-					paintHits();
-					syncRosterSelection();
-					openSelected();
-				},
-				onHp: (nextHp) => {
-					combatant.hpCurrent = nextHp;
-					emit();
-					paintRoster();
-				},
-				onRemove: () => {
-					combatants = combatants.filter(it => it.id !== combatant.id);
-					if (selectedId === combatant.id) {
-						selectedId = combatants[combatants.length - 1]?.id || null;
-					}
-					emit();
-					paintRoster();
-					openSelected();
-				},
+		for (const group of listKindGroups(combatants)) {
+			const shell = rosterEl.createDiv({cls: "fiveetools-encounter__group"});
+			const head = shell.createDiv({cls: "fiveetools-encounter__group-head"});
+			const title = head.createDiv({cls: "fiveetools-encounter__group-title"});
+			title.createEl("span", {
+				cls: "fiveetools-encounter__group-name",
+				text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
 			});
+			const headActions = head.createDiv({cls: "fiveetools-encounter__group-actions"});
+			const initBtn = headActions.createEl("button", {
+				text: `Init ${formatBonus(group.bonus)}`,
+				cls: "fiveetools-encounter__init",
+				attr: {type: "button", title: "Roll initiative for this group"},
+			});
+			initBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				void rollGroupInitiative(group, {reorder: false});
+			});
+			headActions.createEl("span", {
+				cls: `fiveetools-encounter__init-score${group.initScore != null ? " has-score" : ""}`,
+				text: group.initScore != null ? String(group.initScore) : "—",
+				attr: {title: "Initiative score"},
+			});
+			const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
+			for (const combatant of group.members) {
+				renderCombatantRow(body, combatant, {
+					app,
+					plugin,
+					selected: !previewKey && combatant.id === selectedId,
+					onSelect: () => {
+						previewKey = null;
+						selectedId = combatant.id;
+						emit();
+						paintHits();
+						syncRosterSelection();
+						openSelected();
+					},
+					onHp: (nextHp) => {
+						combatant.hpCurrent = nextHp;
+						emit();
+						paintRoster();
+					},
+					onRemove: () => {
+						combatants = combatants.filter(it => it.id !== combatant.id);
+						if (selectedId === combatant.id) {
+							selectedId = combatants[combatants.length - 1]?.id || null;
+						}
+						if (initOrderBaseline?.length) {
+							initOrderBaseline = initOrderBaseline.filter(id => id !== combatant.id);
+							if (!initOrderBaseline.length) initOrderBaseline = null;
+						}
+						emit();
+						paintRoster();
+						openSelected();
+					},
+				});
+			}
 		}
 		rosterEl.scrollTop = scrollTop;
 	};
@@ -505,6 +689,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 		savedId = saved.id;
 		pickedId = saved.id;
 		previewKey = null;
+		initOrderBaseline = Array.isArray(saved.initOrderBaseline)
+			? saved.initOrderBaseline.map(String)
+			: null;
 		nameEl.value = name;
 		playersEl.value = String(party.count);
 		levelEl.value = String(party.level);
@@ -614,6 +801,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 						levelEl.value = String(party.level);
 						previewKey = null;
 						showBlank = false;
+						initOrderBaseline = null;
 						emit();
 						paintBlank();
 						paintHits();
@@ -641,6 +829,45 @@ export function renderEncounterComposer (formEl, resultEl, {
 			},
 		});
 	});
+	rollAllBtn.addEventListener("click", async () => {
+		const groups = listKindGroups(combatants);
+		if (!groups.length) return;
+		rollAllBtn.setAttr("disabled", "true");
+		try {
+			captureBaselineIfNeeded();
+			for (const group of groups) {
+				const label = group.members.length > 1
+					? `${group.label} ×${group.members.length}`
+					: group.label;
+				const result = rollInitiative(group.bonus, {}, `${label} initiative`);
+				await presentRoll(plugin, result);
+				const score = Number(result?.total);
+				if (Number.isFinite(score)) applyGroupInitScore(combatants, group.key, score);
+			}
+			combatants = reorderCombatantsByGroups(sortGroupsByInitiative(listKindGroups(combatants)));
+			emit();
+			paintRoster();
+		} finally {
+			rollAllBtn.removeAttribute("disabled");
+			syncInitToolbar();
+		}
+	});
+	resetOrderBtn.addEventListener("click", () => {
+		if (!initOrderBaseline?.length) return;
+		const byId = new Map(combatants.map(it => [it.id, it]));
+		const restored = [];
+		for (const id of initOrderBaseline) {
+			const hit = byId.get(id);
+			if (hit) {
+				restored.push(hit);
+				byId.delete(id);
+			}
+		}
+		for (const left of byId.values()) restored.push(left);
+		combatants = groupCombatants(restored);
+		emit();
+		paintRoster();
+	});
 	newBtn.addEventListener("click", () => {
 		combatants = [];
 		selectedId = null;
@@ -651,6 +878,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		showBlank = false;
 		blankDraft = emptyForm("monster");
 		saveToHomebrew = false;
+		initOrderBaseline = null;
 		cancelBlankPreview();
 		nameEl.value = "";
 		emit();
@@ -668,6 +896,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 				combatants,
 				selectedId,
 				party,
+				initOrderBaseline,
 			});
 			await saveEncountersToVault(plugin);
 			savedId = saved.id;
@@ -706,6 +935,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		combatants = [];
 		selectedId = null;
 		previewKey = null;
+		initOrderBaseline = null;
 		emit();
 		paintHits();
 		paintRoster();
@@ -727,7 +957,7 @@ export function renderCombatantRow (parent, combatant, {app, plugin, selected, o
 		attr: {"data-id": combatant.id},
 	});
 	row.addEventListener("click", (evt) => {
-		if (evt.target.closest(".fiveetools-encounter__hp, .fiveetools-encounter__init")) return;
+		if (evt.target.closest(".fiveetools-encounter__hp")) return;
 		onSelect();
 	});
 
@@ -740,18 +970,12 @@ export function renderCombatantRow (parent, combatant, {app, plugin, selected, o
 	const stats = name.createDiv({cls: "fiveetools-encounter__stats"});
 	stats.createEl("span", {text: `AC ${combatant.ac != null ? combatant.ac : "—"}`});
 	stats.createEl("span", {text: `HP ${combatant.hpCurrent}/${combatant.hpMax}`});
-	const initBtn = stats.createEl("button", {
-		text: `Init ${formatBonus(combatant.initiative)}`,
-		cls: "fiveetools-encounter__init",
-		attr: {type: "button", title: "Roll initiative"},
-	});
-	initBtn.addEventListener("click", (evt) => {
-		evt.preventDefault();
-		evt.stopPropagation();
-		presentRoll(plugin, rollInitiative(combatant.initiative, evt, `${combatant.label} initiative`));
-	});
 	const dex = combatant.dex ?? dexFromEnt(combatant.ent);
-	stats.createEl("span", {text: dex != null ? String(dex) : "—", attr: {title: "Passive initiative"}});
+	stats.createEl("span", {text: dex != null ? `Dex ${dex}` : "Dex —", attr: {title: "Dexterity"}});
+	const passive = combatant.passive ?? passiveFromEnt(combatant.ent);
+	if (passive != null) {
+		stats.createEl("span", {text: `Perc ${passive}`, attr: {title: "Passive Perception"}});
+	}
 
 	const hp = row.createDiv({cls: "fiveetools-encounter__hp"});
 	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
@@ -955,7 +1179,10 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.acFromEnt = acFromEnt;
 	globalThis.FiveEToolsObsidian.initiativeFromEnt = initiativeFromEnt;
 	globalThis.FiveEToolsObsidian.dexFromEnt = dexFromEnt;
+	globalThis.FiveEToolsObsidian.passiveFromEnt = passiveFromEnt;
 	globalThis.FiveEToolsObsidian.groupCombatants = groupCombatants;
+	globalThis.FiveEToolsObsidian.listKindGroups = listKindGroups;
+	globalThis.FiveEToolsObsidian.sortGroupsByInitiative = sortGroupsByInitiative;
 	globalThis.FiveEToolsObsidian.adjustHp = adjustHp;
 	globalThis.FiveEToolsObsidian.encounterDifficulty = encounterDifficulty;
 	globalThis.FiveEToolsObsidian.normalizeParty = normalizeParty;
