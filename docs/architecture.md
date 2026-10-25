@@ -76,6 +76,7 @@ flowchart TB
 ```
 
 - **Library / search** — nav from `LIBRARY_NAV`, elasticlunr index, entity render via 5etools host. JSON comes from the vault adapter.
+- **HEIC paste** — optional: HEIC/HEIF pasted or dropped into notes convert to JPEG via bundled `heic/heic2any.js`, then embed as a normal attachment.
 - **Map** — desktop: vault scenes, layers, fog masks, scene-level tokens, GM canvas + player bitmap draw. On mobile the map tools show a notice.
 - **Campaigns / encounters** — vault markdown and encounter store.
 - **Dice** — optional 3D dice; public rolls can target the player window document.

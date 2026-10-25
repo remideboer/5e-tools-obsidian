@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
 	style: "one",
 	dice3d: false,
 	dicePublic: false,
+	convertHeicOnPaste: true,
 };
 
 export const MAX_SEARCH_RESULTS = 40;

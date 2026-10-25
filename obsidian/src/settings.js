@@ -50,6 +50,16 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName("Convert HEIC on paste")
+			.setDesc("Convert HEIC/HEIF images pasted or dropped into notes to JPEG so they display in the note.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.convertHeicOnPaste !== false)
+				.onChange(async (value) => {
+					this.plugin.settings.convertHeicOnPaste = !!value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName("3D dice")
 			.setDesc("Animate predetermined dice in an overlay after a roll. Turn off if WebGL fails.")
 			.addToggle(toggle => toggle

@@ -13,6 +13,7 @@ import {FiveEToolsSettingTab} from "./src/settings.js";
 import {registerLinkSuggest} from "./src/link-suggest.js";
 import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
 import {FiveEToolsMapPlayerView, teardownMapView, toggleMapPlayerZoomFreeze} from "./src/map-view.js";
+import {registerHeicImport} from "./src/heic-import.js";
 
 export default class FiveEToolsPlugin extends Plugin {
 	async onload () {
@@ -21,8 +22,10 @@ export default class FiveEToolsPlugin extends Plugin {
 			delete this.settings.fiveEToolsPath;
 			await this.saveSettings();
 		}
+		if (this.settings.convertHeicOnPaste == null) this.settings.convertHeicOnPaste = true;
 		setStyleHint(this.settings.style);
 		registerFiveEToolsIcon();
+		registerHeicImport(this);
 
 		this.registerView(
 			VIEW_TYPE_FIVEETOOLS,

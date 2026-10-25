@@ -76,6 +76,12 @@ await esbuild.build({
 const notices = path.join(root, "node_modules", "open-dice-dnd", "THIRD_PARTY_NOTICES.txt");
 if (fs.existsSync(notices)) fs.copyFileSync(notices, path.join(diceDir, "THIRD_PARTY_NOTICES.txt"));
 
+const heicDir = path.join(outDir, "heic");
+fs.mkdirSync(heicDir, {recursive: true});
+const heicSrc = path.join(root, "node_modules", "heic2any", "dist", "heic2any.min.js");
+if (!fs.existsSync(heicSrc)) throw new Error("heic2any is missing; run npm install");
+fs.copyFileSync(heicSrc, path.join(heicDir, "heic2any.js"));
+
 fs.copyFileSync(path.join(root, "obsidian", "manifest.json"), path.join(outDir, "manifest.json"));
 fs.copyFileSync(path.join(root, "obsidian", "styles.css"), path.join(outDir, "styles.css"));
 fs.writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
@@ -198,7 +204,7 @@ function installToDevVaults () {
 		for (const name of ["main.js", "manifest.json", "styles.css"]) {
 			fs.copyFileSync(path.join(outDir, name), path.join(dest, name));
 		}
-		for (const dir of ["data", "search", "dice"]) {
+		for (const dir of ["data", "search", "dice", "heic"]) {
 			const src = path.join(outDir, dir);
 			if (fs.existsSync(src)) fs.cpSync(src, path.join(dest, dir), {recursive: true});
 		}
