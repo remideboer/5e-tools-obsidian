@@ -817,6 +817,154 @@ a.fiveetools-inline-link {
 	margin: 8px 0 4px;
 }
 
+.fiveetools-dice-roller {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+	height: 100%;
+	overflow: auto;
+	padding: 4px 2px 16px;
+}
+
+.fiveetools-dice-roller h3 {
+	margin: 0;
+}
+
+.fiveetools-dice-roller__row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.fiveetools-dice-roller__label {
+	font-size: 13px;
+	color: var(--text-muted);
+	min-width: 3.5em;
+}
+
+.fiveetools-dice-roller__amount {
+	min-width: 6em;
+}
+
+.fiveetools-dice-roller__custom {
+	width: 4.5em;
+}
+
+.fiveetools-dice-roller__flags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px 16px;
+}
+
+.fiveetools-dice-roller__flag {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.fiveetools-dice-roller__flag input {
+	width: 1.15em;
+	height: 1.15em;
+	margin: 0;
+}
+
+.fiveetools-dice-roller__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(4.75em, 1fr));
+	gap: 10px;
+}
+
+.fiveetools-dice-roller__die {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 5.5em;
+	padding: 10px 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.fiveetools-dice-roller__die:hover,
+.fiveetools-dice-roller__die:focus-visible {
+	border-color: var(--interactive-accent);
+	color: var(--text-accent);
+}
+
+.fiveetools-dice-roller__die:active {
+	transform: scale(0.97);
+}
+
+.fiveetools-dice-roller__icon {
+	width: 2.5em;
+	height: 2.5em;
+	flex: 0 0 auto;
+}
+
+.fiveetools-dice-roller__die-label {
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.fiveetools-dice-roller-reader h3 {
+	margin: 0 0 8px;
+}
+
+.fiveetools-dice-roller__history {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.fiveetools-dice-roller__hist-item {
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+}
+
+.fiveetools-dice-roller__hist-top {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.fiveetools-dice-roller__hist-notation {
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.fiveetools-dice-roller__hist-mode {
+	font-size: 12px;
+	color: var(--text-muted);
+	text-transform: capitalize;
+}
+
+.fiveetools-dice-roller__hist-total {
+	margin-top: 4px;
+	font-size: 1.6em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.2;
+}
+
+.fiveetools-dice-roller__hist-detail {
+	margin-top: 2px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
 .fiveetools-roll-results__list {
 	display: flex;
 	flex-direction: column;

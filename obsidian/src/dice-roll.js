@@ -64,20 +64,27 @@ function formatBreakdown (result) {
 	return `${diceTotal} ${mod < 0 ? "-" : "+"} ${Math.abs(mod)}`;
 }
 
+/**
+ * Show roll popup (after 3D dice settle when enabled).
+ * @returns {Promise<object>} resolves with `result` when the popup is shown
+ */
 export function presentRoll (plugin, result) {
 	const text = formatRollNotice(result);
 	const docs = rollDocuments(plugin);
 	if (result?.total != null && plugin?.settings?.dice3d) {
-		for (const doc of docs) {
+		const waits = docs.map((doc) => {
 			const win = doc.defaultView || window;
-			void showDice3d(plugin, result, doc).then(() => {
-				win.setTimeout(() => showRollPopup(text, doc), 500);
-			});
-		}
-		return result;
+			return Promise.resolve(showDice3d(plugin, result, doc)).then(() => new Promise((resolve) => {
+				win.setTimeout(() => {
+					showRollPopup(text, doc);
+					resolve();
+				}, 500);
+			}));
+		});
+		return Promise.all(waits).then(() => result);
 	}
 	for (const doc of docs) showRollPopup(text, doc);
-	return result;
+	return Promise.resolve(result);
 }
 
 function rollDocuments (plugin) {

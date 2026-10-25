@@ -35,6 +35,7 @@ export const LIBRARY_NAV = [
 	{
 		group: "Tools",
 		items: [
+			{id: "dice", label: "Dice roller", tool: "dice"},
 			{id: "loot", label: "Loot Generator", tool: "loot"},
 			{id: "rolltables", label: "Roll tables", tool: "rolltables"},
 			{id: "encounter", label: "Encounter Composer", tool: "encounter"},

@@ -13,6 +13,7 @@ import {
 	sortLibraryDocs,
 } from "./library-row.js";
 import {ensureLootData, renderLootGenerator} from "./loot-view.js";
+import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
@@ -337,6 +338,19 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		this.listEl.empty();
 
+		if (item?.tool === "dice") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._diceSession || emptyDiceSession();
+			renderDiceRoller(this.listEl, this.readerEl, {
+				plugin: this.plugin,
+				session,
+				onSessionChange: (next) => { this.plugin._diceSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
 		if (item?.tool === "loot") {
 			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
@@ -616,7 +630,16 @@ function sameDoc (a, b) {
 }
 
 function clearListToolClasses (el) {
-	el?.classList.remove("fiveetools-loot", "fiveetools-rolltables", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign", "fiveetools-map", "fiveetools-refmaps");
+	el?.classList.remove(
+		"fiveetools-loot",
+		"fiveetools-dice-roller",
+		"fiveetools-rolltables",
+		"fiveetools-encounter",
+		"fiveetools-homebrew",
+		"fiveetools-campaign",
+		"fiveetools-map",
+		"fiveetools-refmaps",
+	);
 }
 
 function paintBestiaryFilters (hostEl, filters, onChange) {
