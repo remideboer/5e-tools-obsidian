@@ -1,4 +1,4 @@
-import {Notice} from "obsidian";
+import {Notice, setIcon} from "obsidian";
 import {findEntityDoc} from "./search-index.js";
 import {cacheEntityInDataLoader} from "./homebrew-store.js";
 import {getParser, getRenderer, getUrlUtil} from "./fiveetools-host.js";
@@ -22,9 +22,6 @@ const RARITY_WEIGHT = {
 	"very rare": 69,
 	legendary: 43,
 };
-
-const EYE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
-const DIE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none"/></svg>`;
 
 const MAGIC_TABLE_RARITY = {
 	A: "common",
@@ -171,7 +168,7 @@ export function renderLootGenerator (formEl, resultEl, {
 				cls: "fiveetools-loot__roll",
 				attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
 			});
-			rollOneBtn.innerHTML = DIE_SVG;
+			setIcon(rollOneBtn, "dices");
 			rollOneBtn.addEventListener("click", (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
@@ -189,7 +186,7 @@ export function renderLootGenerator (formEl, resultEl, {
 				cls: "fiveetools-loot__view",
 				attr: {type: "button", title: "View table", "aria-label": "View table"},
 			});
-			viewBtn.innerHTML = EYE_SVG;
+			setIcon(viewBtn, "eye");
 			viewBtn.addEventListener("click", (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();

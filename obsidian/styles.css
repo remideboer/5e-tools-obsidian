@@ -566,22 +566,16 @@ a.fiveetools-inline-link {
 	min-width: 0;
 }
 
-.fiveetools-loot__opt input[type="checkbox"],
-.fiveetools-loot__roll,
-.fiveetools-loot__roll svg,
-.fiveetools-loot__view,
-.fiveetools-loot__view svg {
+.fiveetools-loot__opt input[type="checkbox"] {
 	width: 1.15em;
 	height: 1.15em;
-}
-
-.fiveetools-loot__opt input[type="checkbox"] {
 	margin: 0;
 	flex: 0 0 auto;
 }
 
 .fiveetools-loot__roll,
 .fiveetools-loot__view {
+	--icon-size: 1.15em;
 	flex: 0 0 auto;
 	padding: 0;
 	border: 0;
