@@ -8,6 +8,7 @@ export function emptyDiceSession () {
 		amount: "1",
 		customAmount: 1,
 		modifier: 0,
+		useModifier: false,
 		advantage: false,
 		disadvantage: false,
 		history: [],
@@ -34,6 +35,7 @@ export function renderDiceRoller (listEl, readerEl, {
 		amount: String(session.amount ?? "1"),
 		customAmount: clampAmount(session.customAmount ?? 1),
 		modifier: clampModifier(session.modifier ?? 0),
+		useModifier: !!session.useModifier,
 		advantage: !!session.advantage,
 		disadvantage: !!session.disadvantage && !session.advantage,
 		history: Array.isArray(session.history) ? [...session.history] : [],
@@ -44,6 +46,7 @@ export function renderDiceRoller (listEl, readerEl, {
 			amount: state.amount,
 			customAmount: state.customAmount,
 			modifier: state.modifier,
+			useModifier: state.useModifier,
 			advantage: state.advantage,
 			disadvantage: state.disadvantage,
 			history: state.history,
@@ -94,8 +97,15 @@ export function renderDiceRoller (listEl, readerEl, {
 		emit();
 	});
 
-	amountRow.createEl("label", {text: "Mod", cls: "fiveetools-dice-roller__label"});
-	const modSel = amountRow.createEl("select", {
+	const useModBox = amountRow.createEl("input", {
+		cls: "fiveetools-dice-roller__use-mod",
+		attr: {type: "checkbox", "aria-label": "Use modifier", title: "Use modifier"},
+	});
+	useModBox.checked = state.useModifier;
+
+	const modGroup = amountRow.createDiv({cls: "fiveetools-dice-roller__mod-group"});
+	modGroup.createEl("label", {text: "Mod", cls: "fiveetools-dice-roller__label"});
+	const modSel = modGroup.createEl("select", {
 		cls: "fiveetools-dice-roller__mod",
 		attr: {"aria-label": "Modifier"},
 	});
@@ -104,6 +114,17 @@ export function renderDiceRoller (listEl, readerEl, {
 		const opt = modSel.createEl("option", {text: label, attr: {value: String(m)}});
 		if (state.modifier === m) opt.selected = true;
 	}
+	const syncModEnabled = () => {
+		const on = state.useModifier;
+		modSel.disabled = !on;
+		modGroup.classList.toggle("is-disabled", !on);
+	};
+	syncModEnabled();
+	useModBox.addEventListener("change", () => {
+		state.useModifier = useModBox.checked;
+		syncModEnabled();
+		emit();
+	});
 	modSel.addEventListener("change", () => {
 		state.modifier = clampModifier(modSel.value);
 		emit();
@@ -184,17 +205,18 @@ export function renderDiceRoller (listEl, readerEl, {
 }
 
 function rollDie (faces, state) {
-	const modStr = formatMod(state.modifier);
+	const modStr = state.useModifier ? formatMod(state.modifier) : "";
 	// Adv/disadv is a single d20 check (amount ignored while either flag is on).
 	if (Number(faces) === 20 && (state.advantage || state.disadvantage)) {
 		const toRoll = `1d20${modStr}`;
-		return rollPacked({
+		const packed = {
 			toRoll,
-			d20mod: modStr,
 			subType: "d20",
 			name: toRoll,
 			displayText: toRoll,
-		}, {
+		};
+		if (modStr) packed.d20mod = modStr;
+		return rollPacked(packed, {
 			shiftKey: !!state.advantage,
 			ctrlKey: !!state.disadvantage,
 		});

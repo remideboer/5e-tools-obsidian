@@ -52,6 +52,9 @@ export function formatRollNotice (result) {
 	if (result?.total == null) return "Could not roll.";
 	const mode = result.mode ? ` (${result.mode})` : "";
 	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
+	const mod = Number(result.mod) || 0;
+	// Flat rolls: show total only (e.g. "5"), not "5: 5".
+	if (!mod) return `${result.total}${mode}${extra}`;
 	return `${formatBreakdown(result)}${mode}: ${result.total}${extra}`;
 }
 

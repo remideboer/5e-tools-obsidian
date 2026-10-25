@@ -833,7 +833,7 @@ a.fiveetools-inline-link {
 
 .fiveetools-dice-roller__row {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
 	gap: 8px;
 }
@@ -850,6 +850,28 @@ a.fiveetools-inline-link {
 
 .fiveetools-dice-roller__custom {
 	width: 4.5em;
+}
+
+.fiveetools-dice-roller__use-mod {
+	width: 1.15em;
+	height: 1.15em;
+	margin: 0 0 0 4px;
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+
+.fiveetools-dice-roller__mod-group {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.fiveetools-dice-roller__mod-group.is-disabled {
+	opacity: 0.45;
+}
+
+.fiveetools-dice-roller__mod-group.is-disabled .fiveetools-dice-roller__label {
+	color: var(--text-faint);
 }
 
 .fiveetools-dice-roller__mod {
