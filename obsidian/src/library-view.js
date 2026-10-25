@@ -1,10 +1,15 @@
-import {ItemView, Notice, Platform} from "obsidian";
+import {ItemView, Notice, Platform, setIcon} from "obsidian";
 import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
 import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js";
-import {paintLibraryRow} from "./library-row.js";
+import {
+	defaultListSort,
+	navSupportsBadgeSort,
+	paintLibraryRow,
+	sortLibraryDocs,
+} from "./library-row.js";
 import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
@@ -13,6 +18,18 @@ import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
 import {renderMapTool, teardownMapView} from "./map-view.js";
 import {renderReferenceMaps} from "./map-reference-view.js";
+
+const BADGE_SORT_ICON = {
+	bestiary: "swords",
+	spell: "sparkles",
+	item: "gem",
+};
+
+const BADGE_SORT_LABEL = {
+	bestiary: "CR",
+	spell: "level",
+	item: "rarity",
+};
 
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
@@ -30,6 +47,8 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listEl = null;
 		this.readerEl = null;
 		this.searchEl = null;
+		this.searchRowEl = null;
+		this.sortEl = null;
 		this.filterEl = null;
 		this.globalSearchEl = null;
 		this._listToken = 0;
@@ -88,7 +107,8 @@ export class FiveEToolsLibraryView extends ItemView {
 		});
 		this.navGroupsEl = this.navEl.createDiv({cls: "fiveetools-library__navgroups"});
 		this.listColEl = this.contentEl.createDiv({cls: "fiveetools-library__listcol"});
-		this.searchEl = this.listColEl.createEl("input", {
+		this.searchRowEl = this.listColEl.createDiv({cls: "fiveetools-library__searchrow"});
+		this.searchEl = this.searchRowEl.createEl("input", {
 			cls: "fiveetools-library__search",
 			attr: {type: "search", placeholder: "Filter list…"},
 		});
@@ -96,6 +116,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.query = this.searchEl.value;
 			this.refreshList();
 		});
+		this.sortEl = this.searchRowEl.createDiv({cls: "fiveetools-library__sort"});
 		this.filterEl = this.listColEl.createDiv({cls: "fiveetools-bestiary-filters"});
 		paintBestiaryFilters(this.filterEl, this.bestiaryFilters, () => this.refreshList());
 		this._closeBestiaryMenus = () => closeBestiaryFilterMenus(this.filterEl);
@@ -209,6 +230,62 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 	}
 
+	listSortForNav (navId = this.navId) {
+		if (!this.plugin._libraryListSort) this.plugin._libraryListSort = {};
+		const map = this.plugin._libraryListSort;
+		if (!map[navId]) map[navId] = defaultListSort();
+		return map[navId];
+	}
+
+	setListSort (patch = {}) {
+		const cur = this.listSortForNav();
+		Object.assign(cur, patch);
+		this.paintSortToolbar();
+		this.refreshList();
+	}
+
+	paintSortToolbar () {
+		const el = this.sortEl;
+		if (!el) return;
+		el.empty();
+		const show = navSupportsBadgeSort(this.navId) && String(this.globalQuery || "").trim().length < 2;
+		el.style.display = show ? "" : "none";
+		if (!show) return;
+
+		const sort = this.listSortForNav();
+		const badgeIcon = BADGE_SORT_ICON[this.navId] || "hash";
+		const badgeLabel = BADGE_SORT_LABEL[this.navId] || "value";
+		const fieldBtn = el.createEl("button", {
+			cls: `fiveetools-library__sortbtn${sort.key === "badge" ? " is-active" : ""}`,
+			attr: {
+				type: "button",
+				title: sort.key === "name"
+					? `Sorted by name (click for ${badgeLabel})`
+					: `Sorted by ${badgeLabel} (click for name)`,
+				"aria-label": sort.key === "name" ? "Sort by name" : `Sort by ${badgeLabel}`,
+			},
+		});
+		setIcon(fieldBtn, sort.key === "name" ? "case-sensitive" : badgeIcon);
+		fieldBtn.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			this.setListSort({key: sort.key === "name" ? "badge" : "name"});
+		});
+
+		const dirBtn = el.createEl("button", {
+			cls: "fiveetools-library__sortbtn",
+			attr: {
+				type: "button",
+				title: sort.dir === "asc" ? "Ascending (click for descending)" : "Descending (click for ascending)",
+				"aria-label": sort.dir === "asc" ? "Ascending" : "Descending",
+			},
+		});
+		setIcon(dirBtn, sort.dir === "asc" ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow");
+		dirBtn.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			this.setListSort({dir: sort.dir === "asc" ? "desc" : "asc"});
+		});
+	}
+
 	refreshList () {
 		const listToken = ++this._listToken;
 		const scrollTop = this.listEl?.scrollTop || 0;
@@ -226,8 +303,9 @@ export class FiveEToolsLibraryView extends ItemView {
 			teardownMapView(this.plugin);
 			this.readerEl?.removeClass("fiveetools-map-stage");
 		}
+		this.paintSortToolbar();
 		if (globalTerm.length >= 2) {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			this.listEl.empty();
 			this.docs = searchEntities(globalTerm);
@@ -239,7 +317,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listEl.empty();
 
 		if (item?.tool === "loot") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._lootSession || {ids: [], count: 1, results: null};
 			this.readerEl?.empty();
@@ -250,7 +328,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		if (item?.tool === "rolltables") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._rolltablesSession || {
 				selectedPath: "",
@@ -269,7 +347,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		if (item?.tool === "encounter") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._encounterSession || {combatants: [], selectedId: null};
 			renderEncounterComposer(this.listEl, this.readerEl, {
@@ -303,7 +381,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		if (item?.tool === "homebrew") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._homebrewSession || {typeId: "spell"};
 			renderHomebrewEditor(this.listEl, this.readerEl, {
@@ -318,7 +396,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		if (item?.tool === "campaign") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._campaignSession || {sectionId: "overview"};
 			try {
@@ -345,7 +423,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		if (item?.tool === "map") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			if (Platform.isMobile) {
 				this.renderMobileOnly("Maps are available in the desktop app.");
@@ -364,7 +442,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		if (item?.tool === "maps") {
-			this.searchEl.style.display = "none";
+			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			if (Platform.isMobile) {
 				this.renderMobileOnly("Maps are available in the desktop app.");
@@ -382,13 +460,18 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
-		this.searchEl.style.display = "";
+		this.searchRowEl.style.display = "";
 		if (this.filterEl) this.filterEl.style.display = item?.id === "bestiary" ? "" : "none";
-		this.docs = listEntities({
+		let docs = listEntities({
 			categoriesExact: item?.categories || [],
 			query: this.query,
 			bestiaryFilters: item?.id === "bestiary" ? this.bestiaryFilters : undefined,
 		});
+		if (navSupportsBadgeSort(item?.id)) {
+			const sort = this.listSortForNav(item.id);
+			docs = sortLibraryDocs(docs, {key: sort.key, dir: sort.dir, kind: item.id});
+		}
+		this.docs = docs;
 
 		this.renderDocRows();
 		this.listEl.scrollTop = scrollTop;

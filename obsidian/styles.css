@@ -391,9 +391,52 @@ a.fiveetools-inline-link {
 	min-height: 0;
 }
 
-.fiveetools-library__search {
+.fiveetools-library__searchrow {
+	display: flex;
+	align-items: center;
+	gap: 6px;
 	margin: 10px 10px 6px;
-	width: calc(100% - 20px);
+	min-width: 0;
+}
+
+.fiveetools-library__search {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: auto;
+	margin: 0;
+	box-sizing: border-box;
+}
+
+.fiveetools-library__sort {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex: 0 0 auto;
+}
+
+.fiveetools-library__sortbtn {
+	--icon-size: 1.1em;
+	width: 1.75em;
+	height: 1.75em;
+	padding: 0;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--text-muted);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.fiveetools-library__sortbtn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-library__sortbtn.is-active {
+	color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
 }
 
 .fiveetools-bestiary-filters {

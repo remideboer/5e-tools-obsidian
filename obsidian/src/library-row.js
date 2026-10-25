@@ -1,3 +1,4 @@
+import {getParser} from "./fiveetools-host.js";
 import {getMonsterMeta} from "./bestiary-meta.js";
 import {getSpellMeta, spellLevelFull, spellLevelShort} from "./spell-meta.js";
 import {getItemMeta} from "./item-meta.js";
@@ -19,6 +20,72 @@ const ALIGNMENT_LABEL = {
 	L: "Lawful",
 	C: "Chaotic",
 };
+
+const RARITY_ORDER = [
+	"none", "common", "uncommon", "rare", "very rare", "legendary", "artifact",
+	"varies", "unknown (magic)", "unknown",
+];
+
+const BADGE_SORT_NAV = new Set(["bestiary", "spell", "item"]);
+
+const MISSING = Number.POSITIVE_INFINITY;
+
+export function libraryRowKind (doc) {
+	return rowKind(doc);
+}
+
+export function navSupportsBadgeSort (navId) {
+	return BADGE_SORT_NAV.has(String(navId || ""));
+}
+
+export function defaultListSort () {
+	return {key: "name", dir: "asc"};
+}
+
+/**
+ * Sort library docs by name or badge value (CR / rarity / level).
+ * Missing badge values sort last in both directions; secondary key is name then source.
+ */
+export function sortLibraryDocs (docs, {key = "name", dir = "asc", kind = "other"} = {}) {
+	const list = Array.isArray(docs) ? docs.slice() : [];
+	const sign = dir === "desc" ? -1 : 1;
+	list.sort((a, b) => {
+		if (key === "badge" && (kind === "bestiary" || kind === "spell" || kind === "item")) {
+			const av = badgeSortValue(a, kind);
+			const bv = badgeSortValue(b, kind);
+			const aMissing = av === MISSING;
+			const bMissing = bv === MISSING;
+			if (aMissing !== bMissing) return aMissing ? 1 : -1;
+			if (av !== bv) return sign * (av - bv);
+		}
+		const byName = String(a?.n || "").localeCompare(String(b?.n || ""));
+		if (byName) return key === "name" ? sign * byName : byName;
+		return String(a?.sA || a?.s || "").localeCompare(String(b?.sA || b?.s || ""));
+	});
+	return list;
+}
+
+function badgeSortValue (doc, kind) {
+	if (kind === "bestiary") {
+		const cr = getMonsterMeta(doc)?.cr;
+		if (cr == null || cr === "") return MISSING;
+		const Parser = getParser();
+		const n = Parser?.crToNumber?.(cr);
+		return Number.isFinite(n) ? n : MISSING;
+	}
+	if (kind === "spell") {
+		const level = getSpellMeta(doc)?.level;
+		if (level == null || Number.isNaN(Number(level))) return MISSING;
+		return Number(level);
+	}
+	if (kind === "item") {
+		const rarity = String(getItemMeta(doc)?.rarity || "").toLowerCase();
+		if (!rarity) return MISSING;
+		const ix = RARITY_ORDER.indexOf(rarity);
+		return ix >= 0 ? ix : MISSING;
+	}
+	return MISSING;
+}
 
 /**
  * Paint a denser library list row: name + right badge, secondary line, tooltip.
