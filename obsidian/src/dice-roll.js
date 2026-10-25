@@ -112,8 +112,55 @@ function ensureRollPopup (doc = document) {
 	return el;
 }
 
+/** Case-insensitive NdM / NdM±K (e.g. 1d20, 1D20, d6, 2d6+3). */
+const DICE_NOTATION = /\b(\d{0,2})d(\d{1,4}|%)([+-]\d+)?\b/gi;
+
+export function textHasDiceNotation (text) {
+	DICE_NOTATION.lastIndex = 0;
+	return DICE_NOTATION.test(String(text || ""));
+}
+
+/**
+ * Append plain text with clickable `.render-roller` spans for die notations.
+ * Does not auto-roll; pair with bindDiceRollers.
+ */
+export function appendTextWithDiceRollers (host, text) {
+	if (!host) return;
+	const raw = String(text ?? "");
+	if (!raw) return;
+	DICE_NOTATION.lastIndex = 0;
+	let last = 0;
+	let found = false;
+	let m;
+	while ((m = DICE_NOTATION.exec(raw))) {
+		found = true;
+		if (m.index > last) host.appendText(raw.slice(last, m.index));
+		const display = m[0];
+		const count = m[1] || "1";
+		const faces = m[2] === "%" ? "100" : m[2];
+		const mod = m[3] || "";
+		const toRoll = `${count}d${faces}${mod}`.toLowerCase().replace(/\s+/g, "");
+		host.createEl("span", {
+			cls: "render-roller ve-roller",
+			text: display,
+			attr: {
+				title: "Click to roll.",
+				"data-packed-dice": JSON.stringify({toRoll}),
+			},
+		});
+		last = m.index + display.length;
+	}
+	if (!found) {
+		host.appendText(raw);
+		return;
+	}
+	if (last < raw.length) host.appendText(raw.slice(last));
+}
+
 export function bindDiceRollers (el, plugin) {
 	if (!el?.addEventListener) return;
+	if (el.dataset.fiveetoolsDiceBound === "1") return;
+	el.dataset.fiveetoolsDiceBound = "1";
 	el.addEventListener("click", (evt) => {
 		const roller = evt.target.closest?.(".render-roller[data-packed-dice]");
 		if (!roller || !el.contains(roller)) return;

@@ -1,5 +1,6 @@
 import {Notice} from "obsidian";
 import {findEntityDoc} from "./search-index.js";
+import {appendTextWithDiceRollers, bindDiceRollers, textHasDiceNotation} from "./dice-roll.js";
 
 /**
  * Parse a cell that may be a wikilink or plain entity name.
@@ -8,6 +9,7 @@ import {findEntityDoc} from "./search-index.js";
 export function parseItemRef (text) {
 	const raw = String(text || "").trim();
 	if (!raw) return null;
+	if (textHasDiceNotation(raw)) return null;
 	const wiki = /^\[\[([^\]]+)\]\]$/.exec(raw);
 	const inner = wiki ? wiki[1].trim() : raw;
 	const pipe = inner.indexOf("|");
@@ -41,6 +43,7 @@ export function parseItemRef (text) {
  *   onOpenItem?: (doc: object) => void,
  *   resolveItem?: (item: object) => object|null,
  *   emptyText?: string,
+ *   plugin?: object,
  * }} [opts]
  *
  * Card shape:
@@ -54,6 +57,7 @@ export function renderRollResultCards (el, cards, {
 	onOpenItem,
 	resolveItem = resolveCardItem,
 	emptyText = "No results.",
+	plugin,
 } = {}) {
 	el.empty();
 	el.addClass("fiveetools-roll-results");
@@ -70,24 +74,27 @@ export function renderRollResultCards (el, cards, {
 		}
 		const body = row.createDiv({cls: "fiveetools-roll-result__body"});
 		const titleText = String(card.title || "").trim() || "—";
-		if (card.item && onOpenItem) {
+		const titleHasDice = textHasDiceNotation(titleText);
+		const item = titleHasDice ? null : card.item;
+		if (item && onOpenItem) {
 			const btn = body.createEl("button", {
 				cls: "fiveetools-roll-result__title fiveetools-roll-result__title--link",
-				text: card.item.label || titleText,
+				text: item.label || titleText,
 				attr: {type: "button"},
 			});
 			btn.addEventListener("click", (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
-				const doc = resolveItem(card.item);
+				const doc = resolveItem(item);
 				if (!doc) {
-					new Notice(`Could not open: ${card.item.name || titleText}`);
+					new Notice(`Could not open: ${item.name || titleText}`);
 					return;
 				}
 				onOpenItem(doc);
 			});
 		} else {
-			body.createEl("div", {cls: "fiveetools-roll-result__title", text: titleText});
+			const titleEl = body.createDiv({cls: "fiveetools-roll-result__title"});
+			appendTextWithDiceRollers(titleEl, titleText);
 		}
 		if (card.meta) {
 			body.createEl("div", {cls: "fiveetools-roll-result__meta", text: String(card.meta)});
@@ -98,7 +105,8 @@ export function renderRollResultCards (el, cards, {
 				const line = fields.createDiv({cls: "fiveetools-roll-result__field"});
 				if (field.label) line.createEl("span", {cls: "fiveetools-roll-result__fieldlabel", text: `${field.label}: `});
 				const value = String(field.text || "");
-				const ref = field.item || parseItemRef(value);
+				const valueHasDice = textHasDiceNotation(value);
+				const ref = valueHasDice ? null : (field.item || parseItemRef(value));
 				if (ref && onOpenItem) {
 					const link = line.createEl("button", {
 						cls: "fiveetools-roll-result__link",
@@ -116,11 +124,13 @@ export function renderRollResultCards (el, cards, {
 						onOpenItem(doc);
 					});
 				} else {
-					line.createSpan({text: value});
+					const span = line.createSpan();
+					appendTextWithDiceRollers(span, value);
 				}
 			}
 		}
 	}
+	if (plugin) bindDiceRollers(el, plugin);
 }
 
 export function resolveCardItem (item) {

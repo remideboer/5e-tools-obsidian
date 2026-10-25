@@ -431,7 +431,9 @@ a.fiveetools-inline-link {
 	padding: 0 8px 12px;
 }
 
-.fiveetools-view .render-roller {
+.fiveetools-view .render-roller,
+.fiveetools-roll-results .render-roller,
+.fiveetools-rolltables__reader .render-roller {
 	cursor: pointer;
 	color: var(--text-accent);
 	text-decoration: underline dotted;

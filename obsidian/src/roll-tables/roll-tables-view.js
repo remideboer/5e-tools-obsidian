@@ -9,6 +9,7 @@ import {
 	saveRollTableNote,
 } from "./roll-table-store.js";
 import {parseItemRef, renderRollResultCards} from "../roll-result-card.js";
+import {appendTextWithDiceRollers, bindDiceRollers, textHasDiceNotation} from "../dice-roll.js";
 
 /**
  * Tools → Roll tables: list vault notes, paste import, roll → result cards.
@@ -101,8 +102,12 @@ export function renderRollTablesTool (listEl, readerEl, {
 		const tbody = table.createEl("tbody");
 		for (const row of parsed.rows) {
 			const tr = tbody.createEl("tr");
-			for (const cell of row) tr.createEl("td", {text: cell});
+			for (const cell of row) {
+				const td = tr.createEl("td");
+				appendTextWithDiceRollers(td, cell);
+			}
 		}
+		if (plugin) bindDiceRollers(readerEl, plugin);
 	};
 
 	const renderResults = (draws, tableName = "") => {
@@ -112,11 +117,11 @@ export function renderRollTablesTool (listEl, readerEl, {
 		const cards = (draws || []).map((draw) => {
 			const primary = draw.cells?.[0];
 			const title = primary?.text || draw.row?.filter(Boolean).join(" · ") || "—";
-			const item = parseItemRef(title);
+			const item = textHasDiceNotation(title) ? null : parseItemRef(title);
 			const fields = (draw.cells || []).slice(1).map(cell => ({
 				label: cell.header,
 				text: cell.text,
-				item: parseItemRef(cell.text) || undefined,
+				item: textHasDiceNotation(cell.text) ? undefined : (parseItemRef(cell.text) || undefined),
 			}));
 			const dieBadge = draw.die && draw.total != null
 				? `${draw.die.label}: ${draw.total}`
@@ -131,6 +136,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 		});
 		renderRollResultCards(readerEl, cards, {
 			onOpenItem,
+			plugin,
 			emptyText: "Roll a table to see results.",
 		});
 	};
