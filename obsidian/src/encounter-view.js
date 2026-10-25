@@ -502,10 +502,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	};
 
 	const rollGroupInitiative = async (group, {reorder = false} = {}) => {
-		const label = group.members.length > 1
-			? `${group.label} ×${group.members.length}`
-			: group.label;
-		const result = rollInitiative(group.bonus, {}, `${label} initiative`);
+		const result = rollInitiative(group.bonus, {}, group.label || "Initiative");
 		await presentRoll(plugin, result);
 		const score = Number(result?.total);
 		if (!Number.isFinite(score)) return;
@@ -836,10 +833,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		try {
 			captureBaselineIfNeeded();
 			for (const group of groups) {
-				const label = group.members.length > 1
-					? `${group.label} ×${group.members.length}`
-					: group.label;
-				const result = rollInitiative(group.bonus, {}, `${label} initiative`);
+				const result = rollInitiative(group.bonus, {}, group.label || "Initiative");
 				await presentRoll(plugin, result);
 				const score = Number(result?.total);
 				if (Number.isFinite(score)) applyGroupInitScore(combatants, group.key, score);

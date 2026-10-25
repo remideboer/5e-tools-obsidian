@@ -38,7 +38,7 @@ export function rollPacked (entry, evt = {}) {
 export function rollInitiative (bonus, evt = {}, label = "Initiative") {
 	const n = Number(bonus);
 	const mod = Number.isFinite(n) ? (n >= 0 ? `+${n}` : `${n}`) : "+0";
-	return rollPacked({
+	const result = rollPacked({
 		toRoll: `1d20${mod}`,
 		d20mod: mod,
 		subType: "d20",
@@ -46,6 +46,9 @@ export function rollInitiative (bonus, evt = {}, label = "Initiative") {
 		displayText: mod,
 		context: {type: "initiative"},
 	}, evt);
+	result.label = label;
+	result.showLabel = true;
+	return result;
 }
 
 export function formatRollNotice (result) {
@@ -53,9 +56,10 @@ export function formatRollNotice (result) {
 	const mode = result.mode ? ` (${result.mode})` : "";
 	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
 	const mod = Number(result.mod) || 0;
+	const prefix = result.showLabel && result.label ? `${result.label} ` : "";
 	// Flat rolls: show total only (e.g. "5"), not "5: 5".
-	if (!mod) return `${result.total}${mode}${extra}`;
-	return `${formatBreakdown(result)}${mode}: ${result.total}${extra}`;
+	if (!mod) return `${prefix}${result.total}${mode}${extra}`;
+	return `${prefix}${formatBreakdown(result)}${mode}: ${result.total}${extra}`;
 }
 
 function formatBreakdown (result) {
