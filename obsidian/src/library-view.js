@@ -5,6 +5,7 @@ import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
 import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js";
 import {ensureLootData, renderLootGenerator} from "./loot-view.js";
+import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
@@ -247,6 +248,25 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
+		if (item?.tool === "rolltables") {
+			this.searchEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._rolltablesSession || {
+				selectedPath: "",
+				count: 1,
+				results: null,
+				importDraft: null,
+			};
+			renderRollTablesTool(this.listEl, this.readerEl, {
+				session,
+				plugin: this.plugin,
+				onOpenItem: (doc) => { void this.plugin.openPreview(doc); },
+				onSessionChange: (next) => { this.plugin._rolltablesSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
 		if (item?.tool === "encounter") {
 			this.searchEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
@@ -463,7 +483,7 @@ function sameDoc (a, b) {
 }
 
 function clearListToolClasses (el) {
-	el?.classList.remove("fiveetools-loot", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign", "fiveetools-map", "fiveetools-refmaps");
+	el?.classList.remove("fiveetools-loot", "fiveetools-rolltables", "fiveetools-encounter", "fiveetools-homebrew", "fiveetools-campaign", "fiveetools-map", "fiveetools-refmaps");
 }
 
 function paintBestiaryFilters (hostEl, filters, onChange) {

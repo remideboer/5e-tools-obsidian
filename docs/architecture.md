@@ -2,7 +2,7 @@
 
 ## Context
 
-The Obsidian plugin embeds a slice of 5etools (search index, entity JSON, fluff) and adds GM tools: library browsing, battle maps with fog and tokens, campaigns, encounters, and dice. Library, loot, campaigns, and encounters run on desktop and mobile. Bundled JSON and the image cache use the vault adapter ([ADR 0006](adr/0006-vault-adapter-data.md)). Map scenes, tokens, and the player window still use the desktop filesystem.
+The Obsidian plugin embeds a slice of 5etools (search index, entity JSON, fluff) and adds GM tools: library browsing, battle maps with fog and tokens, campaigns, encounters, roll tables, and dice. Library, loot, roll tables, campaigns, and encounters run on desktop and mobile. Bundled JSON and the image cache use the vault adapter ([ADR 0006](adr/0006-vault-adapter-data.md)). Map scenes, tokens, and the player window still use the desktop filesystem.
 
 ```mermaid
 flowchart TB
@@ -32,6 +32,7 @@ flowchart LR
   subgraph disk [Local disk]
     vaultMaps["vault/notesFolder/maps"]
     vaultCamp["vault/notesFolder/campaigns"]
+    vaultTables["vault/notesFolder/tables"]
     pluginRoot["plugins/5etools"]
     pluginCache["plugins/5etools/cache/img"]
   end
@@ -43,6 +44,7 @@ flowchart LR
   main --> player
   lib --> vaultMaps
   lib --> vaultCamp
+  lib --> vaultTables
   main --> pluginRoot
   lib --> pluginCache
   pluginCache --> imgHost
@@ -69,9 +71,11 @@ flowchart TB
   plugin --> map[Map_scenes_fog_tokens]
   plugin --> campaign[Campaigns]
   plugin --> encounter[Encounter_composer]
+  plugin --> rolltables[Roll_tables]
   plugin --> dice[Dice_3D_and_public_rolls]
   plugin --> brew[Homebrew]
   library --> map
+  library --> rolltables
   map --> player[Player_popout_canvas]
 ```
 
@@ -79,6 +83,7 @@ flowchart TB
 - **HEIC paste** — optional: HEIC/HEIF pasted or dropped into notes convert to JPEG via bundled `heic/heic2any.js`, then embed as a normal attachment.
 - **Map** — desktop: vault scenes, layers, fog masks, scene-level tokens, GM canvas + player bitmap draw. On mobile the map tools show a notice.
 - **Campaigns / encounters** — vault markdown and encounter store.
+- **Roll tables** — paste import (markdown / TSV / numbered lists) into `{notesFolder}/tables/*.md` (Atlas-style `## Name` + table). Tools → Roll tables browses and rolls; shared result cards also render loot hits. Resolvable item names still open via `openPreview`.
 - **Dice** — optional 3D dice; public rolls can target the player window document.
 - **Homebrew** — vault brew files indexed into search.
 

@@ -84,7 +84,8 @@ flowchart TB
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js` |
 | Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js` |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
-| Loot | `loot-view.js` |
+| Loot | `loot-view.js` (results via `roll-result-card.js`) |
+| Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
 | Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
 
 ## Import rules of thumb

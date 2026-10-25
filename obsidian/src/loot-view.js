@@ -3,6 +3,7 @@ import {findEntityDoc} from "./search-index.js";
 import {cacheEntityInDataLoader} from "./homebrew-store.js";
 import {getParser, getRenderer, getUrlUtil} from "./fiveetools-host.js";
 import {readPluginJson} from "./plugin-dir.js";
+import {renderRollResultCards} from "./roll-result-card.js";
 
 const TABLE_GROUPS = [
 	{kind: "individual", label: "Individual"},
@@ -751,28 +752,19 @@ function renderLootResults (el, results, onOpenItem) {
 		return;
 	}
 	el.createEl("h3", {text: items.length === 1 ? "1 item" : `${items.length} items`});
-	const list = el.createEl("ul", {cls: "fiveetools-loot__items"});
-	for (const item of items) {
-		const li = list.createEl("li", {cls: "fiveetools-loot__hit"});
-		if (item.name && onOpenItem) {
-			const btn = li.createEl("button", {text: item.label, cls: "fiveetools-loot__item"});
-			btn.addEventListener("click", (evt) => {
-				evt.preventDefault();
-				evt.stopPropagation();
-				const doc = resolveLootItemDoc(item);
-				if (!doc) {
-					new Notice(`Could not open item: ${item.name}`);
-					return;
-				}
-				onOpenItem(doc);
-			});
-		} else {
-			li.createSpan({text: item.label});
-		}
-		if (item.tableLabel) {
-			li.createEl("div", {cls: "fiveetools-view__meta", text: item.tableLabel});
-		}
-	}
+	const cards = items.map(item => ({
+		title: item.label || item.name || "Item",
+		meta: item.tableLabel || "",
+		item: item.name
+			? {name: item.name, source: item.source || "", label: item.label || item.name}
+			: null,
+	}));
+	const host = el.createDiv();
+	renderRollResultCards(host, cards, {
+		onOpenItem,
+		resolveItem: resolveLootItemDoc,
+		emptyText: "Select at least one loot table.",
+	});
 }
 
 function resolveLootItemDoc (item) {
