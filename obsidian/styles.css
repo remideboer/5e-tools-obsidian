@@ -564,6 +564,96 @@ a.fiveetools-inline-link {
 	white-space: nowrap;
 }
 
+.fiveetools-creature-footer__row {
+	margin-top: 0.35em;
+	line-height: 1.45;
+}
+
+.fiveetools-creature-footer__link {
+	color: var(--text-accent);
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.fiveetools-creature-footer__treasure {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.15em;
+	vertical-align: middle;
+}
+
+.fiveetools-creature-footer__roll {
+	--icon-size: 1.05em;
+	flex: 0 0 auto;
+	width: 1.5em;
+	height: 1.5em;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--text-muted);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	vertical-align: middle;
+}
+
+.fiveetools-creature-footer__roll:hover {
+	color: var(--text-normal);
+}
+
+.fiveetools-treasure-roll-popup {
+	position: fixed;
+	inset: 0;
+	z-index: 1002;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	padding: 48px 16px 24px;
+	background: rgba(0, 0, 0, 0.35);
+}
+
+.fiveetools-treasure-roll-popup__panel {
+	width: min(420px, 100%);
+	max-height: min(70vh, 560px);
+	overflow: auto;
+	padding: 12px 14px 16px;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.fiveetools-treasure-roll-popup__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.fiveetools-treasure-roll-popup__head h3 {
+	margin: 0;
+	font-size: 1em;
+}
+
+.fiveetools-treasure-roll-popup__close {
+	flex: 0 0 auto;
+	width: 1.75em;
+	height: 1.75em;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 1.25em;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.fiveetools-treasure-roll-popup__close:hover {
+	color: var(--text-normal);
+}
+
 .fiveetools-library__reader,
 .fiveetools-view {
 	padding: 12px 16px 24px;

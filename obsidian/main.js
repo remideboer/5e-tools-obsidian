@@ -116,16 +116,23 @@ export default class FiveEToolsPlugin extends Plugin {
 		let leaf = workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_LIBRARY)[0];
 		if (!leaf) {
 			leaf = workspace.getLeaf(false) || workspace.getLeaf(true);
+			const state = opts.doc
+				? libraryStateFromDoc(opts.doc)
+				: (opts.navId ? {navId: opts.navId} : {});
+			if (opts.bestiaryFilters) this._pendingBestiaryFilters = opts.bestiaryFilters;
+			if (opts.lootSession) this._lootSession = opts.lootSession;
 			await leaf.setViewState({
 				type: VIEW_TYPE_FIVEETOOLS_LIBRARY,
 				active: true,
-				state: opts.doc ? libraryStateFromDoc(opts.doc) : {},
+				state,
 			});
 			return;
 		}
 		workspace.revealLeaf(leaf);
 		const view = leaf.view;
 		if (view instanceof FiveEToolsLibraryView) {
+			if (opts.bestiaryFilters) view.applyBestiaryFilters(opts.bestiaryFilters);
+			if (opts.lootSession) this._lootSession = opts.lootSession;
 			if (opts.doc) await view.navigateToDoc(opts.doc);
 			else if (opts.navId) view.selectNav(opts.navId);
 		}

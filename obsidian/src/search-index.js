@@ -3,8 +3,8 @@ import {CORPUS_PAGES, MAX_SEARCH_RESULTS} from "./constants.js";
 import {getElasticlunr, getParser, getSearchUtil, getStyleHint, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
 import {docMatchesBestiaryFilters, hasBestiaryFilters, loadMonsterMeta, resetMonsterMeta} from "./bestiary-meta.js";
-import {loadSpellMeta, resetSpellMeta} from "./spell-meta.js";
-import {loadItemMeta, resetItemMeta} from "./item-meta.js";
+import {docMatchesSpellFilters, hasSpellFilters, loadSpellMeta, resetSpellMeta} from "./spell-meta.js";
+import {docMatchesItemFilters, hasItemFilters, loadItemMeta, resetItemMeta} from "./item-meta.js";
 import {pluginVaultDir, readPluginJson} from "./plugin-dir.js";
 
 const CATEGORY_ALIAS = {
@@ -238,11 +238,20 @@ export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [
 	return out.slice(0, limit).map(it => it.doc);
 }
 
-export function listEntities ({categoriesExact = [], query = "", limit = null, bestiaryFilters} = {}) {
+export function listEntities ({
+	categoriesExact = [],
+	query = "",
+	limit = null,
+	bestiaryFilters,
+	spellFilters,
+	itemFilters,
+} = {}) {
 	if (!searchIndex) return [];
 	const cats = new Set((categoriesExact || []).map(it => String(it).toLowerCase()));
 	const term = String(query || "").trim();
-	const filtered = hasBestiaryFilters(bestiaryFilters);
+	const filtered = hasBestiaryFilters(bestiaryFilters)
+		|| hasSpellFilters(spellFilters)
+		|| hasItemFilters(itemFilters);
 	const capped = Number.isFinite(limit) && limit > 0;
 
 	let docs;
@@ -262,7 +271,9 @@ export function listEntities ({categoriesExact = [], query = "", limit = null, b
 			return sourcePriority(a) - sourcePriority(b);
 		});
 	}
-	if (filtered) docs = docs.filter(doc => docMatchesBestiaryFilters(doc, bestiaryFilters));
+	if (hasBestiaryFilters(bestiaryFilters)) docs = docs.filter(doc => docMatchesBestiaryFilters(doc, bestiaryFilters));
+	if (hasSpellFilters(spellFilters)) docs = docs.filter(doc => docMatchesSpellFilters(doc, spellFilters));
+	if (hasItemFilters(itemFilters)) docs = docs.filter(doc => docMatchesItemFilters(doc, itemFilters));
 	return capped ? docs.slice(0, limit) : docs;
 }
 

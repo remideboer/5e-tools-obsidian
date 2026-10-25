@@ -3,7 +3,9 @@ import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
-import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js";
+import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters, habitatFilterOptions} from "./bestiary-meta.js";
+import {SPELL_FILTER_OPTIONS, emptySpellFilters} from "./spell-meta.js";
+import {ITEM_FILTER_OPTIONS, emptyItemFilters} from "./item-meta.js";
 import {
 	defaultListSort,
 	navSupportsBadgeSort,
@@ -53,9 +55,11 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.globalSearchEl = null;
 		this._listToken = 0;
 		this.bestiaryFilters = emptyBestiaryFilters();
+		this.spellFilters = emptySpellFilters();
+		this.itemFilters = emptyItemFilters();
 		this._restoring = false;
 		this._pendingState = null;
-		this._closeBestiaryMenus = null;
+		this._closeFilterMenus = null;
 	}
 
 	getViewType () {
@@ -118,15 +122,20 @@ export class FiveEToolsLibraryView extends ItemView {
 		});
 		this.sortEl = this.searchRowEl.createDiv({cls: "fiveetools-library__sort"});
 		this.filterEl = this.listColEl.createDiv({cls: "fiveetools-bestiary-filters"});
-		paintBestiaryFilters(this.filterEl, this.bestiaryFilters, () => this.refreshList());
-		this._closeBestiaryMenus = () => closeBestiaryFilterMenus(this.filterEl);
-		this.contentEl.addEventListener("click", this._closeBestiaryMenus);
+		this.paintNavFilters();
+		this._closeFilterMenus = () => closeLibraryFilterMenus(this.filterEl);
+		this.contentEl.addEventListener("click", this._closeFilterMenus);
 		this.listEl = this.listColEl.createDiv({cls: "fiveetools-library__list"});
 		this.readerEl = this.contentEl.createDiv({cls: "fiveetools-library__reader fiveetools-view"});
 
 		if (!await this.plugin.ensureReady()) {
 			this.readerEl.createEl("p", {text: "Could not load bundled 5etools data."});
 			return;
+		}
+
+		if (this.plugin._pendingBestiaryFilters) {
+			this.applyBestiaryFilters(this.plugin._pendingBestiaryFilters);
+			this.plugin._pendingBestiaryFilters = null;
 		}
 
 		if (this._pendingState?.doc || this._pendingState?.navId) {
@@ -146,7 +155,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	async onClose () {
-		if (this._closeBestiaryMenus) this.contentEl.removeEventListener("click", this._closeBestiaryMenus);
+		if (this._closeFilterMenus) this.contentEl.removeEventListener("click", this._closeFilterMenus);
 		teardownCampaignManager(this.plugin);
 		teardownMapView(this.plugin, {closePlayer: true});
 		this.readerEl?.removeClass("fiveetools-campaign-reader");
@@ -188,6 +197,18 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 		this.renderNav();
 		this.refreshList();
+	}
+
+	/** Replace bestiary filter facets (habitat deep-links from creature stats). */
+	applyBestiaryFilters (partial = {}) {
+		const next = emptyBestiaryFilters();
+		for (const key of Object.keys(next)) {
+			if (Array.isArray(partial[key])) next[key] = [...partial[key]];
+		}
+		this.bestiaryFilters = next;
+		if (this.navId === "bestiary" && this.filterEl) {
+			this.paintNavFilters();
+		}
 	}
 
 	async navigateToDoc (doc) {
@@ -461,11 +482,22 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 
 		this.searchRowEl.style.display = "";
-		if (this.filterEl) this.filterEl.style.display = item?.id === "bestiary" ? "" : "none";
+		const showFilters = item?.id === "bestiary" || item?.id === "spell" || item?.id === "item";
+		if (this.filterEl) {
+			const navChanged = this._filterNavId !== item?.id;
+			this.filterEl.style.display = showFilters ? "" : "none";
+			if (showFilters && navChanged) {
+				this._filterNavId = item.id;
+				this.paintNavFilters();
+			}
+			if (!showFilters) this._filterNavId = "";
+		}
 		let docs = listEntities({
 			categoriesExact: item?.categories || [],
 			query: this.query,
 			bestiaryFilters: item?.id === "bestiary" ? this.bestiaryFilters : undefined,
+			spellFilters: item?.id === "spell" ? this.spellFilters : undefined,
+			itemFilters: item?.id === "item" ? this.itemFilters : undefined,
 		});
 		if (navSupportsBadgeSort(item?.id)) {
 			const sort = this.listSortForNav(item.id);
@@ -475,6 +507,21 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		this.renderDocRows();
 		this.listEl.scrollTop = scrollTop;
+	}
+
+	paintNavFilters () {
+		const host = this.filterEl;
+		if (!host) return;
+		const onChange = () => this.refreshList();
+		if (this.navId === "spell") {
+			paintSpellFilters(host, this.spellFilters, onChange);
+			return;
+		}
+		if (this.navId === "item") {
+			paintItemFilters(host, this.itemFilters, onChange);
+			return;
+		}
+		paintBestiaryFilters(host, this.bestiaryFilters, onChange);
 	}
 
 	renderMobileOnly (text) {
@@ -497,8 +544,14 @@ export class FiveEToolsLibraryView extends ItemView {
 			selectedIds: session.ids,
 			count: session.count,
 			results: session.results,
+			viewId: session.viewId || "",
 			onOpenItem: (doc) => { void this.plugin.openPreview(doc); },
-			onSessionChange: (next) => { this.plugin._lootSession = next; },
+			onSessionChange: (next) => {
+				this.plugin._lootSession = {
+					...next,
+					viewId: next.results?.items?.length ? "" : (session.viewId || ""),
+				};
+			},
 		});
 	}
 
@@ -567,12 +620,48 @@ function clearListToolClasses (el) {
 }
 
 function paintBestiaryFilters (hostEl, filters, onChange) {
+	if (!Array.isArray(filters.environments)) filters.environments = [];
+	paintLibraryFilters(hostEl, filters, onChange, [
+		{label: "Type", key: "types", options: BESTIARY_FILTER_OPTIONS.types},
+		{label: "CR", key: "crs", options: BESTIARY_FILTER_OPTIONS.crs},
+		{label: "Size", key: "sizes", options: BESTIARY_FILTER_OPTIONS.sizes},
+		{label: "Alignment", key: "alignments", options: BESTIARY_FILTER_OPTIONS.alignments},
+		{label: "Habitat", key: "environments", options: habitatFilterOptions()},
+	], () => {
+		filters.types = [];
+		filters.crs = [];
+		filters.sizes = [];
+		filters.alignments = [];
+		filters.environments = [];
+	});
+}
+
+function paintSpellFilters (hostEl, filters, onChange) {
+	paintLibraryFilters(hostEl, filters, onChange, [
+		{label: "Level", key: "levels", options: SPELL_FILTER_OPTIONS.levels},
+		{label: "Class", key: "classes", options: SPELL_FILTER_OPTIONS.classes},
+	], () => {
+		filters.levels = [];
+		filters.classes = [];
+	});
+}
+
+function paintItemFilters (hostEl, filters, onChange) {
+	paintLibraryFilters(hostEl, filters, onChange, [
+		{label: "Rarity", key: "rarities", options: ITEM_FILTER_OPTIONS.rarities},
+		{label: "Type", key: "types", options: ITEM_FILTER_OPTIONS.types},
+	], () => {
+		filters.rarities = [];
+		filters.types = [];
+	});
+}
+
+function paintLibraryFilters (hostEl, filters, onChange, dimensions, clearFn) {
 	hostEl.empty();
 	const grid = hostEl;
-	addBestiaryFilter(grid, "Type", "types", BESTIARY_FILTER_OPTIONS.types, filters, onChange);
-	addBestiaryFilter(grid, "CR", "crs", BESTIARY_FILTER_OPTIONS.crs, filters, onChange);
-	addBestiaryFilter(grid, "Size", "sizes", BESTIARY_FILTER_OPTIONS.sizes, filters, onChange);
-	addBestiaryFilter(grid, "Alignment", "alignments", BESTIARY_FILTER_OPTIONS.alignments, filters, onChange);
+	for (const dim of dimensions) {
+		addLibraryFilter(grid, dim.label, dim.key, dim.options, filters, onChange);
+	}
 	const clear = hostEl.createEl("button", {
 		cls: "fiveetools-bestiary-filters__clear",
 		attr: {type: "button"},
@@ -580,16 +669,13 @@ function paintBestiaryFilters (hostEl, filters, onChange) {
 	});
 	clear.addEventListener("click", (ev) => {
 		ev.stopPropagation();
-		filters.types = [];
-		filters.crs = [];
-		filters.sizes = [];
-		filters.alignments = [];
-		paintBestiaryFilters(hostEl, filters, onChange);
+		clearFn?.();
+		paintLibraryFilters(hostEl, filters, onChange, dimensions, clearFn);
 		onChange();
 	});
 }
 
-function addBestiaryFilter (grid, label, key, options, filters, onChange) {
+function addLibraryFilter (grid, label, key, options, filters, onChange) {
 	const wrap = grid.createDiv({cls: "fiveetools-bestiary-filter"});
 	const btn = wrap.createEl("button", {
 		cls: "fiveetools-bestiary-filter__btn",
@@ -618,14 +704,14 @@ function addBestiaryFilter (grid, label, key, options, filters, onChange) {
 	btn.addEventListener("click", (ev) => {
 		ev.stopPropagation();
 		const willOpen = !menu.classList.contains("is-open");
-		closeBestiaryFilterMenus(grid);
+		closeLibraryFilterMenus(grid);
 		if (willOpen) menu.classList.add("is-open");
 	});
 	menu.addEventListener("click", (ev) => ev.stopPropagation());
 	syncBtn();
 }
 
-function closeBestiaryFilterMenus (hostEl) {
+function closeLibraryFilterMenus (hostEl) {
 	hostEl?.querySelectorAll(".fiveetools-bestiary-filter__menu.is-open")
 		.forEach(el => el.classList.remove("is-open"));
 }

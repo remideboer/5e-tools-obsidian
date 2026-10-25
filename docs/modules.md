@@ -84,9 +84,10 @@ flowchart TB
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js` |
 | Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js` |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
-| Loot | `loot-view.js` (results via `roll-result-card.js`) |
+| Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |
 | Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
-| Library rows | `library-row.js` + `spell-meta.js` / `item-meta.js` / `bestiary-meta.js` (CR, rarity, level, type/alignment, classes; icon sort by name or badge) |
+| Library rows | `library-row.js` + `spell-meta.js` / `item-meta.js` / `bestiary-meta.js` (CR, rarity, level, type/alignment/habitat, classes; icon sort; spell/item/bestiary filters) |
+| Creature stats | `entity-reader.js` + `creature-stat-footer.js` (Habitat/Treasure on compact monsters; habitat → bestiary filter; treasure link/dice → Loot Generator / roll popup) |
 | Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
 
 ## Import rules of thumb

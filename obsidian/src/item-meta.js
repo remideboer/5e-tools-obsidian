@@ -2,8 +2,64 @@ import {getParser, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, homebrewType} from "./homebrew-store.js";
 import {readPluginJson} from "./plugin-dir.js";
 
+export const ITEM_FILTER_OPTIONS = {
+	rarities: [
+		{id: "common", label: "Common"},
+		{id: "uncommon", label: "Uncommon"},
+		{id: "rare", label: "Rare"},
+		{id: "very rare", label: "Very Rare"},
+		{id: "legendary", label: "Legendary"},
+		{id: "artifact", label: "Artifact"},
+		{id: "varies", label: "Varies"},
+	],
+	types: [
+		{id: "M", label: "Melee Weapon"},
+		{id: "R", label: "Ranged Weapon"},
+		{id: "LA", label: "Light Armor"},
+		{id: "MA", label: "Medium Armor"},
+		{id: "HA", label: "Heavy Armor"},
+		{id: "S", label: "Shield"},
+		{id: "A", label: "Ammunition"},
+		{id: "P", label: "Potion"},
+		{id: "SC", label: "Scroll"},
+		{id: "WD", label: "Wand"},
+		{id: "RD", label: "Rod"},
+		{id: "RG", label: "Ring"},
+		{id: "G", label: "Adventuring Gear"},
+		{id: "T", label: "Tool"},
+		{id: "AT", label: "Artisan's Tools"},
+		{id: "INS", label: "Instrument"},
+		{id: "SCF", label: "Spellcasting Focus"},
+		{id: "W", label: "Wondrous"},
+		{id: "OTH", label: "Other"},
+	],
+};
+
 let officialMap = null;
 let officialReady = false;
+
+export function emptyItemFilters () {
+	return {rarities: [], types: []};
+}
+
+export function hasItemFilters (filters) {
+	return !!(filters?.rarities?.length || filters?.types?.length);
+}
+
+export function docMatchesItemFilters (doc, filters) {
+	if (!hasItemFilters(filters)) return true;
+	const meta = getItemMeta(doc);
+	if (!meta) return false;
+	if (filters.rarities?.length) {
+		const rarity = String(meta.rarity || "").toLowerCase();
+		if (!filters.rarities.includes(rarity)) return false;
+	}
+	if (filters.types?.length) {
+		const have = new Set(meta.types || []);
+		if (!filters.types.some(id => have.has(id))) return false;
+	}
+	return true;
+}
 
 export function resetItemMeta () {
 	officialMap = null;
@@ -27,7 +83,7 @@ export function rarityShort (rarity) {
 }
 
 /**
- * @returns {{rarity: string, rarityShort: string}|null}
+ * @returns {{rarity: string, rarityShort: string, types: string[]}|null}
  */
 export function getItemMeta (doc) {
 	const map = ensureMap();
@@ -78,7 +134,6 @@ export async function loadItemMeta (plugin) {
 			for (const ent of lists) {
 				if (!ent?.name) continue;
 				const meta = itemMetaFromEnt(ent);
-				if (!meta.rarity) continue;
 				const source = ent.source || "";
 				const hash = hashOf ? hashOf(ent) : `${ent.name}_${source}`;
 				map.set(metaKey(hash, source), meta);
@@ -89,9 +144,12 @@ export async function loadItemMeta (plugin) {
 			const variants = await readPluginJson(plugin, "data", "magicvariants.json");
 			for (const ent of variants.magicvariant || []) {
 				if (!ent?.name) continue;
-				const rarity = ent.inherits?.rarity || ent.rarity || "";
-				if (!rarity) continue;
-				const meta = {rarity: String(rarity), rarityShort: rarityShort(rarity)};
+				const meta = itemMetaFromEnt({
+					...ent,
+					rarity: ent.inherits?.rarity || ent.rarity || "",
+					type: ent.inherits?.type || ent.type,
+					wondrous: ent.inherits?.wondrous ?? ent.wondrous,
+				});
 				const source = ent.source || "";
 				let hash = `${ent.name}_${source}`;
 				try {
@@ -101,7 +159,7 @@ export async function loadItemMeta (plugin) {
 				map.set(metaKey(ent.name, source), meta);
 			}
 		} catch (_) { /* optional variants */ }
-	} catch (_) { /* missing items leave rows without rarity */ }
+	} catch (_) { /* missing items leave rows without meta */ }
 	officialReady = true;
 	return map;
 }
@@ -111,7 +169,19 @@ function itemMetaFromEnt (ent) {
 	return {
 		rarity,
 		rarityShort: rarityShort(rarity),
+		types: typeKeys(ent),
 	};
+}
+
+function typeKeys (ent) {
+	const out = [];
+	const raw = ent?.type || ent?.inherits?.type;
+	if (raw) {
+		const abv = String(raw).split("|")[0].trim();
+		if (abv) out.push(abv);
+	}
+	if (ent?.wondrous || ent?.inherits?.wondrous) out.push("W");
+	return out;
 }
 
 function ensureMap () {

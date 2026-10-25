@@ -8,6 +8,7 @@ import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
 import {docFromHref, docFromVetLink} from "./search-index.js";
 import {bindDiceRollers} from "./dice-roll.js";
+import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {addCombatants} from "./encounter-view.js";
 import {emptyInstance, getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 
@@ -86,6 +87,10 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 				compactHtml = renderCompactHtml(loaded.ent, page);
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
 				statWrap.innerHTML = compactHtml;
+				if (isCreatureEntity(loaded.ent, doc)) {
+					appendCreatureStatFooter(statWrap, loaded.ent, plugin);
+					compactHtml = statWrap.innerHTML;
+				}
 				bindInternalLinks(statWrap, plugin);
 				bindDiceRollers(statWrap, plugin);
 				await rewriteMediaUrls(plugin, statWrap);

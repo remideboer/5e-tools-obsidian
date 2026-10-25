@@ -1,4 +1,4 @@
-import {getUrlUtil} from "./fiveetools-host.js";
+import {getParser, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, homebrewType} from "./homebrew-store.js";
 import {readPluginJson} from "./plugin-dir.js";
 
@@ -51,17 +51,38 @@ export const BESTIARY_FILTER_OPTIONS = {
 	],
 };
 
+/** Habitat/environment options for the bestiary filter bar (from Parser). */
+export function habitatFilterOptions () {
+	const Parser = getParser();
+	const seen = new Set();
+	const out = [];
+	const add = (id) => {
+		const key = String(id || "").trim();
+		if (!key || seen.has(key)) return;
+		seen.add(key);
+		out.push({
+			id: key,
+			label: Parser.getEnvironmentDisplayName?.(key) || key,
+		});
+	};
+	for (const id of Parser.ENVIRONMENTS || []) add(id);
+	for (const id of Object.keys(Parser.ENVIRONMENT_DISPLAY_NAMES || {})) add(id);
+	out.sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, {sensitivity: "base"}));
+	return out;
+}
+
 const ALIGNMENT_GROUPS = new Set(["G", "E", "L", "C"]);
 
 let officialMap = null;
 let officialReady = false;
 
 export function emptyBestiaryFilters () {
-	return {types: [], crs: [], sizes: [], alignments: []};
+	return {types: [], crs: [], sizes: [], alignments: [], environments: []};
 }
 
 export function hasBestiaryFilters (filters) {
-	return !!(filters?.types?.length || filters?.crs?.length || filters?.sizes?.length || filters?.alignments?.length);
+	return !!(filters?.types?.length || filters?.crs?.length || filters?.sizes?.length
+		|| filters?.alignments?.length || filters?.environments?.length);
 }
 
 export function monsterMetaFromEnt (ent) {
@@ -70,6 +91,7 @@ export function monsterMetaFromEnt (ent) {
 		types: typeKeys(ent),
 		sizes: sizeKeys(ent),
 		alignments: alignmentKeys(ent),
+		environments: environmentKeys(ent),
 		hp: hpAverage(ent),
 		ac: acPrimary(ent),
 		copy: ent?._copy?.name
@@ -86,6 +108,8 @@ export function docMatchesBestiaryFilters (doc, filters) {
 	if (filters.crs?.length && !filters.crs.includes(meta.cr || "0")) return false;
 	if (filters.sizes?.length && !filters.sizes.some(it => meta.sizes.includes(it))) return false;
 	if (filters.alignments?.length && !alignmentMatches(meta.alignments, filters.alignments)) return false;
+	if (filters.environments?.length
+		&& !filters.environments.some(it => (meta.environments || []).includes(it))) return false;
 	return true;
 }
 
@@ -170,15 +194,18 @@ function inheritMeta (meta, map, depth = 0) {
 	if (!meta || depth > 6) return meta;
 	if (
 		meta.cr && meta.types.length && meta.sizes.length && meta.alignments.length
+		&& (meta.environments || []).length
 		&& meta.hp != null && meta.ac != null
 	) return meta;
 	if (!meta.copy) {
 		if (!meta.cr) meta.cr = "0";
+		if (!meta.environments) meta.environments = [];
 		return meta;
 	}
 	const parent = map.get(metaKey(meta.copy.name, meta.copy.source));
 	if (!parent || parent === meta) {
 		if (!meta.cr) meta.cr = "0";
+		if (!meta.environments) meta.environments = [];
 		return meta;
 	}
 	inheritMeta(parent, map, depth + 1);
@@ -186,10 +213,16 @@ function inheritMeta (meta, map, depth = 0) {
 	if (!meta.types.length) meta.types = [...parent.types];
 	if (!meta.sizes.length) meta.sizes = [...parent.sizes];
 	if (!meta.alignments.length) meta.alignments = [...parent.alignments];
+	if (!(meta.environments || []).length) meta.environments = [...(parent.environments || [])];
 	if (meta.hp == null) meta.hp = parent.hp;
 	if (meta.ac == null) meta.ac = parent.ac;
 	if (!meta.cr) meta.cr = "0";
 	return meta;
+}
+
+function environmentKeys (ent) {
+	if (!Array.isArray(ent?.environment)) return [];
+	return ent.environment.map(it => String(it || "").trim()).filter(Boolean);
 }
 
 function hpAverage (ent) {

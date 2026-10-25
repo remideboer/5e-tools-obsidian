@@ -22,6 +22,29 @@ const CLASS_ABBR = {
 let officialMap = null;
 let officialReady = false;
 
+export function emptySpellFilters () {
+	return {levels: [], classes: []};
+}
+
+export function hasSpellFilters (filters) {
+	return !!(filters?.levels?.length || filters?.classes?.length);
+}
+
+export function docMatchesSpellFilters (doc, filters) {
+	if (!hasSpellFilters(filters)) return true;
+	const meta = getSpellMeta(doc);
+	if (!meta) return false;
+	if (filters.levels?.length) {
+		const lvl = meta.level == null ? "" : String(meta.level);
+		if (!filters.levels.includes(lvl)) return false;
+	}
+	if (filters.classes?.length) {
+		const have = new Set((meta.classes || []).map(it => String(it).toLowerCase()));
+		if (!filters.classes.some(id => have.has(String(id).toLowerCase()))) return false;
+	}
+	return true;
+}
+
 export function resetSpellMeta () {
 	officialMap = null;
 	officialReady = false;
@@ -38,6 +61,21 @@ export function spellLevelShort (level) {
 	if (n === 0) return "Can.";
 	const ord = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"];
 	return ord[n] || `${n}th`;
+}
+
+export const SPELL_FILTER_OPTIONS = {
+	levels: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(id => ({
+		id: String(id),
+		label: id === 0 ? "Cantrip" : spellLevelShort(id),
+	})),
+	classes: Object.keys(CLASS_ABBR).map(id => ({
+		id,
+		label: titleCaseClass(id),
+	})),
+};
+
+function titleCaseClass (id) {
+	return String(id || "").split(" ").map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : "").join(" ");
 }
 
 export function spellLevelFull (level) {

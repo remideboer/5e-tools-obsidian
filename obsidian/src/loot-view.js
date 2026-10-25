@@ -102,11 +102,138 @@ export function lootTableRarityWeight (meta) {
 	return RARITY_WEIGHT[rarityForTable(meta)] || RARITY_WEIGHT.uncommon;
 }
 
+/** Treasure themes that map to XDMG magic-item tables, plus individual coin loot. */
+export function isRollableTreasure (typ) {
+	const t = String(typ || "").toLowerCase();
+	if (t === "individual") return true;
+	const Parser = getParser();
+	return (Parser.TREASURE_TYPES || []).includes(t);
+}
+
+/**
+ * Resolve monster treasure type → loot table ids.
+ * Themes → all XDMG `{theme}.*` magic item tables; individual → CR-band Individual (prefer XDMG).
+ */
+export function lootTableIdsForTreasure (treasureType, {cr} = {}) {
+	const typ = String(treasureType || "").toLowerCase().trim();
+	if (!typ) return [];
+	const tables = listLootTables();
+	if (typ === "individual") {
+		const crNum = crToNumber(cr);
+		const band = tables.filter(t => t.kind === "individual" && individualMatchesCr(t.crMin, crNum));
+		const xdmg = band.filter(t => t.source === "XDMG");
+		const pool = xdmg.length ? xdmg : band;
+		return pool.length ? [pickClosestIndividual(pool, crNum).id] : [];
+	}
+	const Parser = getParser();
+	if (!(Parser.TREASURE_TYPES || []).includes(typ)) return [];
+	const prefix = `${typ}.`;
+	return tables
+		.filter(t => t.kind === "magicItems"
+			&& String(t.type || "").toLowerCase().startsWith(prefix)
+			&& t.source === "XDMG")
+		.map(t => t.id);
+}
+
+/** Show loot roll results in a dismissible overlay (creature treasure dice). */
+export function showLootRollPopup (plugin, results) {
+	const doc = document;
+	const prev = doc.getElementById("fiveetools-treasure-roll-popup");
+	prev?.remove();
+
+	const overlay = doc.createElement("div");
+	overlay.id = "fiveetools-treasure-roll-popup";
+	overlay.className = "fiveetools-treasure-roll-popup";
+	const panel = doc.createElement("div");
+	panel.className = "fiveetools-treasure-roll-popup__panel";
+	const head = doc.createElement("div");
+	head.className = "fiveetools-treasure-roll-popup__head";
+	const title = doc.createElement("h3");
+	const items = results?.items || [];
+	title.textContent = items.length === 1 ? "1 item" : `${items.length} items`;
+	head.appendChild(title);
+	const closeBtn = doc.createElement("button");
+	closeBtn.type = "button";
+	closeBtn.className = "fiveetools-treasure-roll-popup__close";
+	closeBtn.setAttribute("aria-label", "Close");
+	closeBtn.textContent = "×";
+	head.appendChild(closeBtn);
+	panel.appendChild(head);
+	const body = doc.createElement("div");
+	body.className = "fiveetools-treasure-roll-popup__body";
+	panel.appendChild(body);
+	overlay.appendChild(panel);
+	doc.body.appendChild(overlay);
+
+	const cards = items.map(item => ({
+		title: item.label || item.name || "Item",
+		meta: item.tableLabel || "",
+		item: item.name
+			? {name: item.name, source: item.source || "", label: item.label || item.name}
+			: null,
+	}));
+	renderRollResultCards(body, cards, {
+		onOpenItem: (found) => { void plugin?.openPreview?.(found); },
+		resolveItem: resolveLootItemDoc,
+		emptyText: "No results.",
+		plugin,
+	});
+
+	const close = () => {
+		overlay.remove();
+		doc.removeEventListener("keydown", onKey);
+	};
+	const onKey = (evt) => {
+		if (evt.key === "Escape") close();
+	};
+	closeBtn.addEventListener("click", (evt) => {
+		evt.preventDefault();
+		close();
+	});
+	overlay.addEventListener("click", (evt) => {
+		if (evt.target === overlay) close();
+	});
+	doc.addEventListener("keydown", onKey);
+}
+
+function crToNumber (cr) {
+	const Parser = getParser();
+	if (typeof Parser.crToNumber === "function") {
+		const n = Number(Parser.crToNumber(cr));
+		if (Number.isFinite(n) && n < 900) return n;
+	}
+	const raw = String(cr?.cr ?? cr ?? "0").trim();
+	if (raw.includes("/")) {
+		const [a, b] = raw.split("/").map(Number);
+		if (b) return a / b;
+	}
+	const n = Number(raw);
+	return Number.isFinite(n) ? n : 0;
+}
+
+function individualMatchesCr (crMin, crNum) {
+	const min = Number(crMin);
+	if (!Number.isFinite(min)) return true;
+	if (min >= 17) return crNum >= 17;
+	if (min >= 11) return crNum >= 11 && crNum < 17;
+	if (min >= 5) return crNum >= 5 && crNum < 11;
+	return crNum < 5;
+}
+
+function pickClosestIndividual (pool, crNum) {
+	return pool.slice().sort((a, b) => {
+		const da = Math.abs(Number(a.crMin) - crNum);
+		const db = Math.abs(Number(b.crMin) - crNum);
+		return da - db;
+	})[0];
+}
+
 export function renderLootGenerator (formEl, resultEl, {
 	onOpenItem,
 	selectedIds = [],
 	count = 1,
 	results = null,
+	viewId = "",
 	onSessionChange,
 } = {}) {
 	formEl.empty();
@@ -222,8 +349,26 @@ export function renderLootGenerator (formEl, resultEl, {
 
 	countSel.addEventListener("change", () => emitSession());
 
-	if (currentResults?.items?.length) renderLootResults(resultEl, currentResults, onOpenItem);
-	else showPlaceholder();
+	if (currentResults?.items?.length) {
+		renderLootResults(resultEl, currentResults, onOpenItem);
+	} else if (viewId) {
+		const meta = listLootTables().find(t => t.id === viewId);
+		if (meta) {
+			const row = formEl.querySelector(`[data-loot-id="${cssEscape(viewId)}"]`)
+				?.closest?.(".fiveetools-loot__opt");
+			setViewedRow(row);
+			try {
+				renderLootTableView(resultEl, lootTableView(meta));
+			} catch (e) {
+				resultEl.empty();
+				resultEl.createEl("p", {text: e.message || "Could not open table."});
+			}
+		} else {
+			showPlaceholder();
+		}
+	} else {
+		showPlaceholder();
+	}
 	clearBtn.toggleAttribute("disabled", !currentResults?.items?.length);
 
 	rollBtn.addEventListener("click", () => {
@@ -860,10 +1005,18 @@ function pickWeightedTable (tables, RollerUtil) {
 	return tables[tables.length - 1];
 }
 
+function cssEscape (value) {
+	const s = String(value ?? "");
+	if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(s);
+	return s.replace(/["\\]/g, "\\$&");
+}
+
 if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.listLootTables = listLootTables;
 	globalThis.FiveEToolsObsidian.rollSelectedTables = rollSelectedTables;
 	globalThis.FiveEToolsObsidian.lootTableRarityWeight = lootTableRarityWeight;
 	globalThis.FiveEToolsObsidian.lootTableView = lootTableView;
 	globalThis.FiveEToolsObsidian.formatLootRowText = formatLootRowText;
+	globalThis.FiveEToolsObsidian.lootTableIdsForTreasure = lootTableIdsForTreasure;
+	globalThis.FiveEToolsObsidian.isRollableTreasure = isRollableTreasure;
 }
