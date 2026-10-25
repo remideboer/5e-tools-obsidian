@@ -12,6 +12,7 @@ import {parseItemRef, renderRollResultCards} from "../roll-result-card.js";
 
 /**
  * Tools → Roll tables: list vault notes, paste import, roll → result cards.
+ * Per-row Roll / View mirrors the loot generator; count is shared like loot Items.
  */
 export function renderRollTablesTool (listEl, readerEl, {
 	session = {},
@@ -41,6 +42,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 			results: state.results,
 			importDraft: state.importDraft,
 		});
+		clearBtn.toggleAttribute("disabled", !state.results?.length);
 	};
 
 	const toolbar = listEl.createDiv({cls: "fiveetools-rolltables__toolbar"});
@@ -53,6 +55,21 @@ export function renderRollTablesTool (listEl, readerEl, {
 	});
 	setIcon(refreshBtn, "refresh-cw");
 
+	const rollControls = listEl.createDiv({cls: "fiveetools-rolltables__rollbar"});
+	const countWrap = rollControls.createDiv({cls: "fiveetools-rolltables__row"});
+	countWrap.createEl("span", {text: "Rolls"});
+	const countSel = countWrap.createEl("select", {cls: "fiveetools-rolltables__count"});
+	for (let i = 1; i <= 10; i++) {
+		const opt = countSel.createEl("option", {text: String(i), attr: {value: String(i)}});
+		if (i === state.count) opt.selected = true;
+	}
+	const clearBtn = rollControls.createEl("button", {
+		text: "Clear results",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button"},
+	});
+	clearBtn.toggleAttribute("disabled", !state.results?.length);
+
 	const listHost = listEl.createDiv({cls: "fiveetools-rolltables__list"});
 	const importHost = listEl.createDiv({cls: "fiveetools-rolltables__import"});
 	importHost.style.display = "none";
@@ -61,6 +78,11 @@ export function renderRollTablesTool (listEl, readerEl, {
 		listHost.querySelectorAll(".fiveetools-rolltables__hit").forEach((el) => {
 			el.classList.toggle("is-selected", el.dataset.path === state.selectedPath);
 		});
+	};
+
+	const setViewedRow = (path) => {
+		state.selectedPath = path || "";
+		syncListSelection();
 	};
 
 	const renderTablePreview = (parsed) => {
@@ -83,9 +105,10 @@ export function renderRollTablesTool (listEl, readerEl, {
 		}
 	};
 
-	const renderResults = (draws) => {
+	const renderResults = (draws, tableName = "") => {
 		readerEl.empty();
 		readerEl.addClass("fiveetools-rolltables__reader");
+		const name = tableName || state.parsed?.name || "";
 		const cards = (draws || []).map((draw) => {
 			const primary = draw.cells?.[0];
 			const title = primary?.text || draw.row?.filter(Boolean).join(" · ") || "—";
@@ -101,14 +124,22 @@ export function renderRollTablesTool (listEl, readerEl, {
 			return {
 				dieBadge,
 				title: primary?.text || title,
-				meta: state.parsed?.name || "",
+				meta: name,
 				fields,
 				item: item || undefined,
 			};
 		});
 		renderRollResultCards(readerEl, cards, {
 			onOpenItem,
-			emptyText: "Roll to see results.",
+			emptyText: "Roll a table to see results.",
+		});
+	};
+
+	const showPlaceholder = () => {
+		readerEl.empty();
+		readerEl.createEl("p", {
+			cls: "fiveetools-view__meta",
+			text: "Pick a table to view, or roll using the dice button.",
 		});
 	};
 
@@ -116,10 +147,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 		if (!state.selectedPath) {
 			state.parsed = null;
 			if (state.results?.length) renderResults(state.results);
-			else {
-				readerEl.empty();
-				readerEl.createEl("p", {cls: "fiveetools-view__meta", text: "Select a table or import one."});
-			}
+			else showPlaceholder();
 			return;
 		}
 		const parsed = await readRollTableNote(plugin, state.selectedPath);
@@ -129,8 +157,42 @@ export function renderRollTablesTool (listEl, readerEl, {
 			readerEl.createEl("p", {text: parsed.error || "Could not read table."});
 			return;
 		}
-		if (state.results?.length) renderResults(state.results);
+		if (state.results?.length) renderResults(state.results, parsed.name);
 		else renderTablePreview(parsed);
+	};
+
+	const rollTableAt = async (path) => {
+		const parsed = await readRollTableNote(plugin, path);
+		if (!parsed.ok) {
+			new Notice(parsed.error || "Could not read table.");
+			return;
+		}
+		const n = Math.max(1, Math.min(TABLE_LIMITS.results, Number(countSel.value) || 1));
+		try {
+			const draws = [];
+			for (let i = 0; i < n; i++) {
+				draws.push(rollOnTable(parsed.headers, parsed.rows, parsed.name));
+			}
+			state.parsed = parsed;
+			emit({selectedPath: path, count: n, results: draws});
+			syncListSelection();
+			renderResults(draws, parsed.name);
+		} catch (e) {
+			new Notice(e.message || "Roll failed.");
+		}
+	};
+
+	const viewTableAt = async (path) => {
+		emit({selectedPath: path, results: null});
+		syncListSelection();
+		const parsed = await readRollTableNote(plugin, path);
+		state.parsed = parsed.ok ? parsed : null;
+		if (!parsed.ok) {
+			readerEl.empty();
+			readerEl.createEl("p", {text: parsed.error || "Could not read table."});
+			return;
+		}
+		renderTablePreview(parsed);
 	};
 
 	const rebuildList = async () => {
@@ -153,6 +215,30 @@ export function renderRollTablesTool (listEl, readerEl, {
 				attr: {"data-path": table.path},
 			});
 			row.createSpan({cls: "fiveetools-rolltables__hitname", text: table.name});
+
+			const rollOneBtn = row.createEl("button", {
+				cls: "fiveetools-rolltables__roll",
+				attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
+			});
+			setIcon(rollOneBtn, "dices");
+			rollOneBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				void rollTableAt(table.path);
+			});
+
+			const viewBtn = row.createEl("button", {
+				cls: "fiveetools-rolltables__view",
+				attr: {type: "button", title: "View table", "aria-label": "View table"},
+			});
+			setIcon(viewBtn, "eye");
+			viewBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				setViewedRow(table.path);
+				void viewTableAt(table.path);
+			});
+
 			const del = row.createEl("button", {
 				cls: "fiveetools-rolltables__del",
 				attr: {type: "button", title: "Delete", "aria-label": "Delete"},
@@ -165,7 +251,8 @@ export function renderRollTablesTool (listEl, readerEl, {
 				try {
 					await deleteRollTableNote(plugin, table.path);
 					if (state.selectedPath === table.path) {
-						emit({selectedPath: "", results: null, parsed: null});
+						emit({selectedPath: "", results: null});
+						state.parsed = null;
 					}
 					await rebuildList();
 					await showSelected();
@@ -174,62 +261,11 @@ export function renderRollTablesTool (listEl, readerEl, {
 					new Notice(e.message || "Could not delete.");
 				}
 			});
-			row.addEventListener("click", () => {
-				if (state.selectedPath === table.path) {
-					syncListSelection();
-					return;
-				}
-				emit({selectedPath: table.path, results: null});
-				syncListSelection();
-				void showSelected();
-			});
 		}
 		listHost.scrollTop = scrollTop;
 	};
 
-	const rollControls = listEl.createDiv({cls: "fiveetools-rolltables__rollbar"});
-	const countWrap = rollControls.createDiv({cls: "fiveetools-rolltables__row"});
-	countWrap.createEl("span", {text: "Rolls"});
-	const countSel = countWrap.createEl("select", {cls: "fiveetools-rolltables__count"});
-	for (let i = 1; i <= 10; i++) {
-		const opt = countSel.createEl("option", {text: String(i), attr: {value: String(i)}});
-		if (i === state.count) opt.selected = true;
-	}
-	const rollBtn = rollControls.createEl("button", {text: "Roll", cls: "fiveetools-btn", attr: {type: "button"}});
-	const clearBtn = rollControls.createEl("button", {
-		text: "Clear",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button"},
-	});
-
 	countSel.addEventListener("change", () => emit({count: Number(countSel.value) || 1}));
-
-	rollBtn.addEventListener("click", async () => {
-		if (!state.selectedPath) {
-			new Notice("Select a table first.");
-			return;
-		}
-		let parsed = state.parsed;
-		if (!parsed?.ok) {
-			parsed = await readRollTableNote(plugin, state.selectedPath);
-			state.parsed = parsed.ok ? parsed : null;
-		}
-		if (!parsed?.ok) {
-			new Notice(parsed?.error || "Could not read table.");
-			return;
-		}
-		const n = Math.max(1, Math.min(TABLE_LIMITS.results, Number(countSel.value) || 1));
-		try {
-			const draws = [];
-			for (let i = 0; i < n; i++) {
-				draws.push(rollOnTable(parsed.headers, parsed.rows, parsed.name));
-			}
-			emit({count: n, results: draws});
-			renderResults(draws);
-		} catch (e) {
-			new Notice(e.message || "Roll failed.");
-		}
-	});
 
 	clearBtn.addEventListener("click", () => {
 		emit({results: null});

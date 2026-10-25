@@ -577,6 +577,8 @@ a.fiveetools-inline-link {
 .fiveetools-loot__view {
 	--icon-size: 1.15em;
 	flex: 0 0 auto;
+	width: 1.75em;
+	height: 1.75em;
 	padding: 0;
 	border: 0;
 	background: transparent;
@@ -763,21 +765,44 @@ a.fiveetools-inline-link {
 	white-space: nowrap;
 }
 
+.fiveetools-rolltables__roll,
+.fiveetools-rolltables__view,
 .fiveetools-rolltables__del {
+	--icon-size: 1.15em;
 	flex: 0 0 auto;
-	background: none;
+	width: 1.75em;
+	height: 1.75em;
+	padding: 0;
 	border: 0;
-	padding: 2px;
+	background: transparent;
 	color: var(--text-muted);
-	cursor: pointer;
 	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.fiveetools-rolltables__roll {
+	margin-left: auto;
+}
+
+.fiveetools-rolltables__roll:hover,
+.fiveetools-rolltables__view:hover {
+	color: var(--text-normal);
 }
 
 .fiveetools-rolltables__del:hover {
 	color: var(--text-error);
 }
 
-.fiveetools-rolltables__rollbar,
+.fiveetools-rolltables__rollbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	flex: 0 0 auto;
+}
+
 .fiveetools-rolltables__row {
 	display: flex;
 	align-items: center;
