@@ -4,6 +4,7 @@ import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
 import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js";
+import {paintLibraryRow} from "./library-row.js";
 import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
@@ -430,11 +431,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			const row = this.listEl.createEl("button", {
 				cls: `fiveetools-library__row${active ? " is-selected" : ""}`,
 			});
-			row.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
-			row.createEl("div", {
-				cls: "fiveetools-modal__sub",
-				text: [doc.cf, doc.sA || doc.s].filter(Boolean).join(" · "),
-			});
+			paintLibraryRow(row, doc);
 			row.addEventListener("click", () => this.navigateToDoc(doc));
 		}
 	}

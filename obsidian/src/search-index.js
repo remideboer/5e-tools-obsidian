@@ -3,6 +3,8 @@ import {CORPUS_PAGES, MAX_SEARCH_RESULTS} from "./constants.js";
 import {getElasticlunr, getParser, getSearchUtil, getStyleHint, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
 import {docMatchesBestiaryFilters, hasBestiaryFilters, loadMonsterMeta, resetMonsterMeta} from "./bestiary-meta.js";
+import {loadSpellMeta, resetSpellMeta} from "./spell-meta.js";
+import {loadItemMeta, resetItemMeta} from "./item-meta.js";
 import {pluginVaultDir, readPluginJson} from "./plugin-dir.js";
 
 const CATEGORY_ALIAS = {
@@ -41,6 +43,8 @@ export async function ensureSearchIndex (plugin) {
 	const root = pluginVaultDir(plugin);
 	if (searchIndex && loadedRoot === root) return searchIndex;
 	resetMonsterMeta();
+	resetSpellMeta();
+	resetItemMeta();
 
 	const elasticlunr = getElasticlunr();
 	const Parser = getParser();
@@ -66,7 +70,11 @@ export async function ensureSearchIndex (plugin) {
 	searchIndex = index;
 	loadedRoot = root;
 	homebrewDocIds.clear();
-	await loadMonsterMeta(plugin);
+	await Promise.all([
+		loadMonsterMeta(plugin),
+		loadSpellMeta(plugin),
+		loadItemMeta(plugin),
+	]);
 	return searchIndex;
 }
 

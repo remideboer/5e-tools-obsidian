@@ -86,6 +86,7 @@ flowchart TB
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
 | Loot | `loot-view.js` (results via `roll-result-card.js`) |
 | Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
+| Library rows | `library-row.js` + `spell-meta.js` / `item-meta.js` / `bestiary-meta.js` (CR, rarity, level, type/alignment, classes) |
 | Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
 
 ## Import rules of thumb
