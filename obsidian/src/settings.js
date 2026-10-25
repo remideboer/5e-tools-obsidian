@@ -40,9 +40,9 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 			.setDesc("Tokens, art, covers, and maps are stored in the plugin folder after first download.")
 			.addButton(btn => btn
 				.setButtonText("Clear image cache")
-				.onClick(() => {
+				.onClick(async () => {
 					try {
-						clearMediaCache(this.plugin);
+						await clearMediaCache(this.plugin);
 						new Notice("5etools image cache cleared.");
 					} catch (e) {
 						new Notice(`Could not clear image cache: ${e.message}`);

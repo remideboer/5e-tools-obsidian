@@ -1,11 +1,11 @@
-import {Notice, Plugin} from "obsidian";
+import {Notice, Platform, Plugin} from "obsidian";
 import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY, VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./src/constants.js";
 import {FiveEToolsView} from "./src/entity-view.js";
 import {configureFiveEToolsRoot, setStyleHint} from "./src/fiveetools-host.js";
 import {ICON_ID, registerFiveEToolsIcon} from "./src/icon.js";
 import {FiveEToolsLibraryView, libraryStateFromDoc} from "./src/library-view.js";
-import {validateRoot} from "./src/local-fs.js";
-import {getPluginDir} from "./src/plugin-dir.js";
+import {validatePluginData} from "./src/local-fs.js";
+import {pluginVaultDir} from "./src/plugin-dir.js";
 import {ensureSearchIndex, indexHomebrewDocs} from "./src/search-index.js";
 import {cacheBrewInDataLoader, loadHomebrewFromVault} from "./src/homebrew-store.js";
 import {flushEncounterSave, getEncounterInstance, loadEncountersFromVault, setEncounterInstance} from "./src/encounter-store.js";
@@ -74,25 +74,18 @@ export default class FiveEToolsPlugin extends Plugin {
 	}
 
 	getDataRoot () {
-		return getPluginDir(this);
+		return pluginVaultDir(this);
 	}
 
 	async ensureReady () {
-		let root;
-		try {
-			root = this.getDataRoot();
-		} catch (e) {
-			new Notice(e.message);
-			return false;
-		}
-		const check = validateRoot(root);
+		const check = await validatePluginData(this);
 		if (!check.ok) {
 			new Notice(check.error);
 			return false;
 		}
-		configureFiveEToolsRoot(check.root, {imageBaseUrl: this.settings.imageBaseUrl});
+		configureFiveEToolsRoot(this, {imageBaseUrl: this.settings.imageBaseUrl});
 		setStyleHint(this.settings.style);
-		await ensureSearchIndex(check.root);
+		await ensureSearchIndex(this);
 		await loadHomebrewFromVault(this);
 		cacheBrewInDataLoader();
 		indexHomebrewDocs();
@@ -142,7 +135,7 @@ export default class FiveEToolsPlugin extends Plugin {
 		try {
 			let leaf = workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS)[0];
 			if (!leaf) {
-				if (typeof workspace.openPopoutLeaf === "function") {
+				if (!Platform.isMobile && typeof workspace.openPopoutLeaf === "function") {
 					leaf = workspace.openPopoutLeaf({size: {width: 560, height: 760}});
 				} else {
 					leaf = workspace.getLeaf("split") || workspace.getLeaf(true);

@@ -1,4 +1,3 @@
-import path from "path";
 import {renderCompactMarkdown, pageForDoc} from "./compact-render.js";
 import {getAdventureChapters, renderAdventureChapterMarkdown} from "./adventure-reader.js";
 import {resolveEntityImages} from "./image-resolver.js";
@@ -135,7 +134,10 @@ async function insertAdventureNotes (plugin, {doc, ent, open = true} = {}) {
 }
 
 function extensionFor (resolved) {
-	const fromRel = path.extname(resolved.rel || resolved.path || "");
+	const name = String(resolved.rel || resolved.path || "");
+	const dot = name.lastIndexOf(".");
+	const slash = Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\"));
+	const fromRel = dot > slash ? name.slice(dot) : "";
 	if (fromRel) return fromRel;
 	if (resolved.url && /\.png(\?|$)/i.test(resolved.url)) return ".png";
 	if (resolved.url && /\.jpe?g(\?|$)/i.test(resolved.url)) return ".jpg";

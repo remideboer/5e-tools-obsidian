@@ -1,8 +1,8 @@
-import fs from "fs";
 import {Notice} from "obsidian";
 import {findEntityDoc} from "./search-index.js";
 import {cacheEntityInDataLoader} from "./homebrew-store.js";
-import {getConfiguredRoot, getParser, getRenderer, getUrlUtil, joinUnderRoot} from "./fiveetools-host.js";
+import {getParser, getRenderer, getUrlUtil} from "./fiveetools-host.js";
+import {readPluginJson} from "./plugin-dir.js";
 
 const TABLE_GROUPS = [
 	{kind: "individual", label: "Individual"},
@@ -40,6 +40,18 @@ const MAGIC_TABLE_RARITY = {
 
 let lootCache = null;
 let itemCorpusCache = null;
+
+export async function ensureLootData (plugin) {
+	if (lootCache && itemCorpusCache) return;
+	const [loot, itemsJson, baseJson, variantsJson] = await Promise.all([
+		readPluginJson(plugin, "data", "loot.json"),
+		readPluginJson(plugin, "data", "items.json"),
+		readPluginJson(plugin, "data", "items-base.json"),
+		readPluginJson(plugin, "data", "magicvariants.json"),
+	]);
+	lootCache = loot;
+	itemCorpusCache = buildItemCorpus(itemsJson, baseJson, variantsJson);
+}
 
 export function listLootTables () {
 	const loot = loadLootJson();
@@ -483,13 +495,12 @@ function entryFromCorpusItem (item, table, matching = null) {
 }
 
 function loadItemCorpus () {
-	if (itemCorpusCache) return itemCorpusCache;
-	const Renderer = getRenderer();
-	const root = getConfiguredRoot();
-	const itemsJson = JSON.parse(fs.readFileSync(joinUnderRoot(root, "data", "items.json"), "utf8"));
-	const baseJson = JSON.parse(fs.readFileSync(joinUnderRoot(root, "data", "items-base.json"), "utf8"));
-	const variantsJson = JSON.parse(fs.readFileSync(joinUnderRoot(root, "data", "magicvariants.json"), "utf8"));
+	if (!itemCorpusCache) throw new Error("Loot data is not loaded yet.");
+	return itemCorpusCache;
+}
 
+function buildItemCorpus (itemsJson, baseJson, variantsJson) {
+	const Renderer = getRenderer();
 	const itemList = [...(itemsJson.item || [])];
 	for (const group of itemsJson.itemGroup || []) {
 		group._isItemGroup = true;
@@ -514,8 +525,7 @@ function loadItemCorpus () {
 		byUid.set(`${name}|${source}`, it);
 		if (!byUid.has(name)) byUid.set(name, it);
 	}
-	itemCorpusCache = {allItems, byUid};
-	return itemCorpusCache;
+	return {allItems, byUid};
 }
 
 function itemsMatching (toMatch) {
@@ -591,9 +601,7 @@ function parseItemTag (raw) {
 }
 
 function loadLootJson () {
-	if (lootCache) return lootCache;
-	const filePath = joinUnderRoot(getConfiguredRoot(), "data", "loot.json");
-	lootCache = JSON.parse(fs.readFileSync(filePath, "utf8"));
+	if (!lootCache) throw new Error("Loot data is not loaded yet.");
 	return lootCache;
 }
 

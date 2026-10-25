@@ -1,28 +1,37 @@
-import fs from "fs";
-import path from "path";
 import "./fiveetools-preload.js";
 import {setStyleHint, getStyleHint} from "./fiveetools-globals.js";
 import "../../js/render.js";
 import "../../js/render-dice.js";
 import "../../js/render-markdown.js";
 import "../../js/utils-dataloader.js";
-import {toPosixRoot, urlToLocalPath} from "./local-fs.js";
+import {urlToPluginVaultPath} from "./local-fs.js";
 import {cachedMediaSrc, clearMediaCache} from "./media-cache.js";
+import {getPluginDir, pluginVaultDir} from "./plugin-dir.js";
 import {formatRollNotice, rollInitiative, rollPacked} from "./dice-roll.js";
 import {cellPxFromMapDpi, cssPixelsPerWorldPixel, inchesFromMapDpi, mapDpiFromInches, screenPpiCss} from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
 
 export {setStyleHint, getStyleHint, cssPixelsPerWorldPixel, screenPpiCss, inchesFromMapDpi, mapDpiFromInches, cellPxFromMapDpi, detectImageDpi};
 
+let configuredPlugin = null;
 let configuredRoot = "";
+let configuredAbsRoot = "";
 
 export function getConfiguredRoot () {
 	return configuredRoot;
 }
 
-export function configureFiveEToolsRoot (rootPath, {imageBaseUrl = "https://5e.tools"} = {}) {
-	const posixRoot = `${toPosixRoot(rootPath)}/`;
+/** Desktop absolute plugin folder. Empty on mobile. Map code uses this for Node reads. */
+export function getConfiguredAbsoluteRoot () {
+	return configuredAbsRoot;
+}
+
+export function configureFiveEToolsRoot (plugin, {imageBaseUrl = "https://5e.tools"} = {}) {
+	const dir = pluginVaultDir(plugin);
+	const posixRoot = `${dir}/`;
+	configuredPlugin = plugin;
 	configuredRoot = posixRoot;
+	configuredAbsRoot = getPluginDir(plugin);
 
 	globalThis.IS_VTT = true;
 	const renderer = globalThis.Renderer.get();
@@ -32,20 +41,34 @@ export function configureFiveEToolsRoot (rootPath, {imageBaseUrl = "https://5e.t
 	bindObsidianLinkPlugin(renderer);
 
 	globalThis.DataUtil._pLoad_pGetJson_pGetOptionalJson = async function ({url}) {
-		const filePath = urlToLocalPath(url, posixRoot.replace(/\/+$/, ""));
+		const vaultPath = urlToPluginVaultPath(url, dir);
+		if (!vaultPath) {
+			return new globalThis.DataUtil._OptionalJsonResponse({
+				url,
+				status: 404,
+				error: `Not a plugin file: ${url}`,
+			});
+		}
+		const adapter = configuredPlugin?.app?.vault?.adapter;
 		try {
-			const text = fs.readFileSync(filePath, "utf8");
+			if (!adapter || !(await adapter.exists(vaultPath))) {
+				return new globalThis.DataUtil._OptionalJsonResponse({
+					url,
+					status: 404,
+					error: `Failed to read ${vaultPath}: not found`,
+				});
+			}
+			const text = await adapter.read(vaultPath);
 			return new globalThis.DataUtil._OptionalJsonResponse({
 				url,
 				status: 200,
 				json: JSON.parse(text),
 			});
 		} catch (e) {
-			const missing = e && e.code === "ENOENT";
 			return new globalThis.DataUtil._OptionalJsonResponse({
 				url,
-				status: missing ? 404 : 500,
-				error: `Failed to read ${filePath}: ${e.message}`,
+				status: 500,
+				error: `Failed to read ${vaultPath}: ${e.message}`,
 			});
 		}
 	};
@@ -75,10 +98,6 @@ export function getElasticlunr () {
 
 export function getSearchUtil () {
 	return globalThis.SearchUtil;
-}
-
-export function joinUnderRoot (rootPath, ...parts) {
-	return path.join(toPosixRoot(rootPath), ...parts);
 }
 
 let linkPluginBound = false;
@@ -114,6 +133,7 @@ function bindObsidianLinkPlugin (renderer) {
 globalThis.FiveEToolsObsidian = {
 	configureFiveEToolsRoot,
 	getConfiguredRoot,
+	getConfiguredAbsoluteRoot,
 	setStyleHint,
 	getStyleHint,
 	getDataLoader,

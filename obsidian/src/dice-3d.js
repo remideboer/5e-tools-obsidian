@@ -1,4 +1,5 @@
-import path from "path";
+import {Platform} from "obsidian";
+import {nodeRequire, path} from "./node-fs.js";
 import {getPluginDir} from "./plugin-dir.js";
 
 const SUPPORTED = new Set([4, 6, 8, 10, 12, 20, 100]);
@@ -10,6 +11,7 @@ const sessions = new Map();
 let diceRollerPromise = null;
 
 export async function showDice3d (plugin, result, doc = document) {
+	if (Platform.isMobile) return false;
 	const session = sessionFor(doc);
 	if (session.unavailable || !plugin || !doc?.body) return false;
 	const dice = (result?.dice || []).filter(it => SUPPORTED.has(Number(it.faces)));
@@ -113,17 +115,13 @@ function scaleDie (die, factor) {
 	if (typeof die.body.updateMassProperties === "function") die.body.updateMassProperties();
 }
 
-function runtimeRequire (id) {
-	if (typeof require === "function") return require(id);
-	if (typeof globalThis.require === "function") return globalThis.require(id);
-	throw new Error("require unavailable");
-}
-
 function loadDiceRoller (plugin) {
 	if (!diceRollerPromise) {
 		diceRollerPromise = Promise.resolve().then(() => {
-			const file = path.join(getPluginDir(plugin), "dice", "dice-3d.js");
-			const mod = runtimeRequire(file);
+			const dir = getPluginDir(plugin);
+			if (!dir) throw new Error("3D dice need the desktop app.");
+			const file = path.join(dir, "dice", "dice-3d.js");
+			const mod = nodeRequire(file);
 			const DiceRoller = mod?.DiceRoller || mod?.default?.DiceRoller || mod?.default;
 			if (typeof DiceRoller !== "function") throw new Error("open-dice-dnd DiceRoller missing");
 			return DiceRoller;

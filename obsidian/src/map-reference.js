@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
-import {getConfiguredRoot} from "./fiveetools-host.js";
+import {fs, path} from "./node-fs.js";
+import {getConfiguredAbsoluteRoot} from "./fiveetools-host.js";
 import {cachedMediaPath} from "./media-cache.js";
 import {createSceneFromImage, writeScene} from "./map-scene.js";
 
@@ -69,8 +68,8 @@ export function findReferenceMap (relPath) {
 
 function loadReferenceMaps () {
 	if (catalog) return catalog;
-	const root = String(getConfiguredRoot() || "").replace(/\/+$/, "");
-	if (!root) throw new Error("5etools data is not ready.");
+	const root = getConfiguredAbsoluteRoot();
+	if (!root) throw new Error("Maps are available in the desktop app.");
 	const file = path.join(root, "data", "generated", "gendata-maps.json");
 	if (!fs.existsSync(file)) throw new Error("Map index was not found.");
 	const data = JSON.parse(fs.readFileSync(file, "utf8"));

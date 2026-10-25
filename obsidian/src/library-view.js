@@ -1,10 +1,10 @@
-import {ItemView, Notice} from "obsidian";
+import {ItemView, Notice, Platform} from "obsidian";
 import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listEntities, searchEntities} from "./search-index.js";
 import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters} from "./bestiary-meta.js";
-import {renderLootGenerator} from "./loot-view.js";
+import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
@@ -30,6 +30,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.searchEl = null;
 		this.filterEl = null;
 		this.globalSearchEl = null;
+		this._listToken = 0;
 		this.bestiaryFilters = emptyBestiaryFilters();
 		this._restoring = false;
 		this._pendingState = null;
@@ -207,6 +208,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	refreshList () {
+		const listToken = ++this._listToken;
 		const scrollTop = this.listEl?.scrollTop || 0;
 		const globalTerm = String(this.globalQuery || "").trim();
 		const item = currentNavItem(this.navId);
@@ -238,13 +240,9 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.searchEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._lootSession || {ids: [], count: 1, results: null};
-			renderLootGenerator(this.listEl, this.readerEl, {
-				selectedIds: session.ids,
-				count: session.count,
-				results: session.results,
-				onOpenItem: (doc) => { void this.plugin.openPreview(doc); },
-				onSessionChange: (next) => { this.plugin._lootSession = next; },
-			});
+			this.readerEl?.empty();
+			this.listEl.createEl("p", {text: "Loading loot tables…"});
+			void this.openLoot(session, listToken);
 			this.docs = [];
 			return;
 		}
@@ -328,6 +326,11 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (item?.tool === "map") {
 			this.searchEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
+			if (Platform.isMobile) {
+				this.renderMobileOnly("Maps are available in the desktop app.");
+				this.docs = [];
+				return;
+			}
 			const session = this.plugin._mapSession || {};
 			renderMapTool(this.listEl, this.readerEl, {
 				session,
@@ -342,6 +345,11 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (item?.tool === "maps") {
 			this.searchEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
+			if (Platform.isMobile) {
+				this.renderMobileOnly("Maps are available in the desktop app.");
+				this.docs = [];
+				return;
+			}
 			const session = this.plugin._referenceMapSession || {};
 			renderReferenceMaps(this.listEl, this.readerEl, {
 				session,
@@ -363,6 +371,31 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		this.renderDocRows();
 		this.listEl.scrollTop = scrollTop;
+	}
+
+	renderMobileOnly (text) {
+		this.readerEl?.empty();
+		this.listEl.createEl("p", {text});
+	}
+
+	async openLoot (session, listToken) {
+		try {
+			await ensureLootData(this.plugin);
+		} catch (e) {
+			if (listToken !== this._listToken) return;
+			this.listEl.empty();
+			this.listEl.createEl("p", {text: e.message || "Could not load loot tables."});
+			return;
+		}
+		if (listToken !== this._listToken) return;
+		this.listEl.empty();
+		renderLootGenerator(this.listEl, this.readerEl, {
+			selectedIds: session.ids,
+			count: session.count,
+			results: session.results,
+			onOpenItem: (doc) => { void this.plugin.openPreview(doc); },
+			onSessionChange: (next) => { this.plugin._lootSession = next; },
+		});
 	}
 
 	renderDocRows () {

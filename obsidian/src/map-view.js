@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import {fs, path} from "./node-fs.js";
 import {ItemView, Menu, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./constants.js";
 import {ICON_ID} from "./icon.js";
@@ -1407,7 +1406,9 @@ function pickMapFile (defaultPath) {
 		properties: ["openFile", "dontAddToRecent"],
 		filters: IMAGE_FILTERS,
 	};
-	if (defaultPath && path.isAbsolute(defaultPath)) opts.defaultPath = defaultPath;
+	try {
+		if (defaultPath && path.isAbsolute(defaultPath)) opts.defaultPath = defaultPath;
+	} catch (_) { /* dialog still opens when path is unavailable */ }
 	const picked = dialog.showOpenDialogSync(opts);
 	if (!picked?.length) return null;
 	return picked[0];

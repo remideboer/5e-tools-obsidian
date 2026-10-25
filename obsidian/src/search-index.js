@@ -1,10 +1,9 @@
-import fs from "fs";
-import path from "path";
 import {decompressIndex} from "./decompress-index.js";
 import {CORPUS_PAGES, MAX_SEARCH_RESULTS} from "./constants.js";
 import {getElasticlunr, getParser, getSearchUtil, getStyleHint, getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, HOMEBREW_TYPES} from "./homebrew-store.js";
-import {docMatchesBestiaryFilters, ensureMonsterMeta, hasBestiaryFilters, resetMonsterMeta} from "./bestiary-meta.js";
+import {docMatchesBestiaryFilters, hasBestiaryFilters, loadMonsterMeta, resetMonsterMeta} from "./bestiary-meta.js";
+import {pluginVaultDir, readPluginJson} from "./plugin-dir.js";
 
 const CATEGORY_ALIAS = {
 	creature: ["bestiary"],
@@ -38,8 +37,8 @@ let loadedRoot = "";
 let searchIndex = null;
 let homebrewDocIds = new Set();
 
-export async function ensureSearchIndex (rootPath) {
-	const root = path.resolve(rootPath);
+export async function ensureSearchIndex (plugin) {
+	const root = pluginVaultDir(plugin);
 	if (searchIndex && loadedRoot === root) return searchIndex;
 	resetMonsterMeta();
 
@@ -55,7 +54,7 @@ export async function ensureSearchIndex (rootPath) {
 	});
 	SearchUtil.removeStemmer(index);
 
-	const raw = JSON.parse(fs.readFileSync(path.join(root, "search", "index.json"), "utf8"));
+	const raw = await readPluginJson(plugin, "search", "index.json");
 	const docs = decompressIndex(raw);
 	for (const doc of docs) {
 		if (!doc || doc.n == null) continue;
@@ -67,7 +66,7 @@ export async function ensureSearchIndex (rootPath) {
 	searchIndex = index;
 	loadedRoot = root;
 	homebrewDocIds.clear();
-	ensureMonsterMeta();
+	await loadMonsterMeta(plugin);
 	return searchIndex;
 }
 

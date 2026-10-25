@@ -20,6 +20,7 @@ Upstream 5etools (`js/`, `data/`) is only covered where the plugin depends on it
 | Player window rendering / pan performance | [0003](adr/0003-player-window-bitmaps.md) |
 | Media cache, image URLs, map index | [0004](adr/0004-media-cache-and-roots.md) |
 | Upstream `data/` sync | [0005](adr/0005-upstream-data-sync.md) |
+| Mobile vault-adapter reads | [0006](adr/0006-vault-adapter-data.md) |
 
 ## Build and install
 

@@ -1,4 +1,4 @@
-import fs from "fs";
+import {fs} from "./node-fs.js";
 
 export function fogPaths (mapPath) {
 	const base = String(mapPath || "");

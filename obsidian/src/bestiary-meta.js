@@ -1,7 +1,6 @@
-import fs from "fs";
-import path from "path";
-import {getConfiguredRoot, getUrlUtil} from "./fiveetools-host.js";
+import {getUrlUtil} from "./fiveetools-host.js";
 import {getBrewJson, homebrewType} from "./homebrew-store.js";
+import {readPluginJson} from "./plugin-dir.js";
 
 export const BESTIARY_FILTER_OPTIONS = {
 	types: [
@@ -55,6 +54,7 @@ export const BESTIARY_FILTER_OPTIONS = {
 const ALIGNMENT_GROUPS = new Set(["G", "E", "L", "C"]);
 
 let officialMap = null;
+let officialReady = false;
 
 export function emptyBestiaryFilters () {
 	return {types: [], crs: [], sizes: [], alignments: []};
@@ -96,10 +96,42 @@ function alignmentMatches (codes, selected) {
 
 export function resetMonsterMeta () {
 	officialMap = null;
+	officialReady = false;
 }
 
 export function ensureMonsterMeta () {
 	return ensureOfficialMeta();
+}
+
+export async function loadMonsterMeta (plugin) {
+	if (officialReady && officialMap) return officialMap;
+	const map = new Map();
+	officialMap = map;
+	try {
+		const index = await readPluginJson(plugin, "data", "bestiary", "index.json");
+		const UrlUtil = getUrlUtil();
+		const hashOf = UrlUtil.URL_TO_HASH_BUILDER.monster || UrlUtil.URL_TO_HASH_BUILDER[UrlUtil.PG_BESTIARY];
+		for (const file of Object.values(index || {})) {
+			if (typeof file !== "string" || !file || file.includes("..")) continue;
+			let json;
+			try {
+				json = await readPluginJson(plugin, "data", "bestiary", file);
+			} catch (_) {
+				continue;
+			}
+			for (const ent of json.monster || []) {
+				if (!ent?.name) continue;
+				const meta = monsterMetaFromEnt(ent);
+				const source = ent.source || "";
+				const hash = hashOf ? hashOf(ent) : `${ent.name}_${source}`;
+				map.set(metaKey(hash, source), meta);
+				map.set(metaKey(ent.name, source), meta);
+			}
+		}
+		for (const meta of map.values()) inheritMeta(meta, map);
+	} catch (_) { /* missing index leaves creature filters empty */ }
+	officialReady = true;
+	return map;
 }
 
 export function getMonsterMeta (doc) {
@@ -124,39 +156,7 @@ export function getMonsterMeta (doc) {
 }
 
 function ensureOfficialMeta () {
-	if (officialMap) return officialMap;
-	officialMap = new Map();
-	const root = String(getConfiguredRoot() || "").replace(/\/+$/, "");
-	if (!root) return officialMap;
-	const indexPath = path.join(root, "data", "bestiary", "index.json");
-	if (!fs.existsSync(indexPath)) return officialMap;
-	let index;
-	try {
-		index = JSON.parse(fs.readFileSync(indexPath, "utf8"));
-	} catch (_) {
-		return officialMap;
-	}
-	const UrlUtil = getUrlUtil();
-	const hashOf = UrlUtil.URL_TO_HASH_BUILDER.monster || UrlUtil.URL_TO_HASH_BUILDER[UrlUtil.PG_BESTIARY];
-	for (const file of Object.values(index || {})) {
-		const filePath = path.join(root, "data", "bestiary", file);
-		if (!fs.existsSync(filePath)) continue;
-		let json;
-		try {
-			json = JSON.parse(fs.readFileSync(filePath, "utf8"));
-		} catch (_) {
-			continue;
-		}
-		for (const ent of json.monster || []) {
-			if (!ent?.name) continue;
-			const meta = monsterMetaFromEnt(ent);
-			const source = ent.source || "";
-			const hash = hashOf ? hashOf(ent) : `${ent.name}_${source}`;
-			officialMap.set(metaKey(hash, source), meta);
-			officialMap.set(metaKey(ent.name, source), meta);
-		}
-	}
-	for (const meta of officialMap.values()) inheritMeta(meta, officialMap);
+	if (!officialMap) officialMap = new Map();
 	return officialMap;
 }
 

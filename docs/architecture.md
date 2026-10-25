@@ -2,13 +2,13 @@
 
 ## Context
 
-The Obsidian plugin embeds a slice of 5etools (search index, entity JSON, fluff) and adds GM tools: library browsing, battle maps with fog and tokens, campaigns, encounters, and dice. It targets Obsidian **desktop** (`FileSystemAdapter`) so scenes and caches can live on disk.
+The Obsidian plugin embeds a slice of 5etools (search index, entity JSON, fluff) and adds GM tools: library browsing, battle maps with fog and tokens, campaigns, encounters, and dice. Library, loot, campaigns, and encounters run on desktop and mobile. Bundled JSON and the image cache use the vault adapter ([ADR 0006](adr/0006-vault-adapter-data.md)). Map scenes, tokens, and the player window still use the desktop filesystem.
 
 ```mermaid
 flowchart TB
   user[GM_in_Obsidian]
   players[Players_at_table]
-  user --> obsidian[Obsidian_desktop]
+  user --> obsidian[Obsidian]
   obsidian --> plugin[FiveETools_plugin]
   plugin --> vault[Vault_notes_maps_campaigns]
   plugin --> install[Plugin_install_dir]
@@ -52,9 +52,10 @@ flowchart LR
 
 | Root | Path | Used for |
 |------|------|----------|
-| Plugin install | `getPluginDir(plugin)` → `.obsidian/plugins/5etools` | Bundled `data/`, `search/`, plugin `cache/` |
-| Configured 5etools root | `configureFiveEToolsRoot(validateRoot(getPluginDir))` | Entity/search loaders (`getConfiguredRoot()`) |
-| Vault base | `FileSystemAdapter.getBasePath()` | Scenes under `{notesFolder}/maps`, campaigns, homebrew notes |
+| Plugin install | `plugin.manifest.dir` (vault-relative) | Bundled `data/`, `search/`, plugin `cache/` via `vault.adapter` |
+| Configured 5etools root | `configureFiveEToolsRoot(plugin)` → that dir plus `/` | Entity JSON loader (`getConfiguredRoot()`) |
+| Desktop plugin dir | `getPluginDir(plugin)` / `getConfiguredAbsoluteRoot()` | Map files and the 3D dice bundle. Empty on mobile |
+| Vault base | `FileSystemAdapter.getBasePath()` | Desktop scenes under `{notesFolder}/maps` |
 | Git checkout | `D:/projecten/5etools` | Source + `node/build-obsidian.js` only; **not** read at runtime |
 
 If a generated file (e.g. `gendata-maps.json`) is missing at runtime, fix the build allowlist and reinstall—editing the git tree alone does not update the vault plugin.
@@ -74,8 +75,8 @@ flowchart TB
   map --> player[Player_popout_canvas]
 ```
 
-- **Library / search** — nav from `LIBRARY_NAV`, elasticlunr index, entity render via 5etools host.
-- **Map** — vault scenes, layers, fog masks, scene-level tokens, GM canvas + player bitmap draw.
+- **Library / search** — nav from `LIBRARY_NAV`, elasticlunr index, entity render via 5etools host. JSON comes from the vault adapter.
+- **Map** — desktop: vault scenes, layers, fog masks, scene-level tokens, GM canvas + player bitmap draw. On mobile the map tools show a notice.
 - **Campaigns / encounters** — vault markdown and encounter store.
 - **Dice** — optional 3D dice; public rolls can target the player window document.
 - **Homebrew** — vault brew files indexed into search.

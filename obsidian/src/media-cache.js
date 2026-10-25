@@ -1,7 +1,6 @@
-import fs from "fs";
-import path from "path";
 import {normalizePath, requestUrl} from "obsidian";
-import {getPluginDir} from "./plugin-dir.js";
+import {desktopAbsolutePath, pluginVaultPath} from "./plugin-dir.js";
+import {fs} from "./node-fs.js";
 
 const inFlight = new Map();
 
@@ -20,10 +19,7 @@ export async function readCachedBytes (plugin, url) {
 	if (!url) return null;
 	try {
 		const cached = await ensureCachedFile(plugin, url);
-		if (cached) {
-			const buf = fs.readFileSync(cached.abs);
-			return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-		}
+		if (cached) return plugin.app.vault.adapter.readBinary(cached.vaultPath);
 	} catch (_) { /* fall through */ }
 	try {
 		const res = await requestUrl({url});
@@ -44,15 +40,18 @@ export async function rewriteMediaUrls (plugin, rootEl) {
 	}));
 }
 
-export function clearMediaCache (plugin) {
-	const dir = cacheRoot(plugin);
-	fs.rmSync(dir, {recursive: true, force: true});
+export async function clearMediaCache (plugin) {
 	inFlight.clear();
+	const dir = pluginVaultPath(plugin, "cache");
+	const adapter = plugin.app.vault.adapter;
+	if (!(await adapter.exists(dir))) return;
+	if (typeof adapter.rmdir !== "function") throw new Error("This device cannot delete the image cache folder.");
+	await adapter.rmdir(dir, true);
 }
 
 export function cachedMediaFile (plugin, url) {
 	const cached = cachedFilePaths(plugin, url);
-	if (!cached) return "";
+	if (!cached?.abs) return "";
 	try {
 		if (fs.existsSync(cached.abs) && fs.statSync(cached.abs).size > 0) return cached.abs;
 	} catch (_) { /* missing cache is a download */ }
@@ -62,17 +61,18 @@ export function cachedMediaFile (plugin, url) {
 async function ensureCachedFile (plugin, url) {
 	const cached = cachedFilePaths(plugin, url);
 	if (!cached) return null;
-	const {abs, rel, vaultPath} = cached;
+	const {rel, vaultPath} = cached;
 	if (inFlight.has(rel)) return inFlight.get(rel);
-	if (fs.existsSync(abs) && fs.statSync(abs).size > 0) return {abs, rel, vaultPath};
+	if (await vaultFileReady(plugin, vaultPath)) return cached;
 
 	const pending = (async () => {
 		const res = await requestUrl({url});
-		const buf = Buffer.from(res.arrayBuffer);
-		if (!buf.length) throw new Error("empty media response");
-		fs.mkdirSync(path.dirname(abs), {recursive: true});
-		fs.writeFileSync(abs, buf);
-		return {abs, rel, vaultPath};
+		const bytes = new Uint8Array(res.arrayBuffer);
+		if (!bytes.byteLength) throw new Error("empty media response");
+		const adapter = plugin.app.vault.adapter;
+		await ensureVaultFolder(adapter, vaultDirname(vaultPath));
+		await adapter.writeBinary(vaultPath, bytes.buffer);
+		return cached;
 	})();
 
 	inFlight.set(rel, pending);
@@ -88,18 +88,46 @@ export async function cachedMediaPath (plugin, url) {
 	return cached?.abs || "";
 }
 
-function cacheRoot (plugin) {
-	return path.join(getPluginDir(plugin), "cache");
-}
-
 function cachedFilePaths (plugin, url) {
 	const rel = cacheRel(plugin, url);
 	if (!rel) return null;
+	const vaultPath = pluginVaultPath(plugin, "cache", "img", rel);
 	return {
-		abs: path.join(cacheRoot(plugin), "img", ...rel.split("/")),
+		abs: desktopAbsolutePath(plugin, vaultPath),
 		rel,
-		vaultPath: normalizePath(`${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}/cache/img/${rel}`),
+		vaultPath,
 	};
+}
+
+async function vaultFileReady (plugin, vaultPath) {
+	const adapter = plugin.app.vault.adapter;
+	if (!(await adapter.exists(vaultPath))) return false;
+	if (typeof adapter.stat !== "function") return true;
+	try {
+		const stat = await adapter.stat(vaultPath);
+		if (!stat) return true;
+		if (stat.type && stat.type !== "file") return false;
+		return stat.size == null || stat.size > 0;
+	} catch (_) {
+		return true;
+	}
+}
+
+async function ensureVaultFolder (adapter, folder) {
+	const parts = normalizePath(folder).split("/").filter(Boolean);
+	let acc = "";
+	for (const part of parts) {
+		acc = acc ? `${acc}/${part}` : part;
+		try {
+			if (!(await adapter.exists(acc))) await adapter.mkdir(acc);
+		} catch (_) { /* already there */ }
+	}
+}
+
+function vaultDirname (vaultPath) {
+	const norm = normalizePath(vaultPath);
+	const i = norm.lastIndexOf("/");
+	return i === -1 ? "" : norm.slice(0, i);
 }
 
 function cacheRel (plugin, url) {

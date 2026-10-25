@@ -80,4 +80,4 @@ sequenceDiagram
   RefV->>Map: onOpenMap_selectNav_map
 ```
 
-Index path is `getConfiguredRoot()/data/generated/gendata-maps.json` in the **installed** plugin, not the git tree.
+Index path is `getConfiguredAbsoluteRoot()/data/generated/gendata-maps.json` in the **installed** plugin, not the git tree. That absolute path exists on desktop only.

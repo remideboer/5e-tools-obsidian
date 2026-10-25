@@ -1,49 +1,45 @@
-import fs from "fs";
-import path from "path";
-
-export function normalizeRoot (rootPath) {
-	if (!rootPath || typeof rootPath !== "string") return "";
-	return path.resolve(rootPath.trim());
-}
-
-export function validateRoot (rootPath) {
-	const root = normalizeRoot(rootPath);
-	if (!root) return {ok: false, error: "Could not find the 5etools plugin folder."};
-	if (!fs.existsSync(root)) return {ok: false, error: `Folder not found: ${root}`};
-	const dataDir = path.join(root, "data");
-	const searchIndex = path.join(root, "search", "index.json");
-	if (!fs.existsSync(dataDir)) return {ok: false, error: `No data/ folder in ${root}`};
-	if (!fs.existsSync(searchIndex)) return {ok: false, error: `No search/index.json in ${root}`};
-	return {ok: true, root};
-}
-
-export function toPosixRoot (rootPath) {
-	return normalizeRoot(rootPath).replace(/\\/g, "/").replace(/\/+$/, "");
-}
+import {normalizePath} from "obsidian";
+import {pluginVaultDir, pluginVaultPath} from "./plugin-dir.js";
 
 export function stripUrlQuery (url) {
 	if (!url) return "";
-	const q = url.indexOf("?");
-	return q === -1 ? url : url.slice(0, q);
+	const raw = String(url);
+	const q = raw.indexOf("?");
+	return q === -1 ? raw : raw.slice(0, q);
 }
 
-export function urlToLocalPath (url, posixRoot) {
-	const raw = stripUrlQuery(String(url || "")).replace(/\\/g, "/");
-	if (!raw) return null;
-
-	if (/^[a-zA-Z]:\//.test(raw) || raw.startsWith("/")) {
-		return path.normalize(raw);
-	}
-
+/** Map a DataLoader URL onto a vault path under the installed plugin. Remote URLs return null. */
+export function urlToPluginVaultPath (url, pluginDir) {
+	let raw = stripUrlQuery(url).trim();
+	if (!raw || /^https?:\/\//i.test(raw)) return null;
 	if (raw.startsWith("file:")) {
-		const withoutProtocol = raw.replace(/^file:\/\//, "");
-		return path.normalize(decodeURIComponent(withoutProtocol.replace(/^\//, "")));
+		raw = decodeURIComponent(raw.replace(/^file:\/\//, ""));
+		raw = raw.replace(/^\/(?=[a-zA-Z]:)/, "");
 	}
-
-	if (posixRoot && raw.toLowerCase().startsWith(posixRoot.toLowerCase())) {
-		return path.normalize(raw);
+	raw = raw.replace(/\\/g, "/");
+	const dir = String(pluginDir || "").replace(/\\/g, "/").replace(/\/+$/, "");
+	let vaultPath = raw;
+	if (dir) {
+		const idx = raw.toLowerCase().lastIndexOf(dir.toLowerCase());
+		if (idx !== -1) vaultPath = raw.slice(idx);
+		else if (/^[a-zA-Z]:\//.test(raw) || raw.startsWith("/")) return null;
+		else vaultPath = `${dir}/${raw.replace(/^\/+/, "")}`;
 	}
+	const norm = normalizePath(vaultPath);
+	if (!norm || norm.split("/").includes("..")) return null;
+	return norm;
+}
 
-	const rel = raw.replace(/^\/+/, "");
-	return path.normalize(`${posixRoot}/${rel}`);
+export async function validatePluginData (plugin) {
+	const root = pluginVaultDir(plugin);
+	if (!root) return {ok: false, error: "Could not find the 5etools plugin folder."};
+	const adapter = plugin?.app?.vault?.adapter;
+	if (!adapter || typeof adapter.exists !== "function") {
+		return {ok: false, error: "Could not find the 5etools plugin folder."};
+	}
+	const dataDir = pluginVaultPath(plugin, "data");
+	const searchIndex = pluginVaultPath(plugin, "search", "index.json");
+	if (!(await adapter.exists(dataDir))) return {ok: false, error: `No data/ folder in ${root}`};
+	if (!(await adapter.exists(searchIndex))) return {ok: false, error: `No search/index.json in ${root}`};
+	return {ok: true, root};
 }

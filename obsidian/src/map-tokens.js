@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import {fs, path} from "./node-fs.js";
 import {loadEntity} from "./entity-loader.js";
 import {resolveEntityImages} from "./image-resolver.js";
 import {cachedMediaPath} from "./media-cache.js";

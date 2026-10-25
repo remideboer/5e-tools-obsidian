@@ -17,6 +17,7 @@ Entity fluff, tokens, and adventure maps are hosted remotely (`settings.imageBas
 
 ## Consequences
 
+- Cache bytes are read and written through the vault adapter ([ADR 0006](0006-vault-adapter-data.md)). `cachedMediaPath` still returns an absolute path on desktop for map code.
 - Clearing or relocating the plugin folder drops the media cache.
 - Image host / base URL changes affect cache keys and fetch URLs.
 - Catalog bugs are often install/allowlist issues, not missing git files.

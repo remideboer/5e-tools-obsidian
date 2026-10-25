@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import {fs, path} from "./node-fs.js";
 import {FileSystemAdapter} from "obsidian";
 import {campaignPath, listCampaigns, slugify} from "./campaign-store.js";
 import {defaultCamera} from "./map-canvas.js";
