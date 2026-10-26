@@ -81,7 +81,7 @@ const DAMAGE_TYPES = [
 	{id: "thunder", label: "Thunder"},
 ];
 
-const CONDITIONS = [
+export const CONDITIONS = [
 	{id: "blinded", label: "Blinded"},
 	{id: "charmed", label: "Charmed"},
 	{id: "deafened", label: "Deafened"},

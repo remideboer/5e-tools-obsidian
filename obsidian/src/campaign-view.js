@@ -20,7 +20,7 @@ import {
 } from "./campaign-store.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
-import {renderCombatantRow} from "./encounter-view.js";
+import {listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
 
 export function teardownCampaignManager (plugin) {
 	plugin?._campaignVaultOff?.();
@@ -316,29 +316,50 @@ export function renderCampaignManager (formEl, resultEl, {
 				});
 				return;
 			}
-			for (const combatant of combatants) {
-				renderCombatantRow(rosterEl, combatant, {
-					app,
-					plugin,
-					selected: combatant.id === selectedId,
-					onSelect: () => {
-						selectedId = combatant.id;
-						syncRosterSelection();
-						openSelected();
-					},
-					onHp: (nextHp) => {
-						combatant.hpCurrent = nextHp;
-						paintRoster();
-						void persist().catch((e) => new Notice(e.message || "Could not save HP."));
-					},
-					onRemove: () => {
-						combatants = combatants.filter(it => it.id !== combatant.id);
-						if (selectedId === combatant.id) selectedId = combatants[combatants.length - 1]?.id || null;
-						paintRoster();
-						openSelected();
-						void persist().catch((e) => new Notice(e.message || "Could not save encounter."));
-					},
+			for (const group of listKindGroups(combatants)) {
+				const shell = rosterEl.createDiv({cls: "fiveetools-encounter__group"});
+				const head = shell.createDiv({cls: "fiveetools-encounter__group-head"});
+				const title = head.createDiv({cls: "fiveetools-encounter__group-title"});
+				title.createEl("span", {
+					cls: "fiveetools-encounter__group-name",
+					text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
 				});
+				paintGroupSharedStats(shell, group.members[0]);
+				const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
+				for (const combatant of group.members) {
+					renderCombatantRow(body, combatant, {
+						app,
+						plugin,
+						selected: combatant.id === selectedId,
+						onSelect: () => {
+							selectedId = combatant.id;
+							syncRosterSelection();
+							openSelected();
+						},
+						onHp: (nextHp) => {
+							combatant.hpCurrent = nextHp;
+							paintRoster();
+							void persist().catch((e) => new Notice(e.message || "Could not save HP."));
+						},
+						onTempHp: (nextTemp) => {
+							combatant.tempHp = nextTemp;
+							paintRoster();
+							void persist().catch((e) => new Notice(e.message || "Could not save temp HP."));
+						},
+						onCondition: (nextCond) => {
+							combatant.condition = nextCond;
+							paintRoster();
+							void persist().catch((e) => new Notice(e.message || "Could not save condition."));
+						},
+						onRemove: () => {
+							combatants = combatants.filter(it => it.id !== combatant.id);
+							if (selectedId === combatant.id) selectedId = combatants[combatants.length - 1]?.id || null;
+							paintRoster();
+							openSelected();
+							void persist().catch((e) => new Notice(e.message || "Could not save encounter."));
+						},
+					});
+				}
 			}
 			rosterEl.scrollTop = scrollTop;
 		};

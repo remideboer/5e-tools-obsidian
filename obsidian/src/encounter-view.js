@@ -1,7 +1,7 @@
 import {Modal, Notice} from "obsidian";
 import {searchEntities, brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
-import {renderCreatureForm} from "./creature-form.js";
+import {CONDITIONS, renderCreatureForm} from "./creature-form.js";
 import {
 	buildEntity,
 	cacheBrewInDataLoader,
@@ -231,6 +231,8 @@ export async function addCombatants (session, doc, count = 1) {
 			doc: serializeDoc(doc),
 			hpMax,
 			hpCurrent: hpMax,
+			tempHp: 0,
+			condition: "",
 			cr,
 			ac,
 			initiative,
@@ -273,6 +275,8 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 			custom: true,
 			hpMax,
 			hpCurrent: hpMax,
+			tempHp: 0,
+			condition: "",
 			cr,
 			ac,
 			initiative,
@@ -563,6 +567,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 				text: group.initScore != null ? String(group.initScore) : "—",
 				attr: {title: "Initiative score"},
 			});
+			paintGroupSharedStats(shell, group.members[0]);
 			const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
 			for (const combatant of group.members) {
 				renderCombatantRow(body, combatant, {
@@ -579,6 +584,16 @@ export function renderEncounterComposer (formEl, resultEl, {
 					},
 					onHp: (nextHp) => {
 						combatant.hpCurrent = nextHp;
+						emit();
+						paintRoster();
+					},
+					onTempHp: (nextTemp) => {
+						combatant.tempHp = nextTemp;
+						emit();
+						paintRoster();
+					},
+					onCondition: (nextCond) => {
+						combatant.condition = nextCond;
 						emit();
 						paintRoster();
 					},
@@ -956,33 +971,51 @@ export function renderEncounterComposer (formEl, resultEl, {
 	else showPlaceholder();
 }
 
-export function renderCombatantRow (parent, combatant, {app, plugin, selected, onSelect, onHp, onRemove}) {
+export function paintGroupSharedStats (parent, sample) {
+	if (!sample) return;
+	const strip = parent.createDiv({cls: "fiveetools-encounter__group-stats"});
+	const crLine = [sample.cr ? `CR ${sample.cr}` : null, sample.doc?.sA || sample.doc?.s].filter(Boolean).join(" · ");
+	if (crLine) strip.createEl("div", {cls: "fiveetools-encounter__group-meta", text: crLine});
+	const stats = strip.createDiv({cls: "fiveetools-encounter__stats"});
+	stats.createEl("span", {text: `AC ${sample.ac != null ? sample.ac : "—"}`});
+	stats.createEl("span", {text: `HP ${sample.hpMax != null ? sample.hpMax : "—"}`});
+	const dex = sample.dex ?? dexFromEnt(sample.ent);
+	stats.createEl("span", {text: dex != null ? `Dex ${dex}` : "Dex —", attr: {title: "Dexterity"}});
+}
+
+export function renderCombatantRow (parent, combatant, {
+	app,
+	plugin,
+	selected,
+	onSelect,
+	onHp,
+	onTempHp,
+	onCondition,
+	onRemove,
+}) {
 	const row = parent.createDiv({
 		cls: `fiveetools-encounter__combatant${selected ? " is-selected" : ""}${combatant.hpCurrent <= 0 ? " is-down" : ""}`,
 		attr: {"data-id": combatant.id},
 	});
 	row.addEventListener("click", (evt) => {
-		if (evt.target.closest(".fiveetools-encounter__hp")) return;
+		if (evt.target.closest(".fiveetools-encounter__controls, .fiveetools-encounter__remove")) return;
 		onSelect();
 	});
 
-	const name = row.createDiv({cls: "fiveetools-encounter__who"});
-	name.createEl("div", {cls: "fiveetools-modal__name", text: combatant.label});
-	name.createEl("div", {
-		cls: "fiveetools-modal__sub",
-		text: [combatant.cr ? `CR ${combatant.cr}` : null, combatant.doc?.sA || combatant.doc?.s].filter(Boolean).join(" · "),
+	const top = row.createDiv({cls: "fiveetools-encounter__who"});
+	top.createEl("div", {cls: "fiveetools-modal__name", text: combatant.label});
+	const remove = top.createEl("button", {
+		text: "×",
+		cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
+		attr: {type: "button", title: "Remove"},
 	});
-	const stats = name.createDiv({cls: "fiveetools-encounter__stats"});
-	stats.createEl("span", {text: `AC ${combatant.ac != null ? combatant.ac : "—"}`});
-	stats.createEl("span", {text: `HP ${combatant.hpCurrent}/${combatant.hpMax}`});
-	const dex = combatant.dex ?? dexFromEnt(combatant.ent);
-	stats.createEl("span", {text: dex != null ? `Dex ${dex}` : "Dex —", attr: {title: "Dexterity"}});
-	const passive = combatant.passive ?? passiveFromEnt(combatant.ent);
-	if (passive != null) {
-		stats.createEl("span", {text: `Perc ${passive}`, attr: {title: "Passive Perception"}});
-	}
+	remove.addEventListener("click", (evt) => {
+		evt.stopPropagation();
+		confirmRemove(app, combatant.label, onRemove);
+	});
 
-	const hp = row.createDiv({cls: "fiveetools-encounter__hp"});
+	const controls = row.createDiv({cls: "fiveetools-encounter__controls"});
+	const hp = controls.createDiv({cls: "fiveetools-encounter__hp"});
 	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
 	const input = hp.createEl("input", {
 		cls: "fiveetools-encounter__hpinput",
@@ -990,7 +1023,26 @@ export function renderCombatantRow (parent, combatant, {app, plugin, selected, o
 	});
 	hp.createEl("span", {cls: "fiveetools-encounter__hpmax", text: `/ ${combatant.hpMax}`});
 	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 HP"}});
-	const remove = hp.createEl("button", {text: "×", cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove", attr: {type: "button", title: "Remove"}});
+
+	const temp = controls.createEl("input", {
+		cls: "fiveetools-encounter__tempinput",
+		attr: {
+			type: "number",
+			min: "0",
+			value: String(combatant.tempHp ?? 0),
+			title: "Temporary HP",
+			placeholder: "Temp",
+		},
+	});
+	const cond = controls.createEl("select", {
+		cls: "fiveetools-encounter__condition",
+		attr: {title: "Condition"},
+	});
+	cond.createEl("option", {attr: {value: ""}, text: "—"});
+	for (const it of CONDITIONS) {
+		cond.createEl("option", {attr: {value: it.id}, text: it.label});
+	}
+	cond.value = combatant.condition || "";
 
 	minus.addEventListener("click", (evt) => {
 		evt.stopPropagation();
@@ -1005,9 +1057,15 @@ export function renderCombatantRow (parent, combatant, {app, plugin, selected, o
 		const typed = Number(input.value);
 		onHp(Number.isFinite(typed) ? typed : combatant.hpCurrent);
 	});
-	remove.addEventListener("click", (evt) => {
-		evt.stopPropagation();
-		confirmRemove(app, combatant.label, onRemove);
+	temp.addEventListener("click", (evt) => evt.stopPropagation());
+	temp.addEventListener("change", () => {
+		const typed = Number(temp.value);
+		const next = Number.isFinite(typed) ? Math.max(0, Math.floor(typed)) : (combatant.tempHp ?? 0);
+		onTempHp?.(next);
+	});
+	cond.addEventListener("click", (evt) => evt.stopPropagation());
+	cond.addEventListener("change", () => {
+		onCondition?.(cond.value || "");
 	});
 }
 

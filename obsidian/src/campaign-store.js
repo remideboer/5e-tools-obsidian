@@ -81,6 +81,8 @@ export function snapshotCombatants (combatants) {
 		label: it.label || "",
 		hp: it.hpCurrent ?? it.hp ?? null,
 		hpMax: it.hpMax ?? null,
+		tempHp: it.tempHp ?? 0,
+		condition: it.condition || "",
 		ac: it.ac ?? null,
 		cr: it.cr ?? "",
 		dex: it.dex ?? null,
@@ -97,6 +99,8 @@ export function combatantsFromSnapshot (snapshot) {
 		id: it.id || `c${i + 1}`,
 		hpMax: it.hpMax ?? 0,
 		hpCurrent: it.hpCurrent ?? it.hp ?? it.hpMax ?? 0,
+		tempHp: it.tempHp ?? 0,
+		condition: it.condition || "",
 	}));
 }
 
