@@ -1002,17 +1002,7 @@ export function renderCombatantRow (parent, combatant, {
 		onSelect();
 	});
 
-	const top = row.createDiv({cls: "fiveetools-encounter__who"});
-	top.createEl("div", {cls: "fiveetools-modal__name", text: combatant.label});
-	const remove = top.createEl("button", {
-		text: "×",
-		cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
-		attr: {type: "button", title: "Remove"},
-	});
-	remove.addEventListener("click", (evt) => {
-		evt.stopPropagation();
-		confirmRemove(app, combatant.label, onRemove);
-	});
+	row.createEl("div", {cls: "fiveetools-modal__name", text: combatant.label});
 
 	const controls = row.createDiv({cls: "fiveetools-encounter__controls"});
 	const hp = controls.createDiv({cls: "fiveetools-encounter__hp"});
@@ -1021,7 +1011,7 @@ export function renderCombatantRow (parent, combatant, {
 		cls: "fiveetools-encounter__hpinput",
 		attr: {type: "number", value: String(combatant.hpCurrent), title: "Current HP"},
 	});
-	hp.createEl("span", {cls: "fiveetools-encounter__hpmax", text: `/ ${combatant.hpMax}`});
+	hp.createEl("span", {cls: "fiveetools-encounter__hpmax", text: `/${combatant.hpMax}`});
 	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 HP"}});
 
 	const temp = controls.createEl("input", {
@@ -1043,6 +1033,16 @@ export function renderCombatantRow (parent, combatant, {
 		cond.createEl("option", {attr: {value: it.id}, text: it.label});
 	}
 	cond.value = combatant.condition || "";
+
+	const remove = row.createEl("button", {
+		text: "×",
+		cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
+		attr: {type: "button", title: "Remove"},
+	});
+	remove.addEventListener("click", (evt) => {
+		evt.stopPropagation();
+		confirmRemove(app, combatant.label, onRemove);
+	});
 
 	minus.addEventListener("click", (evt) => {
 		evt.stopPropagation();
