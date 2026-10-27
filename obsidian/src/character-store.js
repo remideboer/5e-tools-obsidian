@@ -184,7 +184,7 @@ function characterMarkdown (card, avatarPath, refs) {
 	}
 	if (card.speed != null) combat.push(`Speed ${card.speed}`);
 	if (card.rolls) {
-		combat.push(`Initiative ${checkNotation(card.rolls.initiative)}`);
+		combat.push(`Initiative ${signed(card.rolls.initiative)}`);
 		combat.push(`PB ${signed(card.rolls.proficiency)}`);
 		if (card.rolls.passivePerception != null) combat.push(`Passive Perception ${card.rolls.passivePerception}`);
 	}
@@ -275,11 +275,6 @@ function signed (mod) {
 	return n >= 0 ? `+${n}` : String(n);
 }
 
-function checkNotation (mod) {
-	const n = Number(mod) || 0;
-	return n ? `1d20${signed(n)}` : "1d20";
-}
-
 function abilityLines (card) {
 	const lines = ["## Abilities", ""];
 	const saves = new Map((card.rolls?.saves || []).map(save => [save.key, save]));
@@ -321,8 +316,8 @@ function skillLines (rolls) {
 }
 
 function rollLine (label, row) {
-	const mark = row.expertise ? " expertise" : (row.proficient ? " PB" : "");
-	return `${label} ${signed(row.mod)}${mark} ${checkNotation(row.mod)}`;
+	const text = `${label} ${signed(row.mod)}`;
+	return row.proficient || row.expertise ? `**${text}**` : text;
 }
 
 function actionLines (actions) {

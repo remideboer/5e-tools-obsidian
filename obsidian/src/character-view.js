@@ -320,9 +320,8 @@ function paintRollList (host, title, rows, labelOf, rollName, listCls) {
 	host.createEl("h3", {text: title});
 	const list = host.createEl("ul", {cls: `fiveetools-character-card__refs${listCls ? ` ${listCls}` : ""}`});
 	for (const row of rows) {
-		const line = list.createEl("li");
-		const mark = row.expertise ? " expertise" : (row.proficient ? " PB" : "");
-		line.createSpan({text: `${labelOf(row)} ${signed(row.mod)}${mark} `});
+		const line = list.createEl("li", {cls: row.proficient || row.expertise ? "is-proficient" : ""});
+		line.createSpan({text: `${labelOf(row)} `});
 		paintRoll(line, rollName(row), row.mod);
 	}
 }
@@ -347,7 +346,7 @@ function paintActions (host, plugin, actions, {edition = "classic", prefer = []}
 }
 
 function paintRoll (host, label, mod) {
-	paintValueRoll(host, label, "", mod);
+	paintValueRoll(host, label, signed(mod), mod);
 }
 
 function paintValueRoll (host, label, display, mod) {

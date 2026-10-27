@@ -774,6 +774,11 @@ a.fiveetools-inline-link {
 	padding-left: 1.1em;
 }
 
+.fiveetools-character-card__refs li.is-proficient,
+.fiveetools-character-card__refs li.is-proficient .render-roller {
+	font-weight: 700;
+}
+
 .fiveetools-character-card__abilities {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
