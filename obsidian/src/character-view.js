@@ -2,7 +2,7 @@ import {MarkdownRenderer, Notice} from "obsidian";
 import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter} from "./character-store.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
-import {ensureSearchIndex, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
+import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 
@@ -37,14 +37,15 @@ function paintLinkedCard (host, plugin, record) {
 	host.createEl("h2", {text: characterName(record)});
 	const identity = host.createDiv({cls: "fiveetools-character-card__identity"});
 	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
-	paintRefRow(identity, plugin, identityRefs);
+	const edition = snapshot.edition === "one" ? "one" : "classic";
+	paintRefRow(identity, plugin, identityRefs, refs, edition);
 	const level = fields.level != null && fields.level !== "" ? `Level ${fields.level}` : "";
 	if (level) identity.createSpan({cls: "fiveetools-view__meta", text: identity.childNodes.length ? ` · ${level}` : level});
 	const background = refs.find(ref => ref.kind === "background");
 	if (background) {
 		const line = host.createDiv({cls: "fiveetools-character-card__identity"});
 		line.createSpan({text: "Background: "});
-		paintRefRow(line, plugin, [background]);
+		paintRefRow(line, plugin, [background], refs, edition);
 	}
 	paintCombat(host, fields, snapshot.rolls);
 	paintAbilities(host, snapshot.abilities, snapshot.rolls);
@@ -75,11 +76,34 @@ function paintRefSection (host, plugin, title, refs) {
 	}
 }
 
-function paintRefRow (parent, plugin, refs) {
+function paintRefRow (parent, plugin, refs, allRefs, edition) {
 	refs.forEach((ref, index) => {
 		if (index) parent.createSpan({text: " · "});
-		paintRefButton(parent, plugin, ref, ref.label || ref.name);
+		paintRefButton(parent, plugin, linkRef(ref, allRefs, edition), ref.label || ref.name);
 	});
+}
+
+function linkRef (ref, refs, edition) {
+	if (ref?.source) return ref;
+	const names = [ref?.name, ref?.label, ref?.alt].map(it => String(it || "").trim()).filter(Boolean);
+	if (ref?.kind === "subclass") {
+		for (const className of classNamesFrom(refs)) names.push(`${ref.label || ref.name} (${className})`);
+	}
+	for (const name of names) {
+		const doc = findEditionDoc(name, {
+			categoriesExact: REF_CATEGORIES[ref.kind] || [],
+			edition: edition === "one" ? "one" : "classic",
+		});
+		if (doc) return {...ref, name: doc.n, source: doc.s};
+	}
+	return ref;
+}
+
+function classNamesFrom (refs) {
+	return (refs || [])
+		.filter(ref => ref.kind === "class")
+		.map(ref => String(ref.name || ref.label || "").replace(/\s+\d+$/, "").trim())
+		.filter(Boolean);
 }
 
 function paintRefButton (parent, plugin, ref, label) {

@@ -249,6 +249,7 @@ function characterRefs (char, edition) {
 				kind: "subclass",
 				name: sub,
 				label: sub,
+				alt: name ? `${sub} (${name})` : "",
 				edition: entryEdition(cl?.subclassDefinition?.isLegacy, edition),
 			});
 		}
