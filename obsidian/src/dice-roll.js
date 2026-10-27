@@ -192,10 +192,11 @@ export function bindDiceRollers (el, plugin) {
 		} catch (_) {
 			return;
 		}
-		if (roller.getAttribute("data-roll-name") && !packed.name) {
-			packed.name = roller.getAttribute("data-roll-name");
-		}
-		presentRoll(plugin, rollPacked(packed, evt));
+		const named = roller.getAttribute("data-roll-name");
+		if (named && !packed.name) packed.name = named;
+		const result = rollPacked(packed, evt);
+		if (named) result.showLabel = true;
+		presentRoll(plugin, result);
 	}, true);
 }
 

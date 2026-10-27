@@ -60,6 +60,8 @@ export function mapDdbCharacter (payload, requestedId) {
 		edition,
 		refs: characterRefs(char, edition),
 		traits: characterTraits(char),
+		rolls: characterRolls(char, abilities, level),
+		actions: characterActions(char),
 		coins: char.currencies || {},
 		avatar: null,
 	};
@@ -356,6 +358,132 @@ function spellDefs (char) {
 	push(spells.background);
 	for (const block of char.classSpells || []) push(block?.spells);
 	return out;
+}
+
+const SAVES = [
+	{key: "str", sub: "strength-saving-throws", label: "Strength"},
+	{key: "dex", sub: "dexterity-saving-throws", label: "Dexterity"},
+	{key: "con", sub: "constitution-saving-throws", label: "Constitution"},
+	{key: "int", sub: "intelligence-saving-throws", label: "Intelligence"},
+	{key: "wis", sub: "wisdom-saving-throws", label: "Wisdom"},
+	{key: "cha", sub: "charisma-saving-throws", label: "Charisma"},
+];
+
+const SKILLS = [
+	{name: "Athletics", ability: "str", sub: "athletics"},
+	{name: "Acrobatics", ability: "dex", sub: "acrobatics"},
+	{name: "Sleight of Hand", ability: "dex", sub: "sleight-of-hand"},
+	{name: "Stealth", ability: "dex", sub: "stealth"},
+	{name: "Arcana", ability: "int", sub: "arcana"},
+	{name: "History", ability: "int", sub: "history"},
+	{name: "Investigation", ability: "int", sub: "investigation"},
+	{name: "Nature", ability: "int", sub: "nature"},
+	{name: "Religion", ability: "int", sub: "religion"},
+	{name: "Animal Handling", ability: "wis", sub: "animal-handling"},
+	{name: "Insight", ability: "wis", sub: "insight"},
+	{name: "Medicine", ability: "wis", sub: "medicine"},
+	{name: "Perception", ability: "wis", sub: "perception"},
+	{name: "Survival", ability: "wis", sub: "survival"},
+	{name: "Deception", ability: "cha", sub: "deception"},
+	{name: "Intimidation", ability: "cha", sub: "intimidation"},
+	{name: "Performance", ability: "cha", sub: "performance"},
+	{name: "Persuasion", ability: "cha", sub: "persuasion"},
+];
+
+function characterRolls (char, abilities, level) {
+	const prof = 2 + Math.floor((Math.max(1, level) - 1) / 4);
+	const mods = modifierLists(char);
+	const bonus = (subType) => mods
+		.filter(mod => mod?.type === "bonus" && mod.subType === subType && mod.value != null)
+		.reduce((sum, mod) => sum + (Number(mod.value) || 0), 0);
+	const skills = SKILLS.map(skill => {
+		const mult = skillProficiency(mods, skill.sub);
+		return {
+			name: skill.name,
+			ability: skill.ability,
+			mod: modifier(abilities[skill.ability]) + mult * prof + bonus(skill.sub),
+			proficient: mult >= 1,
+			...(mult >= 2 ? {expertise: true} : {}),
+		};
+	});
+	const perception = skills.find(skill => skill.name === "Perception");
+	const advantage = mods.some(mod => mod?.type === "advantage" && mod?.subType === "perception");
+	return {
+		proficiency: prof,
+		initiative: modifier(abilities.dex) + bonus("initiative"),
+		passivePerception: 10 + (perception?.mod || 0) + (advantage ? 5 : 0),
+		saves: SAVES.map(save => {
+			const isProf = skillProficiency(mods, save.sub, laterClassProficiencyIds(char)) >= 1;
+			return {
+				key: save.key,
+				label: save.label,
+				mod: modifier(abilities[save.key]) + (isProf ? prof : 0) + bonus(save.sub),
+				proficient: isProf,
+			};
+		}),
+		skills,
+	};
+}
+
+function skillProficiency (mods, subType, skipComponents) {
+	const relevant = mods.filter(mod => mod?.subType === subType && !skipComponents?.has(mod.componentId));
+	const types = new Set(relevant.map(mod => mod.type));
+	if (types.has("expertise")) return 2;
+	if (types.has("proficiency")) return 1;
+	return 0;
+}
+
+/** Multiclass characters only keep the first class's saving throw proficiencies. */
+function laterClassProficiencyIds (char) {
+	const classes = char.classes || [];
+	const starting = classes.find(cl => cl.isStartingClass) || classes[0];
+	const ids = new Set();
+	for (const cl of classes) {
+		if (!cl || cl === starting) continue;
+		for (const feature of [...(cl.classFeatures || []), ...(cl.definition?.classFeatures || [])]) {
+			if (/^proficiencies$/i.test(String(feature?.name || "").trim())) ids.add(feature.id);
+		}
+	}
+	return ids;
+}
+
+function characterActions (char) {
+	const spells = new Set(spellDefs(char).map(spell => spell.name.toLowerCase()));
+	const out = [];
+	const seen = new Set();
+	for (const key of ["class", "race", "feat", "background", "item"]) {
+		const list = char.actions?.[key];
+		if (!Array.isArray(list)) continue;
+		for (const action of list) {
+			const name = String(action?.name || "").trim();
+			if (!name) continue;
+			const id = name.toLowerCase();
+			if (seen.has(id) || spells.has(id)) continue;
+			seen.add(id);
+			const uses = Number(action.limitedUse?.maxUses);
+			const activation = Number(action.activation?.activationType);
+			const dice = actionDice(action);
+			out.push({
+				name,
+				...(Number.isFinite(uses) && uses > 0 ? {uses} : {}),
+				...(activation === 3 ? {activation: "bonus"} : {}),
+				...(activation === 4 ? {activation: "reaction"} : {}),
+				...(dice ? {dice} : {}),
+			});
+		}
+	}
+	return out;
+}
+
+function actionDice (action) {
+	const dice = action?.dice;
+	if (!dice) return "";
+	if (typeof dice === "string") return dice.trim();
+	return String(dice.diceString || dice.dice || "").trim();
+}
+
+function modifierLists (char) {
+	return Object.values(char.modifiers || {}).filter(Array.isArray).flat();
 }
 
 function characterTraits (char) {

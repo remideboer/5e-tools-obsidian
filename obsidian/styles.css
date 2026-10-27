@@ -692,6 +692,37 @@ a.fiveetools-inline-link {
 	padding-left: 1.1em;
 }
 
+.fiveetools-character-card__abilities {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 6px 8px;
+}
+
+.fiveetools-character-card__ability-name {
+	font-size: 11px;
+	letter-spacing: 0.04em;
+	color: var(--text-muted);
+}
+
+.fiveetools-character-card__ability-base {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.fiveetools-character-card__ability-values {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+}
+
+.fiveetools-character-card__ability-slash {
+	color: var(--text-muted);
+}
+
+.fiveetools-character-card__ability.is-proficient .fiveetools-character-card__ability-save {
+	font-weight: 600;
+}
+
 .fiveetools-library__list.fiveetools-characters {
 	display: flex;
 	flex-direction: column;
@@ -960,7 +991,8 @@ a.fiveetools-inline-link {
 .fiveetools-view .render-roller,
 .fiveetools-roll-results .render-roller,
 .fiveetools-rolltables__reader .render-roller,
-.fiveetools-dmscreen .render-roller {
+.fiveetools-dmscreen .render-roller,
+.fiveetools-character-card .render-roller {
 	cursor: pointer;
 	color: var(--text-accent);
 	text-decoration: underline dotted;

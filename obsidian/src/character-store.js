@@ -80,6 +80,8 @@ export async function saveCharacter (plugin, card) {
 		snapshot: {
 			edition: card.edition || "classic",
 			abilities: card.abilities || null,
+			rolls: card.rolls || null,
+			actions: card.actions || [],
 			traits: card.traits || null,
 			coins: card.coins || null,
 			refs,
@@ -147,17 +149,28 @@ function characterMarkdown (card, avatarPath, refs) {
 		combat.push(hp);
 	}
 	if (card.speed != null) combat.push(`Speed ${card.speed}`);
+	if (card.rolls) {
+		combat.push(`Initiative ${checkNotation(card.rolls.initiative)}`);
+		combat.push(`PB ${signed(card.rolls.proficiency)}`);
+		if (card.rolls.passivePerception != null) combat.push(`Passive Perception ${card.rolls.passivePerception}`);
+	}
 	if (combat.length) lines.push(combat.join(" · "), "");
 	lines.push("## Abilities", "");
+	const saves = new Map((card.rolls?.saves || []).map(save => [save.key, save]));
 	for (const key of ABILITY_KEYS) {
 		const score = card.abilities?.[key];
 		if (score == null) continue;
-		lines.push(`- ${key.toUpperCase()} ${score} (${formatMod(score)})`);
+		const check = modifierFromScore(score);
+		const save = saves.get(key);
+		const mods = save ? `${signed(check)} / ${signed(save.mod)}${save.proficient ? " PB" : ""}` : signed(check);
+		lines.push(`- ${key.toUpperCase()} ${score} · ${mods}`);
 	}
-	lines.push(...traitLines(card.traits));
+	lines.push(...skillLines(card.rolls));
+	lines.push(...actionLines(card.actions));
+	lines.push(...refSection("Spells", refsOf(refs, "spell")));
 	lines.push(...refSection("Feats", refsOf(refs, "feat")));
 	lines.push(...refSection("Gear", refsOf(refs, "item")));
-	lines.push(...refSection("Spells", refsOf(refs, "spell")));
+	lines.push(...traitLines(card.traits));
 	lines.push("", "## Coins", "", formatCoins(card.coins), "");
 	return lines.join("\n");
 }
@@ -194,9 +207,43 @@ function traitLines (traits) {
 	return lines;
 }
 
-function formatMod (score) {
-	const mod = Math.floor(((Number(score) || 0) - 10) / 2);
-	return mod >= 0 ? `+${mod}` : String(mod);
+function modifierFromScore (score) {
+	return Math.floor(((Number(score) || 0) - 10) / 2);
+}
+
+function signed (mod) {
+	const n = Number(mod) || 0;
+	return n >= 0 ? `+${n}` : String(n);
+}
+
+function checkNotation (mod) {
+	const n = Number(mod) || 0;
+	return n ? `1d20${signed(n)}` : "1d20";
+}
+
+function skillLines (rolls) {
+	if (!rolls?.skills?.length) return [];
+	const lines = ["", "## Skills", ""];
+	for (const skill of rolls.skills) lines.push(`- ${rollLine(skill.name, skill)}`);
+	return lines;
+}
+
+function rollLine (label, row) {
+	const mark = row.expertise ? " expertise" : (row.proficient ? " PB" : "");
+	return `${label} ${signed(row.mod)}${mark} ${checkNotation(row.mod)}`;
+}
+
+function actionLines (actions) {
+	if (!actions?.length) return [];
+	const lines = ["", "## Actions", ""];
+	for (const action of actions) {
+		const bits = [action.name];
+		if (action.activation) bits.push(action.activation);
+		if (action.uses) bits.push(`${action.uses} uses`);
+		if (action.dice) bits.push(action.dice);
+		lines.push(`- ${bits.join(" · ")}`);
+	}
+	return lines;
 }
 
 function formatCoins (coins) {

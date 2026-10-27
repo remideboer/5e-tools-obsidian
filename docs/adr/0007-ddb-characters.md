@@ -22,3 +22,4 @@ The plugin needs public D&D Beyond characters in a campaign without a full chara
 - AC and HP on the card are a short summary (armor base, capped Dex, shield +2, name bonus `+N`, hit points from base or override). They are not a full modifier walk.
 - The default proxy is the already deployed worker. A different public proxy can be set in plugin settings.
 - A card imported before edition links has no snapshot. Refresh rewrites it. Homebrew names with no 5etools match stay plain text.
+- Ability checks, saving throws, skills, and initiative on the card are clickable `1d20` rolls. A proficient save or skill adds the proficiency bonus, shown on the card as `PB +n`; expertise adds it twice. Passive Perception is 10 + Perception. The card order is the table order: combat numbers, abilities, saves, skills, actions, spells, then the rest. Class and species actions (such as Wild Shape, with its uses) are listed too.

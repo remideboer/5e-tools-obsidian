@@ -1,6 +1,7 @@
 import {MarkdownRenderer, Notice} from "obsidian";
 import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter} from "./character-store.js";
 import {importDdbCharacter} from "./ddb-import.js";
+import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {findEntityDoc, sourceAbbr} from "./search-index.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
@@ -44,18 +45,20 @@ function paintLinkedCard (host, plugin, record) {
 		line.createSpan({text: "Background: "});
 		paintRefRow(line, plugin, [background]);
 	}
-	const combat = combatLine(fields);
-	if (combat) host.createEl("p", {text: combat});
-	paintAbilities(host, snapshot.abilities);
-	paintTraits(host, snapshot.traits);
+	paintCombat(host, fields, snapshot.rolls);
+	paintAbilities(host, snapshot.abilities, snapshot.rolls);
+	paintSkills(host, snapshot.rolls);
+	paintActions(host, snapshot.actions);
+	paintRefSection(host, plugin, "Spells", refs.filter(ref => ref.kind === "spell"));
 	paintRefSection(host, plugin, "Feats", refs.filter(ref => ref.kind === "feat"));
 	paintRefSection(host, plugin, "Gear", refs.filter(ref => ref.kind === "item"));
-	paintRefSection(host, plugin, "Spells", refs.filter(ref => ref.kind === "spell"));
+	paintTraits(host, snapshot.traits);
 	const coins = formatCoins(snapshot.coins);
 	if (coins) {
 		host.createEl("h3", {text: "Coins"});
 		host.createEl("p", {text: coins});
 	}
+	bindDiceRollers(host, plugin);
 }
 
 function paintRefSection (host, plugin, title, refs) {
@@ -107,16 +110,108 @@ function refButtonLabel (ref) {
 	return `${label}${qty}${equipped}`;
 }
 
-function paintAbilities (host, abilities) {
+function paintAbilities (host, abilities, rolls) {
 	if (!abilities) return;
 	const rows = ABILITY_KEYS.filter(key => abilities[key] != null);
 	if (!rows.length) return;
 	host.createEl("h3", {text: "Abilities"});
-	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	const grid = host.createDiv({cls: "fiveetools-character-card__abilities"});
+	const saves = new Map((rolls?.saves || []).map(save => [save.key, save]));
 	for (const key of rows) {
 		const score = abilities[key];
-		list.createEl("li", {text: `${key.toUpperCase()} ${score} (${formatMod(score)})`});
+		const check = modifierFromScore(score);
+		const save = saves.get(key);
+		const cell = grid.createDiv({
+			cls: `fiveetools-character-card__ability${save?.proficient ? " is-proficient" : ""}`,
+		});
+		cell.createDiv({cls: "fiveetools-character-card__ability-name", text: key.toUpperCase()});
+		cell.createDiv({cls: "fiveetools-character-card__ability-base", text: String(score)});
+		const values = cell.createDiv({cls: "fiveetools-character-card__ability-values"});
+		paintValueRoll(values, key.toUpperCase(), signed(check), check);
+		if (!save) continue;
+		values.createSpan({cls: "fiveetools-character-card__ability-slash", text: "/"});
+		paintValueRoll(values, `${key.toUpperCase()} save`, signed(save.mod), save.mod);
+		[...values.querySelectorAll(".render-roller")].pop()?.classList.add("fiveetools-character-card__ability-save");
+		if (save.proficient) values.createSpan({cls: "fiveetools-character-card__source", text: "PB"});
 	}
+}
+
+function paintCombat (host, fields, rolls) {
+	const line = host.createEl("p", {cls: "fiveetools-character-card__combat"});
+	const bits = [];
+	if (fields.ac != null && fields.ac !== "") bits.push(`AC ${fields.ac}`);
+	if (fields.hp_max != null && fields.hp_max !== "") {
+		const current = fields.hp_current != null && fields.hp_current !== "" ? fields.hp_current : fields.hp_max;
+		bits.push(`HP ${current}/${fields.hp_max}`);
+	}
+	if (fields.speed != null && fields.speed !== "") bits.push(`Speed ${fields.speed}`);
+	if (bits.length) line.createSpan({text: bits.join(" · ")});
+	if (rolls && rolls.initiative != null) {
+		if (bits.length) line.createSpan({text: " · Initiative "});
+		else line.createSpan({text: "Initiative "});
+		paintRoll(line, "Initiative", rolls.initiative);
+	}
+	const tail = [];
+	if (rolls?.proficiency != null) tail.push(`PB ${signed(rolls.proficiency)}`);
+	if (rolls?.passivePerception != null) tail.push(`Passive Perception ${rolls.passivePerception}`);
+	if (tail.length) line.createSpan({text: `${bits.length || rolls?.initiative != null ? " · " : ""}${tail.join(" · ")}`});
+}
+
+function paintSkills (host, rolls) {
+	paintRollList(host, "Skills", rolls?.skills, skill => skill.name, skill => skill.name);
+}
+
+function paintRollList (host, title, rows, labelOf, rollName) {
+	if (!rows?.length) return;
+	host.createEl("h3", {text: title});
+	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	for (const row of rows) {
+		const line = list.createEl("li");
+		const mark = row.expertise ? " expertise" : (row.proficient ? " PB" : "");
+		line.createSpan({text: `${labelOf(row)} ${signed(row.mod)}${mark} `});
+		paintRoll(line, rollName(row), row.mod);
+	}
+}
+
+function paintActions (host, actions) {
+	if (!actions?.length) return;
+	host.createEl("h3", {text: "Actions"});
+	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	for (const action of actions) {
+		const line = list.createEl("li");
+		const bits = [action.name];
+		if (action.activation) bits.push(action.activation);
+		if (action.uses) bits.push(`${action.uses} uses`);
+		line.createSpan({text: bits.join(" · ")});
+		if (action.dice) {
+			line.createSpan({text: " "});
+			const roll = line.createSpan();
+			appendTextWithDiceRollers(roll, action.dice);
+			const roller = roll.querySelector(".render-roller");
+			if (roller) roller.setAttribute("data-roll-name", action.name);
+		}
+	}
+}
+
+function paintRoll (host, label, mod) {
+	paintValueRoll(host, label, "", mod);
+}
+
+function paintValueRoll (host, label, display, mod) {
+	const n = Number(mod) || 0;
+	const notation = n ? `1d20${signed(n)}` : "1d20";
+	appendTextWithDiceRollers(host, notation);
+	const roller = [...host.querySelectorAll(".render-roller")].pop();
+	if (!roller) return;
+	if (display) roller.textContent = display;
+	roller.setAttribute("title", display ? `${label} (${notation})` : "Click to roll.");
+	roller.setAttribute("data-roll-name", label);
+	try {
+		const packed = JSON.parse(roller.getAttribute("data-packed-dice") || "{}");
+		packed.subType = "d20";
+		packed.name = label;
+		roller.setAttribute("data-packed-dice", JSON.stringify(packed));
+	} catch (_) { /* notation still rolls */ }
 }
 
 function paintTraits (host, traits) {
@@ -136,20 +231,13 @@ function paintTraits (host, traits) {
 	}
 }
 
-function combatLine (fields) {
-	const parts = [];
-	if (fields.ac != null && fields.ac !== "") parts.push(`AC ${fields.ac}`);
-	if (fields.hp_max != null && fields.hp_max !== "") {
-		const current = fields.hp_current != null && fields.hp_current !== "" ? fields.hp_current : fields.hp_max;
-		parts.push(`HP ${current}/${fields.hp_max}`);
-	}
-	if (fields.speed != null && fields.speed !== "") parts.push(`Speed ${fields.speed}`);
-	return parts.join(" · ");
+function modifierFromScore (score) {
+	return Math.floor(((Number(score) || 0) - 10) / 2);
 }
 
-function formatMod (score) {
-	const mod = Math.floor(((Number(score) || 0) - 10) / 2);
-	return mod >= 0 ? `+${mod}` : String(mod);
+function signed (mod) {
+	const n = Number(mod) || 0;
+	return n >= 0 ? `+${n}` : String(n);
 }
 
 function formatCoins (coins) {
