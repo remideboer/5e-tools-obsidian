@@ -43,6 +43,7 @@ export function mapDdbCharacter (payload, requestedId) {
 	const conMod = modifier(abilities.con);
 	const hp = hitPoints(char, conMod, level);
 	const speed = char.race?.weightSpeeds?.normal?.walk;
+	const edition = characterEdition(char);
 	return {
 		ddbId: String(char.id || requestedId || ""),
 		name: String(char.name || "Unnamed").trim() || "Unnamed",
@@ -56,8 +57,9 @@ export function mapDdbCharacter (payload, requestedId) {
 		tempHp: hp.temp,
 		speed: Number.isFinite(Number(speed)) ? Number(speed) : null,
 		abilities,
-		equipped: equippedLines(char),
-		spells: spellNames(char),
+		edition,
+		refs: characterRefs(char, edition),
+		traits: characterTraits(char),
 		coins: char.currencies || {},
 		avatar: null,
 	};
@@ -194,24 +196,156 @@ function classLabel (cl) {
 	return sub ? `${core} (${sub})` : core;
 }
 
-function equippedLines (char) {
-	const lines = [];
-	for (const item of Array.isArray(char.inventory) ? char.inventory : []) {
-		if (!item?.equipped || !item.definition?.name) continue;
-		const name = String(item.definition.name).trim();
-		if (!name) continue;
-		const qty = Number(item.quantity) || 1;
-		lines.push(qty > 1 ? `${name} ×${qty}` : name);
+function characterEdition (char) {
+	if (char.race?.isLegacy === true) return "classic";
+	if (char.race?.isLegacy === false) return "one";
+	let legacy = 0;
+	let modern = 0;
+	for (const def of spellDefs(char)) {
+		if (def.isLegacy === true) legacy += 1;
+		else if (def.isLegacy === false) modern += 1;
 	}
-	return lines;
+	if (legacy && !modern) return "classic";
+	if (modern && !legacy) return "one";
+	return legacy >= modern ? "classic" : "one";
 }
 
-function spellNames (char) {
-	const names = [];
+function entryEdition (isLegacy, edition, {item = false} = {}) {
+	if (item) return isLegacy === true ? "classic" : edition;
+	if (isLegacy === true) return "classic";
+	if (isLegacy === false) return "one";
+	return edition;
+}
+
+function characterRefs (char, edition) {
+	const refs = [];
+	const species = String(char.race?.fullName || char.race?.baseName || "").trim();
+	const baseRace = String(char.race?.baseName || char.race?.baseRaceName || "").trim();
+	if (species) {
+		refs.push({
+			kind: "species",
+			name: species,
+			label: species,
+			alt: baseRace && baseRace.toLowerCase() !== species.toLowerCase() ? baseRace : "",
+			edition: entryEdition(char.race?.isLegacy, edition),
+		});
+	}
+	for (const cl of Array.isArray(char.classes) ? char.classes : []) {
+		const name = String(cl?.definition?.name || "").trim();
+		if (name) {
+			const level = Number(cl?.level) || 0;
+			refs.push({
+				kind: "class",
+				name,
+				label: level ? `${name} ${level}` : name,
+				edition: entryEdition(cl?.definition?.isLegacy, edition),
+			});
+		}
+		const sub = String(cl?.subclassDefinition?.name || "").trim();
+		if (sub) {
+			refs.push({
+				kind: "subclass",
+				name: sub,
+				label: sub,
+				edition: entryEdition(cl?.subclassDefinition?.isLegacy, edition),
+			});
+		}
+	}
+	const background = String(char.background?.definition?.name || "").trim();
+	if (background) {
+		refs.push({
+			kind: "background",
+			name: background,
+			label: background,
+			edition: entryEdition(char.background?.definition?.isLegacy, edition),
+		});
+	}
+	for (const feat of featEntries(char)) {
+		refs.push({
+			kind: "feat",
+			name: feat.name,
+			label: feat.name,
+			edition: entryEdition(feat.isLegacy, edition),
+		});
+	}
+	const gear = gearEntries(char);
+	gear.sort((a, b) => Number(b.equipped) - Number(a.equipped) || a.label.localeCompare(b.label));
+	for (const item of gear) {
+		refs.push({
+			kind: "item",
+			name: item.label,
+			label: item.label,
+			alts: item.alts,
+			edition: entryEdition(item.isLegacy, edition, {item: true}),
+			qty: item.qty,
+			equipped: item.equipped,
+		});
+	}
+	const spells = spellDefs(char);
+	spells.sort((a, b) => a.name.localeCompare(b.name));
+	for (const spell of spells) {
+		refs.push({
+			kind: "spell",
+			name: spell.name,
+			label: spell.name,
+			edition: entryEdition(spell.isLegacy, edition),
+		});
+	}
+	return refs;
+}
+
+function featEntries (char) {
+	const out = [];
+	const seen = new Set();
+	const push = (entry) => {
+		const def = entry?.definition || entry;
+		const name = String(def?.name || "").trim();
+		if (!name) return;
+		const key = name.toLowerCase();
+		if (seen.has(key)) return;
+		seen.add(key);
+		out.push({name, isLegacy: def?.isLegacy});
+	};
+	for (const feat of char.feats || []) push(feat);
+	for (const feat of char.options?.feat || []) push(feat);
+	return out;
+}
+
+function gearEntries (char) {
+	const out = [];
+	for (const item of Array.isArray(char.inventory) ? char.inventory : []) {
+		const def = item?.definition;
+		const label = String(def?.name || "").trim();
+		if (!label) continue;
+		const alts = [];
+		const comma = label.match(/^(.+),\s*(.+)$/);
+		if (comma) alts.push(`${comma[2]} ${comma[1]}`.trim());
+		if (isWornArmor(def) && !/armor$/i.test(label)) alts.push(`${label} Armor`);
+		const bare = label.replace(/^\+\d+\s+/, "").trim();
+		if (bare && bare.toLowerCase() !== label.toLowerCase()) alts.push(bare);
+		out.push({
+			label,
+			alts,
+			qty: Math.max(1, Number(item.quantity) || 1),
+			equipped: !!item.equipped,
+			isLegacy: def?.isLegacy,
+		});
+	}
+	return out;
+}
+
+function spellDefs (char) {
+	const out = [];
+	const seen = new Set();
 	const push = (list) => {
 		for (const entry of list || []) {
-			const name = String(entry?.definition?.name || entry?.name || "").trim();
-			if (name) names.push(name);
+			const def = entry?.definition || entry;
+			const name = String(def?.name || "").trim();
+			if (!name) continue;
+			const key = name.toLowerCase();
+			if (seen.has(key)) continue;
+			seen.add(key);
+			out.push({name, isLegacy: def?.isLegacy});
 		}
 	};
 	const spells = char.spells || {};
@@ -221,16 +355,26 @@ function spellNames (char) {
 	push(spells.item);
 	push(spells.background);
 	for (const block of char.classSpells || []) push(block?.spells);
-	const seen = new Set();
-	const out = [];
-	for (const name of names) {
-		const key = name.toLowerCase();
-		if (seen.has(key)) continue;
-		seen.add(key);
-		out.push(name);
-	}
-	out.sort((a, b) => a.localeCompare(b));
 	return out;
+}
+
+function characterTraits (char) {
+	const traits = char.traits || {};
+	const personality = plainTrait(traits.personalityTraits);
+	const ideals = plainTrait(traits.ideals);
+	const bonds = plainTrait(traits.bonds);
+	const flaws = plainTrait(traits.flaws);
+	if (!personality && !ideals && !bonds && !flaws) return null;
+	return {personality, ideals, bonds, flaws};
+}
+
+function plainTrait (value) {
+	if (value == null) return "";
+	if (Array.isArray(value)) return value.map(plainTrait).filter(Boolean).join("\n");
+	const text = typeof value === "string"
+		? value
+		: String(value.text || value.value || value.definition?.name || "");
+	return text.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
 }
 
 function modifier (score) {

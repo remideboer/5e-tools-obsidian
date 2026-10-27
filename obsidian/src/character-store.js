@@ -1,4 +1,15 @@
 import {parseCampaignMarkdown, serializeCampaignMarkdown} from "./campaign-store.js";
+import {ensureSearchIndex, findEditionDoc, sourceAbbr} from "./search-index.js";
+
+export const REF_CATEGORIES = {
+	spell: ["spell"],
+	item: ["item"],
+	background: ["background"],
+	feat: ["feat"],
+	species: ["species"],
+	class: ["class"],
+	subclass: ["subclass"],
+};
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 
@@ -48,8 +59,10 @@ export async function saveCharacter (plugin, card) {
 	const vault = plugin?.app?.vault;
 	if (!vault) throw new Error("Vault is unavailable.");
 	await ensureFolder(plugin.app, charactersRoot(plugin));
+	await ensureSearchIndex(plugin);
 	const avatarPath = card.avatar ? await writeAvatar(plugin, id, card.avatar) : existingAvatarPath(plugin, id);
 	const filePath = characterFilePath(plugin, id);
+	const refs = resolveRefs(card.refs || []);
 	const text = serializeCampaignMarkdown({
 		fields: {
 			ddb_id: id,
@@ -63,7 +76,14 @@ export async function saveCharacter (plugin, card) {
 			hp_current: card.hpCurrent ?? "",
 			speed: card.speed ?? "",
 		},
-		body: characterMarkdown(card, avatarPath),
+		body: characterMarkdown(card, avatarPath, refs),
+		snapshot: {
+			edition: card.edition || "classic",
+			abilities: card.abilities || null,
+			traits: card.traits || null,
+			coins: card.coins || null,
+			refs,
+		},
 	});
 	await writeFile(plugin, filePath, text);
 	return readCharacter(plugin, id);
@@ -87,13 +107,37 @@ export function characterName (record) {
 	return String(record?.fields?.name || record?.fields?.ddb_id || "Character");
 }
 
-function characterMarkdown (card, avatarPath) {
+function resolveRefs (refs) {
+	return (refs || []).map(ref => {
+		const names = [ref.name, ref.alt, ...(ref.alts || [])].map(it => String(it || "").trim()).filter(Boolean);
+		let doc = null;
+		for (const name of names) {
+			doc = findEditionDoc(name, {
+				categoriesExact: REF_CATEGORIES[ref.kind] || [],
+				edition: ref.edition === "one" ? "one" : "classic",
+			});
+			if (doc) break;
+		}
+		const qty = Number(ref.qty) || 0;
+		return {
+			kind: ref.kind,
+			name: doc?.n || ref.name || "",
+			label: ref.label || ref.name || "",
+			source: doc?.s || "",
+			...(qty > 1 ? {qty} : {}),
+			...(ref.equipped ? {equipped: true} : {}),
+		};
+	}).filter(ref => ref.label || ref.name);
+}
+
+function characterMarkdown (card, avatarPath, refs) {
 	const lines = [];
 	if (avatarPath) lines.push(`![[${avatarPath}|80]]`, "");
 	lines.push(`# ${card.name || "Unnamed"}`, "");
 	const identity = [card.species, card.classes, card.level != null ? `Level ${card.level}` : ""].filter(Boolean);
 	if (identity.length) lines.push(identity.join(" · "), "");
-	if (card.background) lines.push(`Background: ${card.background}`, "");
+	const background = refsOf(refs, "background")[0];
+	if (card.background) lines.push(`Background: ${refText(background || {label: card.background})}`, "");
 	const combat = [];
 	if (card.ac != null) combat.push(`AC ${card.ac}`);
 	if (card.hpMax != null) {
@@ -110,18 +154,44 @@ function characterMarkdown (card, avatarPath) {
 		if (score == null) continue;
 		lines.push(`- ${key.toUpperCase()} ${score} (${formatMod(score)})`);
 	}
-	lines.push("", "## Equipped", "");
-	lines.push(...bulletList(card.equipped));
-	lines.push("", "## Spells", "");
-	lines.push(...bulletList(card.spells));
+	lines.push(...traitLines(card.traits));
+	lines.push(...refSection("Feats", refsOf(refs, "feat")));
+	lines.push(...refSection("Gear", refsOf(refs, "item")));
+	lines.push(...refSection("Spells", refsOf(refs, "spell")));
 	lines.push("", "## Coins", "", formatCoins(card.coins), "");
 	return lines.join("\n");
 }
 
-function bulletList (items) {
-	const list = (items || []).map(it => String(it || "").trim()).filter(Boolean);
-	if (!list.length) return ["- None"];
-	return list.map(it => `- ${it}`);
+function refsOf (refs, kind) {
+	return (refs || []).filter(ref => ref.kind === kind);
+}
+
+function refSection (title, refs) {
+	if (!refs.length) return [];
+	return ["", `## ${title}`, "", ...refs.map(ref => `- ${refText(ref)}`)];
+}
+
+function refText (ref) {
+	const label = ref.label || ref.name || "";
+	const qty = Number(ref.qty) > 1 ? ` ×${ref.qty}` : "";
+	const equipped = ref.equipped ? " (equipped)" : "";
+	const source = sourceAbbr(ref.source);
+	const book = source ? ` · ${source}` : "";
+	return `${label}${qty}${equipped}${book}`;
+}
+
+function traitLines (traits) {
+	if (!traits) return [];
+	const rows = [
+		["Personality", traits.personality],
+		["Ideals", traits.ideals],
+		["Bonds", traits.bonds],
+		["Flaws", traits.flaws],
+	].filter(([, text]) => String(text || "").trim());
+	if (!rows.length) return [];
+	const lines = ["", "## Traits", ""];
+	for (const [label, text] of rows) lines.push(`**${label}.** ${String(text).trim()}`, "");
+	return lines;
 }
 
 function formatMod (score) {

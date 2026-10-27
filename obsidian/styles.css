@@ -654,6 +654,44 @@ a.fiveetools-inline-link {
 	border-radius: 8px;
 }
 
+.fiveetools-character-card h2,
+.fiveetools-character-card h3 {
+	margin: 0.6em 0 0.3em;
+}
+
+.fiveetools-character-card h2 {
+	margin-top: 0.2em;
+}
+
+.fiveetools-character-card__identity {
+	margin: 0 0 0.35em;
+}
+
+.fiveetools-character-card__link {
+	display: inline;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text-accent);
+	font: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+
+.fiveetools-character-card__link:hover {
+	text-decoration: underline;
+}
+
+.fiveetools-character-card__source {
+	color: var(--text-muted);
+	font-size: 0.85em;
+}
+
+.fiveetools-character-card__refs {
+	margin: 0;
+	padding-left: 1.1em;
+}
+
 .fiveetools-library__list.fiveetools-characters {
 	display: flex;
 	flex-direction: column;

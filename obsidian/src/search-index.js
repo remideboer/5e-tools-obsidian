@@ -305,6 +305,53 @@ export function findEntityDoc (name, {categoriesExact = [], source = ""} = {}) {
 	return pick(exact) || fromSearch || null;
 }
 
+/**
+ * Exact-name match for a character card. `edition` is "classic" (2014) or "one" (2024).
+ * Does not follow the plugin style switcher and does not call preferModernDoc.
+ */
+export function findEditionDoc (name, {categoriesExact = [], edition = "classic"} = {}) {
+	const needle = String(name || "").trim().toLowerCase();
+	if (!needle || !searchIndex) return null;
+	const Parser = getParser();
+	const modern = new Set([Parser.SRC_XPHB, Parser.SRC_XDMG, Parser.SRC_XMM]);
+	const cats = new Set((categoriesExact || []).map(it => String(it).toLowerCase()));
+	const exact = Object.values(searchIndex.documentStore.docs).filter(doc => {
+		if (!doc || String(doc.n || "").toLowerCase() !== needle) return false;
+		if (cats.size && !cats.has(String(doc.cf || "").toLowerCase())) return false;
+		return true;
+	});
+	if (!exact.length) return null;
+	const classic = exact.filter(doc => !modern.has(doc.s));
+	if (edition === "one") {
+		const reprinted = exact.filter(doc => modern.has(doc.s));
+		if (reprinted.length) return reprinted.sort(compareEditionDoc)[0];
+	}
+	const pool = classic.length ? classic : (edition === "one" ? exact : []);
+	if (!pool.length) return null;
+	return pool.sort(compareEditionDoc)[0];
+}
+
+export function sourceAbbr (source) {
+	const Parser = getParser();
+	const id = String(source || "");
+	if (!id) return "";
+	return Parser.sourceJsonToAbv?.(id) || Parser.SOURCE_JSON_TO_ABV?.[id] || id;
+}
+
+function compareEditionDoc (a, b) {
+	const Parser = getParser();
+	const rank = (doc) => {
+		const s = doc?.s;
+		if (s === Parser.SRC_PHB || s === Parser.SRC_XPHB) return 0;
+		if (s === Parser.SRC_DMG || s === Parser.SRC_XDMG) return 1;
+		if (s === Parser.SRC_MM || s === Parser.SRC_XMM) return 2;
+		return 3;
+	};
+	const byRank = rank(a) - rank(b);
+	if (byRank) return byRank;
+	return String(a?.s || "").localeCompare(String(b?.s || ""));
+}
+
 export function docFromHref (href, {linkText = ""} = {}) {
 	if (!href || /^https?:\/\//i.test(href) || href.startsWith("mailto:")) return null;
 	const parsed = parseInternalHref(href);
@@ -388,6 +435,8 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.docFromVetLink = docFromVetLink;
 	globalThis.FiveEToolsObsidian.ensureSearchIndex = ensureSearchIndex;
 	globalThis.FiveEToolsObsidian.findEntityDoc = findEntityDoc;
+	globalThis.FiveEToolsObsidian.findEditionDoc = findEditionDoc;
+	globalThis.FiveEToolsObsidian.sourceAbbr = sourceAbbr;
 	globalThis.FiveEToolsObsidian.indexHomebrewDocs = indexHomebrewDocs;
 	globalThis.FiveEToolsObsidian.brewDocFromEntity = brewDocFromEntity;
 	globalThis.FiveEToolsObsidian.listEntities = listEntities;

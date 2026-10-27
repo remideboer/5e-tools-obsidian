@@ -1,6 +1,9 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, deleteCharacter, listCharacters, readCharacter, saveCharacter} from "./character-store.js";
+import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter} from "./character-store.js";
 import {importDdbCharacter} from "./ddb-import.js";
+import {findEntityDoc, sourceAbbr} from "./search-index.js";
+
+const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 
 export async function renderCharacterCard (host, plugin, ddbId) {
 	host.empty();
@@ -10,10 +13,160 @@ export async function renderCharacterCard (host, plugin, ddbId) {
 		host.createEl("p", {cls: "fiveetools-view__meta", text: "Character not found."});
 		return null;
 	}
-	const body = host.createDiv({cls: "fiveetools-character-card__body"});
-	const markdown = String(record.body || "").trim() || `# ${characterName(record)}`;
-	await MarkdownRenderer.render(plugin.app, markdown, body, record.path, plugin);
+	const refs = record.snapshot?.refs;
+	if (!Array.isArray(refs)) {
+		const body = host.createDiv({cls: "fiveetools-character-card__body"});
+		const markdown = String(record.body || "").trim() || `# ${characterName(record)}`;
+		await MarkdownRenderer.render(plugin.app, markdown, body, record.path, plugin);
+		return record;
+	}
+	paintLinkedCard(host, plugin, record);
 	return record;
+}
+
+function paintLinkedCard (host, plugin, record) {
+	const fields = record.fields || {};
+	const snapshot = record.snapshot || {};
+	const refs = snapshot.refs || [];
+	const src = avatarSrc(plugin, record.body);
+	if (src) {
+		host.createEl("img", {attr: {src, alt: characterName(record)}});
+	}
+	host.createEl("h2", {text: characterName(record)});
+	const identity = host.createDiv({cls: "fiveetools-character-card__identity"});
+	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
+	paintRefRow(identity, plugin, identityRefs);
+	const level = fields.level != null && fields.level !== "" ? `Level ${fields.level}` : "";
+	if (level) identity.createSpan({cls: "fiveetools-view__meta", text: identity.childNodes.length ? ` · ${level}` : level});
+	const background = refs.find(ref => ref.kind === "background");
+	if (background) {
+		const line = host.createDiv({cls: "fiveetools-character-card__identity"});
+		line.createSpan({text: "Background: "});
+		paintRefRow(line, plugin, [background]);
+	}
+	const combat = combatLine(fields);
+	if (combat) host.createEl("p", {text: combat});
+	paintAbilities(host, snapshot.abilities);
+	paintTraits(host, snapshot.traits);
+	paintRefSection(host, plugin, "Feats", refs.filter(ref => ref.kind === "feat"));
+	paintRefSection(host, plugin, "Gear", refs.filter(ref => ref.kind === "item"));
+	paintRefSection(host, plugin, "Spells", refs.filter(ref => ref.kind === "spell"));
+	const coins = formatCoins(snapshot.coins);
+	if (coins) {
+		host.createEl("h3", {text: "Coins"});
+		host.createEl("p", {text: coins});
+	}
+}
+
+function paintRefSection (host, plugin, title, refs) {
+	if (!refs.length) return;
+	host.createEl("h3", {text: title});
+	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	for (const ref of refs) {
+		const item = list.createEl("li");
+		paintRefButton(item, plugin, ref, refButtonLabel(ref));
+	}
+}
+
+function paintRefRow (parent, plugin, refs) {
+	refs.forEach((ref, index) => {
+		if (index) parent.createSpan({text: " · "});
+		paintRefButton(parent, plugin, ref, ref.label || ref.name);
+	});
+}
+
+function paintRefButton (parent, plugin, ref, label) {
+	const book = sourceAbbr(ref.source);
+	if (!ref.source) {
+		parent.createSpan({text: label});
+		return;
+	}
+	const btn = parent.createEl("button", {
+		cls: "fiveetools-character-card__link",
+		attr: {type: "button"},
+	});
+	btn.createSpan({text: label});
+	if (book) btn.createSpan({cls: "fiveetools-character-card__source", text: ` · ${book}`});
+	btn.addEventListener("click", (evt) => {
+		evt.preventDefault();
+		evt.stopPropagation();
+		const doc = findEntityDoc(ref.name, {
+			categoriesExact: REF_CATEGORIES[ref.kind] || [],
+			source: ref.source,
+		});
+		if (doc && String(doc.s || "").toLowerCase() === String(ref.source).toLowerCase()) {
+			void plugin.openPreview?.(doc);
+		}
+	});
+}
+
+function refButtonLabel (ref) {
+	const label = ref.label || ref.name || "";
+	const qty = Number(ref.qty) > 1 ? ` ×${ref.qty}` : "";
+	const equipped = ref.equipped ? " (equipped)" : "";
+	return `${label}${qty}${equipped}`;
+}
+
+function paintAbilities (host, abilities) {
+	if (!abilities) return;
+	const rows = ABILITY_KEYS.filter(key => abilities[key] != null);
+	if (!rows.length) return;
+	host.createEl("h3", {text: "Abilities"});
+	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	for (const key of rows) {
+		const score = abilities[key];
+		list.createEl("li", {text: `${key.toUpperCase()} ${score} (${formatMod(score)})`});
+	}
+}
+
+function paintTraits (host, traits) {
+	if (!traits) return;
+	const rows = [
+		["Personality", traits.personality],
+		["Ideals", traits.ideals],
+		["Bonds", traits.bonds],
+		["Flaws", traits.flaws],
+	].filter(([, text]) => String(text || "").trim());
+	if (!rows.length) return;
+	host.createEl("h3", {text: "Traits"});
+	for (const [label, text] of rows) {
+		const line = host.createEl("p");
+		line.createEl("strong", {text: `${label}. `});
+		line.createSpan({text: String(text).trim()});
+	}
+}
+
+function combatLine (fields) {
+	const parts = [];
+	if (fields.ac != null && fields.ac !== "") parts.push(`AC ${fields.ac}`);
+	if (fields.hp_max != null && fields.hp_max !== "") {
+		const current = fields.hp_current != null && fields.hp_current !== "" ? fields.hp_current : fields.hp_max;
+		parts.push(`HP ${current}/${fields.hp_max}`);
+	}
+	if (fields.speed != null && fields.speed !== "") parts.push(`Speed ${fields.speed}`);
+	return parts.join(" · ");
+}
+
+function formatMod (score) {
+	const mod = Math.floor(((Number(score) || 0) - 10) / 2);
+	return mod >= 0 ? `+${mod}` : String(mod);
+}
+
+function formatCoins (coins) {
+	const order = [["pp", "pp"], ["gp", "gp"], ["ep", "ep"], ["sp", "sp"], ["cp", "cp"]];
+	const parts = [];
+	for (const [key, label] of order) {
+		const n = Number(coins?.[key]) || 0;
+		if (n) parts.push(`${n} ${label}`);
+	}
+	return parts.join(", ");
+}
+
+function avatarSrc (plugin, body) {
+	const match = String(body || "").match(/!\[\[([^\]|]+)/);
+	const path = String(match?.[1] || "").trim();
+	if (!path) return "";
+	try { return plugin?.app?.vault?.adapter?.getResourcePath(path) || ""; } catch (_) { return ""; }
 }
 
 export function renderCharacterManager (formEl, resultEl, {plugin, session, onSessionChange} = {}) {
