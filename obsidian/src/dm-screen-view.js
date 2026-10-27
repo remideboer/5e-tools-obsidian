@@ -36,11 +36,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	readerEl?.empty();
 
 	const state = {
-		panels: (board?.panels || []).map(it => ({...it, doc: it.doc ? {...it.doc} : null})),
+		columns: copyColumns(board),
 	};
 
 	const emit = () => {
-		const next = setDmScreenBoard({panels: state.panels});
+		const next = setDmScreenBoard({columns: state.columns});
 		onBoardChange?.(next);
 		queueSaveDmScreen(plugin);
 	};
@@ -85,22 +85,50 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 
 	const grid = listEl.createDiv({cls: "fiveetools-dmscreen__grid"});
 
+	const items = () => state.columns.flatMap(col => col.items);
+
 	const syncBar = () => {
-		addEncounterBtn.toggleAttribute("disabled", state.panels.some(panel => panel.type === "encounter"));
+		addEncounterBtn.toggleAttribute("disabled", items().some(panel => panel.type === "encounter"));
 		for (const btn of refButtons) {
-			btn.el.toggleAttribute("disabled", state.panels.some(panel => panel.type === "reference" && panel.ref === btn.ref));
+			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
 		}
 	};
 
+	const addColumn = (panel) => {
+		state.columns.push({id: allocPanelId(), items: [panel]});
+		emit();
+		paint();
+	};
+
 	const paint = () => {
+		const gridScroll = grid.scrollLeft;
+		const scrolls = [...grid.querySelectorAll(".fiveetools-dmscreen__column")].map(el => el.scrollTop);
 		grid.empty();
 		syncBar();
-		if (!state.panels.length) {
+		if (!state.columns.length) {
 			grid.createEl("p", {cls: "fiveetools-view__meta", text: "No panels yet."});
 			return;
 		}
-		for (const panel of state.panels) paintCard(grid, panel);
+		state.columns.forEach((column, index) => {
+			const el = grid.createDiv({cls: "fiveetools-dmscreen__column"});
+			for (const panel of column.items) paintCard(el, panel);
+			const noteBtn = el.createEl("button", {
+				text: "Note",
+				cls: "fiveetools-btn fiveetools-btn--ghost fiveetools-dmscreen__colnote",
+				attr: {type: "button", title: "Add a note to this column"},
+			});
+			noteBtn.addEventListener("click", () => {
+				column.items.push(blankPanel("note", "Note"));
+				emit();
+				paint();
+			});
+			if (scrolls[index]) el.scrollTop = scrolls[index];
+		});
+		grid.scrollLeft = gridScroll;
 	};
+
+	plugin._dmScreenColumnObserver?.disconnect();
+	plugin._dmScreenColumnObserver = null;
 
 	let hitToken = 0;
 	const paintHits = () => {
@@ -144,7 +172,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const pinEntity = (doc) => {
-		state.panels.push({
+		addColumn({
 			id: allocPanelId(),
 			type: "entity",
 			title: doc.n || "Entry",
@@ -154,12 +182,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			value: 0,
 		});
 		closeSearch();
-		emit();
-		paint();
 	};
 
 	const pinCampaignNote = (note) => {
-		state.panels.push({
+		addColumn({
 			id: allocPanelId(),
 			type: "campaignNote",
 			title: note.title || "Note",
@@ -169,8 +195,6 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			value: 0,
 		});
 		closeSearch();
-		emit();
-		paint();
 	};
 
 	addEntityBtn.addEventListener("click", () => {
@@ -179,44 +203,19 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (open) searchInput.focus();
 	});
 	addNoteBtn.addEventListener("click", () => {
-		state.panels.push({
-			id: allocPanelId(),
-			type: "note",
-			title: "Note",
-			doc: null,
-			path: "",
-			text: "",
-			value: 0,
-		});
-		emit();
-		paint();
+		addColumn(blankPanel("note", "Note"));
 	});
 	addCounterBtn.addEventListener("click", () => {
-		state.panels.push({
-			id: allocPanelId(),
-			type: "counter",
-			title: "Counter",
-			doc: null,
-			path: "",
-			ref: "",
-			text: "",
-			value: 0,
-		});
-		emit();
-		paint();
+		addColumn(blankPanel("counter", "Counter"));
 	});
 	addEncounterBtn.addEventListener("click", () => {
-		if (state.panels.some(panel => panel.type === "encounter")) return;
-		state.panels.unshift(blankPanel("encounter", "Encounter"));
-		emit();
-		paint();
+		if (items().some(panel => panel.type === "encounter")) return;
+		addColumn(blankPanel("encounter", "Encounter"));
 	});
 
 	const pinReference = (spec) => {
-		if (state.panels.some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
-		state.panels.push({...blankPanel("reference", spec.label), ref: spec.ref});
-		emit();
-		paint();
+		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
+		addColumn({...blankPanel("reference", spec.label), ref: spec.ref});
 	};
 	searchInput.addEventListener("input", paintHits);
 
@@ -254,7 +253,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		});
 		remove.addEventListener("click", (evt) => {
 			evt.stopPropagation();
-			state.panels = state.panels.filter(it => it.id !== panel.id);
+			for (const column of state.columns) {
+				column.items = column.items.filter(it => it.id !== panel.id);
+			}
+			state.columns = state.columns.filter(column => column.items.length);
 			emit();
 			paint();
 		});
@@ -462,6 +464,16 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	paint();
+}
+
+function copyColumns (board) {
+	const source = Array.isArray(board?.columns)
+		? board.columns
+		: (board?.panels || []).map(panel => ({id: "", items: [panel]}));
+	return source.map(col => ({
+		id: col.id || allocPanelId(),
+		items: (col.items || []).map(it => ({...it, doc: it.doc ? {...it.doc} : null})),
+	})).filter(col => col.items.length);
 }
 
 function blankPanel (type, title) {

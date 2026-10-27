@@ -3,7 +3,7 @@ let nextPanelId = 1;
 let saveTimer = null;
 
 export function emptyBoard () {
-	return {panels: []};
+	return {columns: []};
 }
 
 export function dmScreenVaultPath (plugin) {
@@ -72,9 +72,20 @@ export async function flushDmScreenSave (plugin) {
 }
 
 function normalizeBoard (raw) {
-	const panels = (raw?.panels || []).map(normalizePanel).filter(Boolean);
-	bumpPanelId(panels);
-	return {panels};
+	const source = Array.isArray(raw?.columns)
+		? raw.columns
+		: (raw?.panels || []).map(panel => ({items: [panel]}));
+	const columns = source.map(normalizeColumn).filter(col => col.items.length);
+	bumpIds(columns);
+	return {columns};
+}
+
+function normalizeColumn (raw) {
+	const items = (raw?.items || []).map(normalizePanel).filter(Boolean);
+	return {
+		id: String(raw?.id || allocPanelId()),
+		items,
+	};
 }
 
 const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference"]);
@@ -121,10 +132,14 @@ function slimDoc (doc) {
 	};
 }
 
-function bumpPanelId (panels) {
-	for (const it of panels || []) {
-		const n = Number(String(it.id || "").replace(/^p/, ""));
+function bumpIds (columns) {
+	const consider = (id) => {
+		const n = Number(String(id || "").replace(/^[a-z]+/i, ""));
 		if (Number.isFinite(n) && n >= nextPanelId) nextPanelId = n + 1;
+	};
+	for (const col of columns || []) {
+		consider(col.id);
+		for (const it of col.items || []) consider(it.id);
 	}
 }
 

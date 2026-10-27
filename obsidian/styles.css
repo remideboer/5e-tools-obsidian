@@ -237,13 +237,16 @@ a.fiveetools-inline-link {
 	flex-direction: column;
 	min-height: 0;
 	padding: 8px;
+	overflow: hidden;
 }
 
 .fiveetools-dmscreen {
 	display: flex;
 	flex-direction: column;
+	flex: 1 1 auto;
 	gap: 8px;
 	min-height: 0;
+	overflow: hidden;
 }
 
 .fiveetools-dmscreen__bar {
@@ -288,16 +291,35 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-dmscreen__grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	display: flex;
+	flex: 1 1 auto;
+	align-items: stretch;
 	gap: 10px;
-	align-content: start;
-	align-items: start;
+	min-height: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.fiveetools-dmscreen__column {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 280px;
+	width: 280px;
+	gap: 10px;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.fiveetools-dmscreen__colnote {
+	flex: 0 0 auto;
+	align-self: flex-start;
 }
 
 .fiveetools-dmscreen__card {
 	display: flex;
 	flex-direction: column;
+	flex: 0 0 auto;
 	min-width: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-left: 3px solid var(--interactive-accent);
