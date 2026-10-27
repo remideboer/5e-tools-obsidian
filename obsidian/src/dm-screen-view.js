@@ -112,13 +112,34 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		state.columns.forEach((column, index) => {
 			const el = grid.createDiv({cls: "fiveetools-dmscreen__column"});
 			for (const panel of column.items) paintCard(el, panel);
-			const noteBtn = el.createEl("button", {
+			const actions = el.createDiv({cls: "fiveetools-dmscreen__colactions"});
+			const entryBtn = actions.createEl("button", {
+				text: "Entry",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
+				attr: {type: "button", title: "Add an entry to this column"},
+			});
+			const noteBtn = actions.createEl("button", {
 				text: "Note",
-				cls: "fiveetools-btn fiveetools-btn--ghost fiveetools-dmscreen__colnote",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
 				attr: {type: "button", title: "Add a note to this column"},
+			});
+			const counterBtn = actions.createEl("button", {
+				text: "Counter",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
+				attr: {type: "button", title: "Add a counter to this column"},
+			});
+			entryBtn.addEventListener("click", () => {
+				pinColumn = column;
+				searchEl.removeClass("is-hidden");
+				searchInput.focus();
 			});
 			noteBtn.addEventListener("click", () => {
 				column.items.push(blankPanel("note", "Note"));
+				emit();
+				paint();
+			});
+			counterBtn.addEventListener("click", () => {
+				column.items.push(blankPanel("counter", "Counter"));
 				emit();
 				paint();
 			});
@@ -130,6 +151,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	plugin._dmScreenColumnObserver?.disconnect();
 	plugin._dmScreenColumnObserver = null;
 
+	let pinColumn = null;
 	let hitToken = 0;
 	const paintHits = () => {
 		const token = ++hitToken;
@@ -166,13 +188,24 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const closeSearch = () => {
+		pinColumn = null;
 		searchInput.value = "";
 		hitsEl.empty();
 		searchEl.addClass("is-hidden");
 	};
 
+	const placePanel = (panel) => {
+		const column = pinColumn && state.columns.includes(pinColumn) ? pinColumn : null;
+		pinColumn = null;
+		if (column) column.items.push(panel);
+		else state.columns.push({id: allocPanelId(), items: [panel]});
+		closeSearch();
+		emit();
+		paint();
+	};
+
 	const pinEntity = (doc) => {
-		addColumn({
+		placePanel({
 			id: allocPanelId(),
 			type: "entity",
 			title: doc.n || "Entry",
@@ -181,11 +214,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			text: "",
 			value: 0,
 		});
-		closeSearch();
 	};
 
 	const pinCampaignNote = (note) => {
-		addColumn({
+		placePanel({
 			id: allocPanelId(),
 			type: "campaignNote",
 			title: note.title || "Note",
@@ -194,10 +226,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			text: "",
 			value: 0,
 		});
-		closeSearch();
 	};
 
 	addEntityBtn.addEventListener("click", () => {
+		pinColumn = null;
 		const open = searchEl.hasClass("is-hidden");
 		searchEl.toggleClass("is-hidden", !open);
 		if (open) searchInput.focus();

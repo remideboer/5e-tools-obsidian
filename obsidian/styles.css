@@ -311,9 +311,11 @@ a.fiveetools-inline-link {
 	overflow-y: auto;
 }
 
-.fiveetools-dmscreen__colnote {
+.fiveetools-dmscreen__colactions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
 	flex: 0 0 auto;
-	align-self: flex-start;
 }
 
 .fiveetools-dmscreen__card {
