@@ -659,6 +659,7 @@ a.fiveetools-inline-link {
 	border-radius: 8px;
 	padding: 8px 10px;
 	min-width: 0;
+	overflow: hidden;
 }
 
 .fiveetools-character-card__panel.is-wide {
@@ -686,6 +687,37 @@ a.fiveetools-inline-link {
 .fiveetools-character-card__slot-boxes {
 	display: flex;
 	gap: 3px;
+}
+
+.fiveetools-character-card .fiveetools-library__row {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 100%;
+}
+
+.fiveetools-character-card__rows {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.fiveetools-character-card__spell-level {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin: 0 0 8px;
+}
+
+.fiveetools-character-card__spell-level-label {
+	background: var(--background-secondary);
+	font-size: 12px;
+	font-weight: 600;
+	padding: 4px 8px;
+	border-radius: 0;
+	margin: 0;
+}
+
+.fiveetools-character-card__spell-level .fiveetools-library__row {
+	border-radius: 0;
 }
 
 .fiveetools-character-card__refs--cols {
@@ -788,6 +820,17 @@ a.fiveetools-inline-link {
 	min-height: 0;
 	overflow: auto;
 	padding: 8px;
+}
+
+.fiveetools-characters__catalog .fiveetools-library__row {
+	height: auto;
+}
+
+.fiveetools-characters__catalog .fiveetools-library__row-name,
+.fiveetools-characters__catalog .fiveetools-library__row-sub {
+	white-space: normal;
+	overflow: visible;
+	text-overflow: unset;
 }
 
 .fiveetools-characters__catalog .fiveetools-homebrew__list {

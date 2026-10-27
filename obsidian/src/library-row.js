@@ -89,23 +89,25 @@ function badgeSortValue (doc, kind) {
 
 /**
  * Paint a denser library list row: name + right badge, secondary line, tooltip.
+ * `packed` is `{name, badge, sub, tooltip}`.
  */
-export function paintLibraryRow (rowEl, doc) {
+export function paintPackedLibraryRow (rowEl, packed) {
 	rowEl.empty();
-	const kind = rowKind(doc);
-	const packed = packRow(doc, kind);
-
 	const top = rowEl.createDiv({cls: "fiveetools-library__row-top"});
-	top.createEl("div", {cls: "fiveetools-library__row-name", text: packed.name});
-	if (packed.badge) {
+	top.createEl("div", {cls: "fiveetools-library__row-name", text: packed?.name || "—"});
+	if (packed?.badge) {
 		top.createEl("div", {cls: "fiveetools-library__row-badge", text: packed.badge});
 	}
-	if (packed.sub) {
+	if (packed?.sub) {
 		rowEl.createEl("div", {cls: "fiveetools-library__row-sub", text: packed.sub});
 	}
-	// Native title only — Obsidian turns aria-label into a second black tooltip.
-	rowEl.setAttr("title", packed.tooltip);
+	rowEl.setAttr("title", packed?.tooltip || packed?.name || "");
 	rowEl.removeAttribute("aria-label");
+}
+
+export function paintLibraryRow (rowEl, doc) {
+	const kind = rowKind(doc);
+	paintPackedLibraryRow(rowEl, packRow(doc, kind));
 }
 
 function rowKind (doc) {

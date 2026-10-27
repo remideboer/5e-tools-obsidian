@@ -140,6 +140,7 @@ function resolveRefs (refs) {
 			name: doc?.n || ref.name || "",
 			label: ref.label || ref.name || "",
 			source: doc?.s || "",
+			...(Number.isFinite(Number(ref.level)) ? {level: Number(ref.level)} : {}),
 			...(qty > 1 ? {qty} : {}),
 			...(ref.equipped ? {equipped: true} : {}),
 		};
@@ -192,7 +193,7 @@ function characterMarkdown (card, avatarPath, refs) {
 	lines.push(...slotLines(card.slots));
 	lines.push(...skillLines(card.rolls));
 	lines.push(...actionLines(card.actions));
-	lines.push(...refSection("Spells", refsOf(refs, "spell")));
+	lines.push(...spellLines(refsOf(refs, "spell")));
 	lines.push(...refSection("Feats", refsOf(refs, "feat")));
 	lines.push(...refSection("Gear", refsOf(refs, "item")));
 	lines.push(...traitLines(card.traits));
@@ -202,6 +203,39 @@ function characterMarkdown (card, avatarPath, refs) {
 
 function refsOf (refs, kind) {
 	return (refs || []).filter(ref => ref.kind === kind);
+}
+
+function spellLines (spells) {
+	if (!spells?.length) return [];
+	const lines = ["", "## Spells", ""];
+	for (const [level, list] of groupSpells(spells)) {
+		lines.push(`### ${spellLevelLabel(level)}`, "");
+		for (const spell of list) lines.push(`- ${refText(spell)}`);
+		lines.push("");
+	}
+	return lines;
+}
+
+function groupSpells (spells) {
+	const groups = new Map();
+	for (const spell of spells) {
+		const level = Number.isFinite(Number(spell.level)) ? Number(spell.level) : 99;
+		if (!groups.has(level)) groups.set(level, []);
+		groups.get(level).push(spell);
+	}
+	return [...groups.entries()]
+		.sort((a, b) => a[0] - b[0])
+		.map(([level, list]) => [level, list.sort((a, b) => String(a.label || a.name).localeCompare(String(b.label || b.name)))]);
+}
+
+function spellLevelLabel (level) {
+	if (level === 0) return "Cantrips";
+	if (level === 99) return "Other";
+	const suffix = level % 10 === 1 && level % 100 !== 11 ? "st"
+		: level % 10 === 2 && level % 100 !== 12 ? "nd"
+			: level % 10 === 3 && level % 100 !== 13 ? "rd"
+				: "th";
+	return `${level}${suffix}`;
 }
 
 function refSection (title, refs) {

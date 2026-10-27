@@ -3,6 +3,8 @@ import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEG
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
+import {paintPackedLibraryRow} from "./library-row.js";
+import {getSpellMeta} from "./spell-meta.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 
@@ -51,18 +53,18 @@ function paintLinkedCard (host, plugin, record) {
 	paintAbilities(top, snapshot.abilities, snapshot.rolls);
 	paintSlots(top, plugin, record);
 	if (snapshot.rolls?.skills?.length) paintSkills(panel(sheet), snapshot.rolls);
+	const spells = refs.filter(ref => ref.kind === "spell");
+	if (spells.length) paintSpells(panel(sheet), plugin, spells, edition);
+	const gear = refs.filter(ref => ref.kind === "item");
+	if (gear.length) paintRefSection(panel(sheet), plugin, "Gear", gear);
 	if (snapshot.actions?.length) {
 		paintActions(panel(sheet), plugin, snapshot.actions, {
 			edition,
 			prefer: preferNames(refs),
 		});
 	}
-	const spells = refs.filter(ref => ref.kind === "spell");
-	if (spells.length) paintRefSection(panel(sheet), plugin, "Spells", spells);
 	const feats = refs.filter(ref => ref.kind === "feat");
 	if (feats.length) paintRefSection(panel(sheet), plugin, "Feats", feats);
-	const gear = refs.filter(ref => ref.kind === "item");
-	if (gear.length) paintRefSection(panel(sheet), plugin, "Gear", gear);
 	const coins = formatCoins(snapshot.coins);
 	if (snapshot.traits) {
 		const traits = panel(sheet, true);
@@ -113,14 +115,91 @@ function paintSlots (host, plugin, record) {
 	}
 }
 
+function paintSpells (host, plugin, spells, edition) {
+	host.createEl("h3", {text: "Spells"});
+	const grouped = spells.map(spell => ({spell, level: spellLevel(spell, edition)}));
+	grouped.sort((a, b) => a.level - b.level || String(a.spell.label || a.spell.name).localeCompare(String(b.spell.label || b.spell.name)));
+	let last = null;
+	let frame = null;
+	for (const {spell, level} of grouped) {
+		if (level !== last) {
+			frame = host.createDiv({cls: "fiveetools-character-card__spell-level"});
+			frame.createDiv({cls: "fiveetools-character-card__spell-level-label", text: spellLevelLabel(level)});
+			last = level;
+		}
+		const meta = spellMeta(spell, edition);
+		const sub = (meta?.classAbbrs || []).join(", ");
+		paintEntityRow(frame, plugin, spell, spell.label || spell.name || "Spell", {sub});
+	}
+}
+
+function spellMeta (spell, edition) {
+	const named = getSpellMeta({n: spell?.name || spell?.label, s: spell?.source});
+	if (named) return named;
+	try {
+		const doc = findEditionDoc(spell?.name || spell?.label, {
+			categoriesExact: ["spell"],
+			edition: edition === "one" ? "one" : "classic",
+		});
+		return doc ? getSpellMeta(doc) : null;
+	} catch (_) {
+		return null;
+	}
+}
+
+function spellLevel (spell, edition) {
+	if (Number.isFinite(Number(spell?.level))) return Number(spell.level);
+	const level = spellMeta(spell, edition)?.level;
+	return Number.isFinite(Number(level)) ? Number(level) : 99;
+}
+
+function spellLevelLabel (level) {
+	if (level === 0) return "Cantrips";
+	if (level === 99) return "Other";
+	const suffix = level % 10 === 1 && level % 100 !== 11 ? "st"
+		: level % 10 === 2 && level % 100 !== 12 ? "nd"
+			: level % 10 === 3 && level % 100 !== 13 ? "rd"
+				: "th";
+	return `${level}${suffix}`;
+}
+
 function paintRefSection (host, plugin, title, refs) {
 	if (!refs.length) return;
 	host.createEl("h3", {text: title});
-	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	const list = host.createDiv({cls: "fiveetools-character-card__rows"});
 	for (const ref of refs) {
-		const item = list.createEl("li");
-		paintRefButton(item, plugin, ref, refButtonLabel(ref));
+		const extra = [];
+		if (ref.equipped) extra.push("equipped");
+		if (Number(ref.qty) > 1) extra.push(`×${ref.qty}`);
+		paintEntityRow(list, plugin, ref, ref.label || ref.name || "", {sub: extra.join(" · ")});
 	}
+}
+
+function paintEntityRow (parent, plugin, ref, label, packed = {}) {
+	const linked = linkRef(ref, [], ref?.edition);
+	const row = parent.createEl(linked.source ? "button" : "div", {
+		cls: "fiveetools-library__row",
+		attr: linked.source ? {type: "button"} : {},
+	});
+	const book = sourceAbbr(linked.source);
+	paintPackedLibraryRow(row, {
+		name: label,
+		badge: packed.badge || book,
+		sub: packed.sub || "",
+		tooltip: packed.tooltip || [label, book].filter(Boolean).join(" · "),
+	});
+	if (!linked.source) return;
+	row.addEventListener("click", (evt) => {
+		evt.preventDefault();
+		evt.stopPropagation();
+		const doc = findEntityDoc(linked.name, {
+			categoriesExact: REF_CATEGORIES[linked.kind] || (linked.kind ? [linked.kind] : []),
+			source: linked.source,
+		});
+		if (doc && String(doc.s || "").toLowerCase() === String(linked.source).toLowerCase()) {
+			void plugin.openPreview?.(doc);
+		}
+	});
 }
 
 function paintRefRow (parent, plugin, refs, allRefs, edition) {
@@ -251,32 +330,19 @@ function paintRollList (host, title, rows, labelOf, rollName, listCls) {
 function paintActions (host, plugin, actions, {edition = "classic", prefer = []} = {}) {
 	if (!actions?.length) return;
 	host.createEl("h3", {text: "Actions"});
-	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	const list = host.createDiv({cls: "fiveetools-character-card__rows"});
 	for (const action of actions) {
-		const line = list.createEl("li");
 		const doc = action.lookup && action.source
 			? {n: action.lookup, s: action.source, cf: action.kind}
 			: findNamedFeature(action.name, {edition, prefer});
-		if (doc?.n && doc.s) {
-			paintRefButton(line, plugin, {
-				kind: String(doc.cf || action.kind || "").toLowerCase(),
-				name: doc.n,
-				source: doc.s,
-			}, action.name);
-		} else {
-			line.createSpan({text: action.name});
-		}
 		const extra = [];
 		if (action.activation) extra.push(action.activation);
 		if (action.uses) extra.push(`${action.uses} uses`);
-		if (extra.length) line.createSpan({text: ` · ${extra.join(" · ")}`});
-		if (action.dice) {
-			line.createSpan({text: " "});
-			const roll = line.createSpan();
-			appendTextWithDiceRollers(roll, action.dice);
-			const roller = roll.querySelector(".render-roller");
-			if (roller) roller.setAttribute("data-roll-name", action.name);
-		}
+		if (action.dice) extra.push(action.dice);
+		const ref = doc?.n && doc.s
+			? {kind: String(doc.cf || action.kind || "").toLowerCase(), name: doc.n, source: doc.s}
+			: {name: action.name};
+		paintEntityRow(list, plugin, ref, action.name, {sub: extra.join(" · ")});
 	}
 }
 
@@ -383,7 +449,7 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	const emit = () => onSessionChange?.({selectedId});
 
 	const syncSelection = () => {
-		listEl.querySelectorAll(".fiveetools-homebrew__hit").forEach((el) => {
+		listEl.querySelectorAll(".fiveetools-library__row").forEach((el) => {
 			el.classList.toggle("is-selected", el.dataset.id === selectedId);
 		});
 		const has = characters.some(it => characterId(it) === selectedId);
@@ -401,15 +467,20 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		}
 		for (const it of characters) {
 			const id = characterId(it);
+			const level = it.fields?.level != null && it.fields.level !== "" ? String(it.fields.level) : "";
+			const classes = String(it.fields?.classes || "").trim();
+			const species = String(it.fields?.species || "").trim();
+			const sub = [species, classes].filter(Boolean).join(" · ");
 			const row = listEl.createEl("button", {
-				cls: `fiveetools-homebrew__hit${id === selectedId ? " is-selected" : ""}`,
+				cls: `fiveetools-library__row${id === selectedId ? " is-selected" : ""}`,
 				attr: {"data-id": id, type: "button"},
 			});
-			row.createEl("div", {cls: "fiveetools-modal__name", text: characterName(it)});
-			const meta = [it.fields?.classes, it.fields?.level != null && it.fields.level !== "" ? `Level ${it.fields.level}` : ""]
-				.filter(Boolean)
-				.join(" · ");
-			if (meta) row.createEl("div", {cls: "fiveetools-view__meta", text: meta});
+			paintPackedLibraryRow(row, {
+				name: characterName(it),
+				badge: level,
+				sub,
+				tooltip: [characterName(it), sub, level ? `Level ${level}` : ""].filter(Boolean).join(" · "),
+			});
 			row.addEventListener("click", () => {
 				if (selectedId === id) return;
 				selectedId = id;

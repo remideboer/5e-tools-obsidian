@@ -286,7 +286,7 @@ function characterRefs (char, edition) {
 		});
 	}
 	const spells = spellDefs(char);
-	spells.sort((a, b) => a.name.localeCompare(b.name));
+	spells.sort((a, b) => (a.level ?? 99) - (b.level ?? 99) || a.name.localeCompare(b.name));
 	for (const spell of spells) {
 		refs.push({
 			kind: "spell",
@@ -349,7 +349,11 @@ function spellDefs (char) {
 			const key = name.toLowerCase();
 			if (seen.has(key)) continue;
 			seen.add(key);
-			out.push({name, isLegacy: def?.isLegacy});
+			out.push({
+				name,
+				isLegacy: def?.isLegacy,
+				...(Number.isFinite(Number(def?.level)) ? {level: Number(def.level)} : {}),
+			});
 		}
 	};
 	const spells = char.spells || {};
