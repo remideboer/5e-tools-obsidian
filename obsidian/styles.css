@@ -983,8 +983,10 @@ a.fiveetools-inline-link {
 }
 
 .workspace-leaf-content[data-type="fiveetools-library"] .fiveetools-view,
+.workspace-leaf-content[data-type="fiveetools-library"] .fiveetools-dmscreen,
 .workspace-leaf-content[data-type="fiveetools-preview"],
-.fiveetools-view {
+.fiveetools-view,
+.fiveetools-dmscreen {
 	user-select: text;
 	-webkit-user-select: text;
 }
