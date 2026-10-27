@@ -5,6 +5,7 @@ export const VIEW_TYPE_FIVEETOOLS_MAP_PLAYER = "fiveetools-map-player";
 export const DEFAULT_SETTINGS = {
 	notesFolder: "5etools",
 	imageBaseUrl: "https://5e.tools",
+	ddbProxyUrl: "https://ymiat-ddb-character-proxy.gitaarremi.workers.dev",
 	style: "one",
 	dice3d: false,
 	dicePublic: false,
@@ -48,6 +49,7 @@ export const LIBRARY_NAV = [
 	{
 		group: "Player",
 		items: [
+			{id: "characters", label: "Characters", tool: "characters"},
 			{id: "class", label: "Classes", categories: ["class", "subclass"]},
 			{id: "background", label: "Backgrounds", categories: ["background"]},
 			{id: "feat", label: "Feats", categories: ["feat"]},

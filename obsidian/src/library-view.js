@@ -20,6 +20,7 @@ import {renderDmScreen} from "./dm-screen-view.js";
 import {getDmScreenBoard} from "./dm-screen-store.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
+import {renderCharacterManager} from "./character-view.js";
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
 import {renderMapTool, teardownMapView} from "./map-view.js";
 import {renderReferenceMaps} from "./map-reference-view.js";
@@ -325,6 +326,10 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.readerEl?.removeClass("fiveetools-campaign-reader");
 			this.readerEl?.removeClass("fiveetools-campaign-encounter");
 		}
+		if ((item?.tool !== "characters" || globalTerm.length >= 2) && this.readerEl?.hasClass("fiveetools-characters-reader")) {
+			this.readerEl.empty();
+			this.readerEl.removeClass("fiveetools-characters-reader");
+		}
 		if (item?.tool !== "map" || globalTerm.length >= 2) {
 			teardownMapView(this.plugin);
 			this.readerEl?.removeClass("fiveetools-map-stage");
@@ -444,6 +449,19 @@ export class FiveEToolsLibraryView extends ItemView {
 				app: this.app,
 				onOpenDoc: (doc) => this.openEntityPanel(doc),
 				onSessionChange: (next) => { this.plugin._homebrewSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "characters") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._characterSession || {selectedId: ""};
+			renderCharacterManager(this.listEl, this.readerEl, {
+				plugin: this.plugin,
+				session,
+				onSessionChange: (next) => { this.plugin._characterSession = next; },
 			});
 			this.docs = [];
 			return;
@@ -657,6 +675,7 @@ function clearListToolClasses (el) {
 		"fiveetools-dmscreen",
 		"fiveetools-homebrew",
 		"fiveetools-campaign",
+		"fiveetools-characters",
 		"fiveetools-map",
 		"fiveetools-refmaps",
 	);
@@ -764,7 +783,7 @@ function currentNavItem (navId) {
 		const item = group.items.find(it => it.id === navId);
 		if (item) return item;
 	}
-	return LIBRARY_NAV[1].items[0];
+	return LIBRARY_NAV[1].items.find(it => it.id === "class") || LIBRARY_NAV[1].items[0];
 }
 
 function navItemForDoc (doc) {

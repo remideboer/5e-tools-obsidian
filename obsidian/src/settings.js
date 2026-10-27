@@ -1,4 +1,5 @@
 import {Notice, PluginSettingTab, Setting} from "obsidian";
+import {DEFAULT_SETTINGS} from "./constants.js";
 import {setStyleHint} from "./fiveetools-host.js";
 import {clearMediaCache} from "./media-cache.js";
 
@@ -32,6 +33,17 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.imageBaseUrl)
 				.onChange(async (value) => {
 					this.plugin.settings.imageBaseUrl = value.trim() || "https://5e.tools";
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("D&D Beyond proxy")
+			.setDesc("Fetches public character JSON. Default is the shared character proxy.")
+			.addText(text => text
+				.setPlaceholder(DEFAULT_SETTINGS.ddbProxyUrl)
+				.setValue(this.plugin.settings.ddbProxyUrl || "")
+				.onChange(async (value) => {
+					this.plugin.settings.ddbProxyUrl = value.trim() || DEFAULT_SETTINGS.ddbProxyUrl;
 					await this.plugin.saveSettings();
 				}));
 

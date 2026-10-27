@@ -626,6 +626,79 @@ a.fiveetools-inline-link {
 	overflow: auto;
 }
 
+.fiveetools-campaign__body:has(.fiveetools-character-card--dock) {
+	overflow: hidden;
+}
+
+.fiveetools-campaign__body:has(.fiveetools-character-card--dock) .fiveetools-campaign__editor {
+	flex: 1 1 0;
+	height: 0;
+	min-height: 0;
+}
+
+.fiveetools-character-card--dock {
+	flex: 0 1 auto;
+	max-height: 42%;
+	overflow: auto;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-character-card {
+	padding: 8px 12px 12px;
+}
+
+.fiveetools-character-card img {
+	width: 80px;
+	height: 80px;
+	object-fit: cover;
+	border-radius: 8px;
+}
+
+.fiveetools-library__list.fiveetools-characters {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding: 0;
+	height: 100%;
+}
+
+.fiveetools-characters__catalog {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 8px;
+}
+
+.fiveetools-characters__catalog .fiveetools-homebrew__list {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+
+.fiveetools-library__reader.fiveetools-characters-reader {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+	padding: 0;
+}
+
+.fiveetools-characters__actions {
+	display: flex;
+	gap: 8px;
+	flex: 0 0 auto;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-characters__card {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+
 .fiveetools-campaign__body > .fiveetools-view__meta {
 	padding: 12px 16px;
 }

@@ -21,6 +21,8 @@ import {
 import {renderEntityPanel} from "./entity-reader.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
 import {listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
+import {renderCharacterCard} from "./character-view.js";
+import {listCharacters} from "./character-store.js";
 
 export function teardownCampaignManager (plugin) {
 	plugin?._campaignVaultOff?.();
@@ -80,6 +82,10 @@ export function renderCampaignManager (formEl, resultEl, {
 	});
 	const newBtn = actions.createEl("button", {text: "New", cls: "fiveetools-btn"});
 	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
+	const characterRow = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
+	characterRow.style.display = "none";
+	const characterSel = characterRow.createEl("select", {cls: "fiveetools-campaign__select"});
+	const addCharacterBtn = characterRow.createEl("button", {text: "Add character", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const listEl = catalogEl.createDiv({cls: "fiveetools-homebrew__list"});
 	const importRow = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const importSel = importRow.createEl("select", {cls: "fiveetools-campaign__select"});
@@ -111,7 +117,9 @@ export function renderCampaignManager (formEl, resultEl, {
 			cls: "fiveetools-view__meta",
 			text: text || (sectionId === "encounters"
 				? "Create or import an encounter."
-				: "Create a campaign, then a note."),
+				: sectionId === "players"
+					? "Add a character, or create a note."
+					: "Create a campaign, then a note."),
 		});
 		syncChrome();
 	};
@@ -160,11 +168,32 @@ export function renderCampaignManager (formEl, resultEl, {
 		if (!saved.length) {
 			importSel.createEl("option", {text: "No saved encounters", attr: {value: ""}});
 			importBtn.disabled = true;
+			void paintCharacterRow();
 			return;
 		}
 		importBtn.disabled = false;
 		for (const it of saved) {
 			importSel.createEl("option", {text: it.name, attr: {value: it.id}});
+		}
+		void paintCharacterRow();
+	};
+
+	const paintCharacterRow = async () => {
+		const show = !!slug && sectionId === "players";
+		characterRow.style.display = show ? "" : "none";
+		characterSel.empty();
+		if (!show) return;
+		const chars = await listCharacters(plugin);
+		if (!chars.length) {
+			characterSel.createEl("option", {text: "No characters", attr: {value: ""}});
+			addCharacterBtn.disabled = true;
+			return;
+		}
+		addCharacterBtn.disabled = false;
+		for (const it of chars) {
+			const id = String(it.fields?.ddb_id || "");
+			const label = [it.fields?.name, it.fields?.classes].filter(Boolean).join(" · ") || id;
+			characterSel.createEl("option", {text: label, attr: {value: id}});
 		}
 	};
 
@@ -391,7 +420,20 @@ export function renderCampaignManager (formEl, resultEl, {
 			showPlaceholder("Note is missing.");
 			return;
 		}
+		const linkedId = sectionId === "players" ? String(parsed.fields?.character || "").trim() : "";
 		try {
+			if (linkedId) {
+				closeCampaignNote(plugin);
+				bodyEl.empty();
+				resultEl.addClass("fiveetools-campaign-reader");
+				const card = bodyEl.createDiv({cls: "fiveetools-character-card fiveetools-character-card--dock"});
+				await renderCharacterCard(card, plugin, linkedId);
+				if (!bodyEl.isConnected) return;
+				const wrap = bodyEl.createDiv({cls: "fiveetools-campaign__editor"});
+				syncChrome();
+				await openCampaignNote(plugin, wrap, file);
+				return;
+			}
 			await openCampaignNote(plugin, editorHost(), file);
 		} catch (e) {
 			showPlaceholder(e.message || "Could not open note.");
@@ -586,6 +628,30 @@ export function renderCampaignManager (formEl, resultEl, {
 			new Notice(`Imported ${saved.name}.`);
 		} catch (e) {
 			new Notice(e.message || "Could not import encounter.");
+		}
+	});
+	addCharacterBtn.addEventListener("click", async () => {
+		const id = String(characterSel.value || "").trim();
+		if (!id || !slug) return;
+		try {
+			const existing = entries.find(it => String(it.fields?.character || "") === id);
+			if (existing) {
+				await openPath(existing.path);
+				return;
+			}
+			const chars = await listCharacters(plugin);
+			const hit = chars.find(it => String(it.fields?.ddb_id || "") === id);
+			const name = String(hit?.fields?.name || id);
+			const written = await writeEntry(plugin, slug, "players", {
+				fields: {name, character: id},
+				body: `# ${name}\n\n`,
+			});
+			entries = await listEntries(plugin, slug, sectionId);
+			paintList();
+			await openPath(written.path);
+			new Notice(`Added ${name}.`);
+		} catch (e) {
+			new Notice(e.message || "Could not add that character.");
 		}
 	});
 	openComposerBtn.addEventListener("click", async () => {
