@@ -394,6 +394,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				plugin: this.plugin,
 				board,
 				onBoardChange: (next) => { this.plugin._dmScreenBoard = next; },
+				onOpenEncounter: () => this.selectNav("encounter"),
 			});
 			this.docs = [];
 			return;

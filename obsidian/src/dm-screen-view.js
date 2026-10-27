@@ -5,8 +5,8 @@ import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {bindDiceRollers} from "./dice-roll.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
-import {getEncounterInstance} from "./encounter-store.js";
-import {listKindGroups} from "./encounter-view.js";
+import {getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
+import {adjustHp, listKindGroups} from "./encounter-view.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
@@ -30,7 +30,7 @@ const PIN_CATEGORIES = [
  * @param {HTMLElement} listEl
  * @param {HTMLElement} readerEl
  */
-export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange} = {}) {
+export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange, onOpenEncounter} = {}) {
 	listEl.empty();
 	listEl.addClass("fiveetools-dmscreen");
 	readerEl?.empty();
@@ -223,7 +223,18 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 	const paintCard = (parent, panel) => {
 		const card = parent.createDiv({cls: "fiveetools-dmscreen__card", attr: {"data-id": panel.id}});
 		const head = card.createDiv({cls: "fiveetools-dmscreen__head"});
-		if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "encounter" || panel.type === "reference") {
+		if (panel.type === "encounter") {
+			const title = head.createEl("button", {
+				cls: "fiveetools-dmscreen__title fiveetools-dmscreen__titlebtn",
+				text: panel.title || "Encounter",
+				attr: {type: "button", title: "Open encounter"},
+			});
+			title.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				onOpenEncounter?.();
+			});
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -313,13 +324,26 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 		}
 	};
 
+	const commitEncounter = (session) => {
+		plugin._encounterSession = session;
+		setEncounterInstance(session);
+		queueSaveEncountersToVault(plugin);
+	};
+
 	const paintEncounter = (body) => {
+		body.empty();
 		const session = plugin._encounterSession || getEncounterInstance();
+		if (!plugin._encounterSession) plugin._encounterSession = session;
 		const combatants = session?.combatants || [];
 		if (!combatants.length) {
 			body.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures in the encounter."});
 			return;
 		}
+		const setHp = (combatant, nextHp) => {
+			combatant.hpCurrent = nextHp;
+			commitEncounter(session);
+			paintEncounter(body);
+		};
 		for (const group of listKindGroups(combatants)) {
 			const headRow = body.createDiv({cls: "fiveetools-dmscreen__encgroup"});
 			const name = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
@@ -331,11 +355,42 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 			for (const combatant of group.members) {
 				const row = body.createDiv({cls: "fiveetools-dmscreen__encrow"});
 				row.createEl("span", {cls: "fiveetools-dmscreen__encwho", text: combatant.label || group.label});
-				const bits = [`${combatant.hpCurrent ?? 0}/${combatant.hpMax ?? 0}`];
-				if (Number(combatant.tempHp) > 0) bits.push(`temp ${combatant.tempHp}`);
+				const hp = row.createDiv({cls: "fiveetools-dmscreen__enchp"});
+				const minus = hp.createEl("button", {
+					text: "−",
+					cls: "fiveetools-dmscreen__countbtn",
+					attr: {type: "button", title: "−1 HP"},
+				});
+				const input = hp.createEl("input", {
+					cls: "fiveetools-dmscreen__hpinput",
+					attr: {type: "number", value: String(combatant.hpCurrent ?? 0), title: "Current HP"},
+				});
+				hp.createEl("span", {cls: "fiveetools-dmscreen__hpmax", text: `/${combatant.hpMax ?? 0}`});
+				const plus = hp.createEl("button", {
+					text: "+",
+					cls: "fiveetools-dmscreen__countbtn",
+					attr: {type: "button", title: "+1 HP"},
+				});
+				const extra = [];
+				if (Number(combatant.tempHp) > 0) extra.push(`temp ${combatant.tempHp}`);
 				const cond = conditionLabel(combatant.condition);
-				if (cond) bits.push(cond);
-				row.createEl("span", {cls: "fiveetools-dmscreen__encmeta", text: bits.join("  ")});
+				if (cond) extra.push(cond);
+				if (extra.length) row.createEl("span", {cls: "fiveetools-dmscreen__encmeta", text: extra.join("  ")});
+				minus.addEventListener("click", (evt) => {
+					evt.stopPropagation();
+					setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, -1));
+				});
+				plus.addEventListener("click", (evt) => {
+					evt.stopPropagation();
+					setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, 1));
+				});
+				input.addEventListener("click", (evt) => evt.stopPropagation());
+				input.addEventListener("change", () => {
+					const typed = Number(input.value);
+					const cap = Number(combatant.hpMax) || 0;
+					const next = Number.isFinite(typed) ? Math.max(0, Math.min(cap, typed)) : combatant.hpCurrent;
+					setHp(combatant, next);
+				});
 			}
 		}
 	};
