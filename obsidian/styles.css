@@ -647,6 +647,56 @@ a.fiveetools-inline-link {
 	padding: 8px 12px 12px;
 }
 
+.fiveetools-character-card__sheet {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 10px;
+	align-items: start;
+}
+
+.fiveetools-character-card__panel {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 8px 10px;
+	min-width: 0;
+}
+
+.fiveetools-character-card__panel.is-wide {
+	grid-column: 1 / -1;
+}
+
+.fiveetools-character-card__slots {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 14px;
+}
+
+.fiveetools-character-card__slot {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+}
+
+.fiveetools-character-card__slot-level {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.fiveetools-character-card__slot-boxes {
+	display: flex;
+	gap: 3px;
+}
+
+.fiveetools-character-card__refs--cols {
+	columns: 2;
+	column-gap: 16px;
+}
+
+.fiveetools-character-card__refs--cols li {
+	break-inside: avoid;
+}
+
 .fiveetools-character-card img {
 	width: 80px;
 	height: 80px;

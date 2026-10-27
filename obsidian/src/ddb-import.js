@@ -62,6 +62,7 @@ export function mapDdbCharacter (payload, requestedId) {
 		traits: characterTraits(char),
 		rolls: characterRolls(char, abilities, level),
 		actions: characterActions(char),
+		slots: spellSlotRows(char),
 		coins: char.currencies || {},
 		avatar: null,
 	};
@@ -447,6 +448,68 @@ function laterClassProficiencyIds (char) {
 	}
 	return ids;
 }
+
+function spellSlotRows (char) {
+	const classes = Array.isArray(char.classes) ? char.classes : [];
+	const casters = classes.filter(cl => Number(cl?.definition?.spellRules?.multiClassSpellSlotDivisor) > 0 && !isWarlock(cl));
+	let counts = [];
+	if (casters.length === 1) {
+		const cl = casters[0];
+		const row = cl.definition.spellRules.levelSpellSlots?.[Number(cl.level) || 0];
+		counts = Array.isArray(row) ? row.slice(0, 9).map(n => Number(n) || 0) : [];
+	} else if (casters.length > 1) {
+		const casterLevel = Math.floor(casters.reduce((sum, cl) => {
+			const divisor = Number(cl.definition.spellRules.multiClassSpellSlotDivisor) || 1;
+			return sum + (Number(cl.level) || 0) / divisor;
+		}, 0));
+		counts = (FULL_CASTER_SLOTS[Math.min(20, Math.max(0, casterLevel))] || []).slice();
+	}
+	const used = new Map((char.spellSlots || []).map(slot => [Number(slot.level), Number(slot.used) || 0]));
+	const slots = counts.map((max, index) => ({level: index + 1, max, spent: 0}))
+		.filter(slot => slot.max > 0)
+		.map(slot => ({...slot, spent: Math.max(0, Math.min(slot.max, used.get(slot.level) || 0))}));
+	for (const cl of classes.filter(isWarlock)) {
+		const row = cl.definition?.spellRules?.levelSpellSlots?.[Number(cl.level) || 0];
+		if (!Array.isArray(row)) continue;
+		row.forEach((max, index) => {
+			const count = Number(max) || 0;
+			if (!count) return;
+			const level = index + 1;
+			const remote = (char.pactMagic || []).find(slot => Number(slot.level) === level);
+			const spent = Math.max(0, Math.min(count, Number(remote?.used) || 0));
+			slots.push({level, max: count, spent, pact: true});
+		});
+	}
+	return slots;
+}
+
+function isWarlock (cl) {
+	return /warlock/i.test(cl?.definition?.name || "");
+}
+
+const FULL_CASTER_SLOTS = [
+	[],
+	[2],
+	[3],
+	[4, 2],
+	[4, 3],
+	[4, 3, 2],
+	[4, 3, 3],
+	[4, 3, 3, 1],
+	[4, 3, 3, 2],
+	[4, 3, 3, 3, 1],
+	[4, 3, 3, 3, 2],
+	[4, 3, 3, 3, 2, 1],
+	[4, 3, 3, 3, 2, 1],
+	[4, 3, 3, 3, 2, 1, 1],
+	[4, 3, 3, 3, 2, 1, 1],
+	[4, 3, 3, 3, 2, 1, 1, 1],
+	[4, 3, 3, 3, 2, 1, 1, 1],
+	[4, 3, 3, 3, 2, 1, 1, 1, 1],
+	[4, 3, 3, 3, 3, 1, 1, 1, 1],
+	[4, 3, 3, 3, 3, 2, 1, 1, 1],
+	[4, 3, 3, 3, 3, 2, 2, 1, 1],
+];
 
 function characterActions (char) {
 	const spells = new Set(spellDefs(char).map(spell => spell.name.toLowerCase()));

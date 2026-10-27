@@ -83,6 +83,7 @@ export async function saveCharacter (plugin, card) {
 			abilities: card.abilities || null,
 			rolls: card.rolls || null,
 			actions,
+			slots: card.slots || [],
 			traits: card.traits || null,
 			coins: card.coins || null,
 			refs,
@@ -90,6 +91,18 @@ export async function saveCharacter (plugin, card) {
 	});
 	await writeFile(plugin, filePath, text);
 	return readCharacter(plugin, id);
+}
+
+export async function saveCharacterSlots (plugin, ddbId, slots) {
+	const record = await readCharacter(plugin, ddbId);
+	if (!record?.snapshot) return null;
+	record.snapshot.slots = slots;
+	await writeFile(plugin, record.path, serializeCampaignMarkdown({
+		fields: record.fields,
+		body: record.body,
+		snapshot: record.snapshot,
+	}));
+	return record;
 }
 
 export async function deleteCharacter (plugin, ddbId) {
@@ -175,16 +188,8 @@ function characterMarkdown (card, avatarPath, refs) {
 		if (card.rolls.passivePerception != null) combat.push(`Passive Perception ${card.rolls.passivePerception}`);
 	}
 	if (combat.length) lines.push(combat.join(" · "), "");
-	lines.push("## Abilities", "");
-	const saves = new Map((card.rolls?.saves || []).map(save => [save.key, save]));
-	for (const key of ABILITY_KEYS) {
-		const score = card.abilities?.[key];
-		if (score == null) continue;
-		const check = modifierFromScore(score);
-		const save = saves.get(key);
-		const mods = save ? `${signed(check)} / ${signed(save.mod)}${save.proficient ? " PB" : ""}` : signed(check);
-		lines.push(`- ${key.toUpperCase()} ${score} · ${mods}`);
-	}
+	lines.push(...abilityLines(card));
+	lines.push(...slotLines(card.slots));
 	lines.push(...skillLines(card.rolls));
 	lines.push(...actionLines(card.actions));
 	lines.push(...refSection("Spells", refsOf(refs, "spell")));
@@ -239,6 +244,39 @@ function signed (mod) {
 function checkNotation (mod) {
 	const n = Number(mod) || 0;
 	return n ? `1d20${signed(n)}` : "1d20";
+}
+
+function abilityLines (card) {
+	const lines = ["## Abilities", ""];
+	const saves = new Map((card.rolls?.saves || []).map(save => [save.key, save]));
+	for (const key of ABILITY_KEYS) {
+		const score = card.abilities?.[key];
+		if (score == null) continue;
+		const check = modifierFromScore(score);
+		const save = saves.get(key);
+		const mods = save ? `${signed(check)} / ${signed(save.mod)}${save.proficient ? " PB" : ""}` : signed(check);
+		lines.push(`- ${key.toUpperCase()} ${score} · ${mods}`);
+	}
+	return lines;
+}
+
+function slotLines (slots) {
+	if (!slots?.length) return [];
+	const lines = ["", "## Spell slots", ""];
+	for (const slot of slots) {
+		const label = slot.pact ? `Pact ${slot.level}` : ordinal(slot.level);
+		lines.push(`- ${label} ${slot.spent}/${slot.max}`);
+	}
+	return lines;
+}
+
+function ordinal (level) {
+	const n = Number(level) || 0;
+	const suffix = n % 10 === 1 && n % 100 !== 11 ? "st"
+		: n % 10 === 2 && n % 100 !== 12 ? "nd"
+			: n % 10 === 3 && n % 100 !== 13 ? "rd"
+				: "th";
+	return `${n}${suffix}`;
 }
 
 function skillLines (rolls) {

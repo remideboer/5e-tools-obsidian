@@ -1,5 +1,5 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter} from "./character-store.js";
+import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterSlots} from "./character-store.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
@@ -30,12 +30,12 @@ function paintLinkedCard (host, plugin, record) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
 	const refs = snapshot.refs || [];
+	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
+	const top = sheet.createDiv({cls: "fiveetools-character-card__panel is-wide"});
 	const src = avatarSrc(plugin, record.body);
-	if (src) {
-		host.createEl("img", {attr: {src, alt: characterName(record)}});
-	}
-	host.createEl("h2", {text: characterName(record)});
-	const identity = host.createDiv({cls: "fiveetools-character-card__identity"});
+	if (src) top.createEl("img", {attr: {src, alt: characterName(record)}});
+	top.createEl("h2", {text: characterName(record)});
+	const identity = top.createDiv({cls: "fiveetools-character-card__identity"});
 	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	paintRefRow(identity, plugin, identityRefs, refs, edition);
@@ -43,27 +43,74 @@ function paintLinkedCard (host, plugin, record) {
 	if (level) identity.createSpan({cls: "fiveetools-view__meta", text: identity.childNodes.length ? ` · ${level}` : level});
 	const background = refs.find(ref => ref.kind === "background");
 	if (background) {
-		const line = host.createDiv({cls: "fiveetools-character-card__identity"});
+		const line = top.createDiv({cls: "fiveetools-character-card__identity"});
 		line.createSpan({text: "Background: "});
 		paintRefRow(line, plugin, [background], refs, edition);
 	}
-	paintCombat(host, fields, snapshot.rolls);
-	paintAbilities(host, snapshot.abilities, snapshot.rolls);
-	paintSkills(host, snapshot.rolls);
-	paintActions(host, plugin, snapshot.actions, {
-		edition: snapshot.edition === "one" ? "one" : "classic",
-		prefer: preferNames(refs),
-	});
-	paintRefSection(host, plugin, "Spells", refs.filter(ref => ref.kind === "spell"));
-	paintRefSection(host, plugin, "Feats", refs.filter(ref => ref.kind === "feat"));
-	paintRefSection(host, plugin, "Gear", refs.filter(ref => ref.kind === "item"));
-	paintTraits(host, snapshot.traits);
+	paintCombat(top, fields, snapshot.rolls);
+	paintAbilities(top, snapshot.abilities, snapshot.rolls);
+	paintSlots(top, plugin, record);
+	if (snapshot.rolls?.skills?.length) paintSkills(panel(sheet), snapshot.rolls);
+	if (snapshot.actions?.length) {
+		paintActions(panel(sheet), plugin, snapshot.actions, {
+			edition,
+			prefer: preferNames(refs),
+		});
+	}
+	const spells = refs.filter(ref => ref.kind === "spell");
+	if (spells.length) paintRefSection(panel(sheet), plugin, "Spells", spells);
+	const feats = refs.filter(ref => ref.kind === "feat");
+	if (feats.length) paintRefSection(panel(sheet), plugin, "Feats", feats);
+	const gear = refs.filter(ref => ref.kind === "item");
+	if (gear.length) paintRefSection(panel(sheet), plugin, "Gear", gear);
 	const coins = formatCoins(snapshot.coins);
-	if (coins) {
-		host.createEl("h3", {text: "Coins"});
-		host.createEl("p", {text: coins});
+	if (snapshot.traits) {
+		const traits = panel(sheet, true);
+		paintTraits(traits, snapshot.traits);
+		if (coins) {
+			traits.createEl("h3", {text: "Coins"});
+			traits.createEl("p", {text: coins});
+		}
+	} else if (coins) {
+		const box = panel(sheet);
+		box.createEl("h3", {text: "Coins"});
+		box.createEl("p", {text: coins});
 	}
 	bindDiceRollers(host, plugin);
+}
+
+function panel (sheet, wide) {
+	return sheet.createDiv({cls: `fiveetools-character-card__panel${wide ? " is-wide" : ""}`});
+}
+
+function paintSlots (host, plugin, record) {
+	const slots = record.snapshot?.slots;
+	if (!slots?.length) return;
+	host.createEl("h3", {text: "Spell slots"});
+	const row = host.createDiv({cls: "fiveetools-character-card__slots"});
+	for (const slot of slots) {
+		const cell = row.createDiv({cls: "fiveetools-character-card__slot"});
+		cell.createSpan({
+			cls: "fiveetools-character-card__slot-level",
+			text: slot.pact ? `P${slot.level}` : String(slot.level),
+		});
+		const boxes = cell.createDiv({cls: "fiveetools-character-card__slot-boxes"});
+		for (let i = 0; i < slot.max; i++) {
+			const box = boxes.createEl("input", {
+				cls: "fiveetools-character-card__slot-check",
+				attr: {type: "checkbox", title: slot.pact ? `Pact slot ${slot.level}` : `Level ${slot.level} slot`},
+			});
+			box.checked = i < slot.spent;
+			box.addEventListener("change", () => {
+				slot.spent = box.checked ? i + 1 : i;
+				for (let n = 0; n < slot.max; n++) boxes.children[n].checked = n < slot.spent;
+				const id = String(record.fields?.ddb_id || "");
+				void saveCharacterSlots(plugin, id, record.snapshot.slots).catch((e) => {
+					new Notice(e.message || "Could not save spell slots.");
+				});
+			});
+		}
+	}
 }
 
 function paintRefSection (host, plugin, title, refs) {
@@ -186,13 +233,13 @@ function paintCombat (host, fields, rolls) {
 }
 
 function paintSkills (host, rolls) {
-	paintRollList(host, "Skills", rolls?.skills, skill => skill.name, skill => skill.name);
+	paintRollList(host, "Skills", rolls?.skills, skill => skill.name, skill => skill.name, "fiveetools-character-card__refs--cols");
 }
 
-function paintRollList (host, title, rows, labelOf, rollName) {
+function paintRollList (host, title, rows, labelOf, rollName, listCls) {
 	if (!rows?.length) return;
 	host.createEl("h3", {text: title});
-	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
+	const list = host.createEl("ul", {cls: `fiveetools-character-card__refs${listCls ? ` ${listCls}` : ""}`});
 	for (const row of rows) {
 		const line = list.createEl("li");
 		const mark = row.expertise ? " expertise" : (row.proficient ? " PB" : "");
