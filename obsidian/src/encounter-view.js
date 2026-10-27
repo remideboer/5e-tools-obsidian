@@ -545,6 +545,16 @@ export function renderEncounterComposer (formEl, resultEl, {
 		}
 		for (const group of listKindGroups(combatants)) {
 			const shell = rosterEl.createDiv({cls: "fiveetools-encounter__group"});
+			const selectGroup = () => {
+				const pick = group.members.find(m => m.id === selectedId) || group.members[0];
+				if (!pick) return;
+				previewKey = null;
+				selectedId = pick.id;
+				emit();
+				paintHits();
+				syncRosterSelection();
+				openSelected();
+			};
 			const head = shell.createDiv({cls: "fiveetools-encounter__group-head"});
 			const title = head.createDiv({cls: "fiveetools-encounter__group-title"});
 			title.createEl("span", {
@@ -567,7 +577,12 @@ export function renderEncounterComposer (formEl, resultEl, {
 				text: group.initScore != null ? String(group.initScore) : "—",
 				attr: {title: "Initiative score"},
 			});
-			paintGroupSharedStats(shell, group.members[0]);
+			head.addEventListener("click", (evt) => {
+				if (evt.target.closest(".fiveetools-encounter__group-actions")) return;
+				selectGroup();
+			});
+			const statsEl = paintGroupSharedStats(shell, group.members[0]);
+			statsEl?.addEventListener("click", () => selectGroup());
 			const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
 			for (const combatant of group.members) {
 				renderCombatantRow(body, combatant, {
@@ -972,7 +987,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 }
 
 export function paintGroupSharedStats (parent, sample) {
-	if (!sample) return;
+	if (!sample) return null;
 	const strip = parent.createDiv({cls: "fiveetools-encounter__group-stats"});
 	const crLine = [sample.cr ? `CR ${sample.cr}` : null, sample.doc?.sA || sample.doc?.s].filter(Boolean).join(" · ");
 	if (crLine) strip.createEl("div", {cls: "fiveetools-encounter__group-meta", text: crLine});
@@ -981,6 +996,7 @@ export function paintGroupSharedStats (parent, sample) {
 	stats.createEl("span", {text: `HP ${sample.hpMax != null ? sample.hpMax : "—"}`});
 	const dex = sample.dex ?? dexFromEnt(sample.ent);
 	stats.createEl("span", {text: dex != null ? `Dex ${dex}` : "Dex —", attr: {title: "Dexterity"}});
+	return strip;
 }
 
 export function renderCombatantRow (parent, combatant, {

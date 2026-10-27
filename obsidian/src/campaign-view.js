@@ -318,13 +318,22 @@ export function renderCampaignManager (formEl, resultEl, {
 			}
 			for (const group of listKindGroups(combatants)) {
 				const shell = rosterEl.createDiv({cls: "fiveetools-encounter__group"});
+				const selectGroup = () => {
+					const pick = group.members.find(m => m.id === selectedId) || group.members[0];
+					if (!pick) return;
+					selectedId = pick.id;
+					syncRosterSelection();
+					openSelected();
+				};
 				const head = shell.createDiv({cls: "fiveetools-encounter__group-head"});
 				const title = head.createDiv({cls: "fiveetools-encounter__group-title"});
 				title.createEl("span", {
 					cls: "fiveetools-encounter__group-name",
 					text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
 				});
-				paintGroupSharedStats(shell, group.members[0]);
+				head.addEventListener("click", () => selectGroup());
+				const statsEl = paintGroupSharedStats(shell, group.members[0]);
+				statsEl?.addEventListener("click", () => selectGroup());
 				const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
 				for (const combatant of group.members) {
 					renderCombatantRow(body, combatant, {

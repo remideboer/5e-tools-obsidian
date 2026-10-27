@@ -1446,6 +1446,7 @@ a.fiveetools-inline-link {
 	border-bottom: 1px solid var(--background-modifier-border);
 	background: var(--background-primary-alt, var(--background-primary));
 	border-radius: 8px 8px 0 0;
+	cursor: pointer;
 }
 
 .fiveetools-encounter__group-title {
@@ -1488,6 +1489,7 @@ a.fiveetools-inline-link {
 	flex: 0 0 auto;
 	padding: 6px 10px 8px;
 	border-bottom: 1px solid var(--background-modifier-border);
+	cursor: pointer;
 }
 
 .fiveetools-encounter__group-meta {
