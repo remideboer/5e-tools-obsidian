@@ -27,6 +27,12 @@ export async function resolveEntityImages (ent, {imageBaseUrl} = {}) {
 	return resolved;
 }
 
+/** Small bestiary/object/vehicle token, without fluff art. */
+export function resolveTokenImage (ent, {imageBaseUrl} = {}) {
+	const Renderer = getRenderer();
+	return toRemoteUrl(getTokenUrl(ent, Renderer), imageBaseUrl);
+}
+
 const TOKEN_DIRS = {
 	monster: "bestiary/tokens",
 	object: "objects/tokens",

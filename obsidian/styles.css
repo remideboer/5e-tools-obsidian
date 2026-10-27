@@ -430,6 +430,16 @@ a.fiveetools-inline-link {
 	min-width: 0;
 }
 
+.fiveetools-dmscreen__token {
+	display: block;
+	width: 64px;
+	height: 64px;
+	object-fit: contain;
+	margin: 0 0 8px;
+	background: var(--background-secondary);
+	border-radius: 8px;
+}
+
 .fiveetools-dmscreen__encgroup,
 .fiveetools-dmscreen__encrow {
 	display: flex;

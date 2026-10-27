@@ -12,7 +12,8 @@ import {adjustHp, listKindGroups} from "./encounter-view.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
-import {rewriteMediaUrls} from "./media-cache.js";
+import {resolveTokenImage} from "./image-resolver.js";
+import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 
 const QUICK_REFS = [
@@ -591,6 +592,17 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (!loaded?.ent) {
 			host.createEl("p", {text: `No JSON found for ${doc?.n || "entry"}.`});
 			return;
+		}
+		if (loaded.ent.__prop === "monster") {
+			const token = resolveTokenImage(loaded.ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl});
+			const src = token?.url ? await cachedMediaSrc(plugin, token.url) : "";
+			if (!host.isConnected) return;
+			if (src) {
+				host.createEl("img", {
+					cls: "fiveetools-dmscreen__token",
+					attr: {src, alt: loaded.ent.name || doc?.n || ""},
+				});
+			}
 		}
 		const page = loadPageForDoc(doc);
 		const wrap = host.createDiv({cls: "fiveetools-view__stats"});
