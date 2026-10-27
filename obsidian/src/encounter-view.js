@@ -1019,6 +1019,15 @@ export function renderCombatantRow (parent, combatant, {
 	});
 
 	row.createEl("div", {cls: "fiveetools-modal__name", text: combatant.label});
+	const remove = row.createEl("button", {
+		text: "×",
+		cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
+		attr: {type: "button", title: "Remove"},
+	});
+	remove.addEventListener("click", (evt) => {
+		evt.stopPropagation();
+		confirmRemove(app, combatant.label, onRemove);
+	});
 
 	const controls = row.createDiv({cls: "fiveetools-encounter__controls"});
 	const hp = controls.createDiv({cls: "fiveetools-encounter__hp"});
@@ -1049,16 +1058,6 @@ export function renderCombatantRow (parent, combatant, {
 		cond.createEl("option", {attr: {value: it.id}, text: it.label});
 	}
 	cond.value = combatant.condition || "";
-
-	const remove = row.createEl("button", {
-		text: "×",
-		cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
-		attr: {type: "button", title: "Remove"},
-	});
-	remove.addEventListener("click", (evt) => {
-		evt.stopPropagation();
-		confirmRemove(app, combatant.label, onRemove);
-	});
 
 	minus.addEventListener("click", (evt) => {
 		evt.stopPropagation();

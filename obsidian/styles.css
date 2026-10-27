@@ -1547,11 +1547,11 @@ a.fiveetools-inline-link {
 	white-space: nowrap;
 }
 
-.fiveetools-encounter__combatant > .fiveetools-encounter__controls {
-	margin-left: 0;
+.fiveetools-encounter__combatant > .fiveetools-encounter__remove {
+	flex: 0 0 auto;
 }
 
-.fiveetools-encounter__combatant > .fiveetools-encounter__remove {
+.fiveetools-encounter__combatant > .fiveetools-encounter__controls {
 	margin-left: auto;
 }
 
