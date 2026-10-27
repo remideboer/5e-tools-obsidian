@@ -353,6 +353,58 @@ a.fiveetools-inline-link {
 	min-width: 0;
 }
 
+.fiveetools-dmscreen__encgroup,
+.fiveetools-dmscreen__encrow {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.fiveetools-dmscreen__encgroup {
+	margin-top: 8px;
+	font-weight: 600;
+}
+
+.fiveetools-dmscreen__encgroup:first-child {
+	margin-top: 0;
+}
+
+.fiveetools-dmscreen__encinit {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+
+.fiveetools-dmscreen__encrow {
+	padding-left: 10px;
+	font-size: 0.92em;
+}
+
+.fiveetools-dmscreen__encwho {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-dmscreen__encmeta {
+	flex: 0 0 auto;
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.fiveetools-dmscreen__refblock + .fiveetools-dmscreen__refblock {
+	margin-top: 12px;
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-dmscreen__refname {
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
 .fiveetools-dmscreen__markdown {
 	font-size: 0.95em;
 }

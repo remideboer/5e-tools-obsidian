@@ -77,29 +77,35 @@ function normalizeBoard (raw) {
 	return {panels};
 }
 
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference"]);
+const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
+
 function normalizePanel (raw) {
 	if (!raw || typeof raw !== "object") return null;
-	const type = raw.type === "entity" || raw.type === "counter" || raw.type === "campaignNote"
-		? raw.type
-		: "note";
+	const type = PANEL_TYPES.has(raw.type) ? raw.type : "note";
 	const doc = slimDoc(raw.doc);
 	const path = String(raw.path || "");
+	const ref = String(raw.ref || "");
 	if (type === "entity" && !doc) return null;
 	if (type === "campaignNote" && !path) return null;
+	if (type === "reference" && !REFERENCE_IDS.has(ref)) return null;
 	return {
 		id: String(raw.id || allocPanelId()),
 		type,
-		title: String(raw.title || defaultTitle(type, doc)).trim() || defaultTitle(type, doc),
+		title: String(raw.title || defaultTitle(type, doc, ref)).trim() || defaultTitle(type, doc, ref),
 		doc,
 		path,
+		ref,
 		text: String(raw.text || ""),
 		value: Number.isFinite(Number(raw.value)) ? Math.trunc(Number(raw.value)) : 0,
 	};
 }
 
-function defaultTitle (type, doc) {
+function defaultTitle (type, doc, ref) {
 	if (type === "entity") return doc?.n || "Entry";
 	if (type === "counter") return "Counter";
+	if (type === "encounter") return "Encounter";
+	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	return "Note";
 }
 
