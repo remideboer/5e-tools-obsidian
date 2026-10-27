@@ -82,7 +82,7 @@ flowchart TB
 |------|-----------|
 | Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js`, `encounter-random.js` (Random encounter; roster kind groups + shared initiative / roll-all / reset order) |
-| DM screen | `dm-screen-view.js`, `dm-screen-store.js` (pinned entity / note / counter board in `{notesFolder}/_dmscreen/board.json`) |
+| DM screen | `dm-screen-view.js`, `dm-screen-store.js` (pinned entity, homebrew, campaign note, scratch note, counter; `{notesFolder}/_dmscreen/board.json`) |
 | Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js`; Tools → Dice roller via `dice-roller-view.js` + `dice-icons.js` (polyhedral tap-to-roll, adv/disadv) |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
 | Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |

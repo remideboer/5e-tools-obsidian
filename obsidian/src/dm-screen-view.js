@@ -1,13 +1,19 @@
+import {MarkdownRenderer} from "obsidian";
+import {fileStem, listCampaigns, listEntries, parseCampaignMarkdown} from "./campaign-store.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {bindDiceRollers} from "./dice-roll.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {loadEntity} from "./entity-loader.js";
+import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
 import {rewriteMediaUrls} from "./media-cache.js";
-import {searchEntities} from "./search-index.js";
+import {brewDocFromEntity, searchEntities} from "./search-index.js";
 
-const PIN_CATEGORIES = ["bestiary", "spell", "item", "condition", "disease", "status", "rule"];
+const PIN_CATEGORIES = [
+	"bestiary", "spell", "item", "background", "species",
+	"condition", "disease", "status", "rule",
+];
 
 /**
  * Tools → DM screen: pinned entity / note / counter cards.
@@ -31,7 +37,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 
 	const bar = listEl.createDiv({cls: "fiveetools-dmscreen__bar"});
 	const addEntityBtn = bar.createEl("button", {
-		text: "Creature / spell / rule",
+		text: "Entry / note",
 		cls: "fiveetools-btn",
 		attr: {type: "button"},
 	});
@@ -49,7 +55,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 	const searchEl = listEl.createDiv({cls: "fiveetools-dmscreen__search is-hidden"});
 	const searchInput = searchEl.createEl("input", {
 		cls: "fiveetools-dmscreen__searchinput",
-		attr: {type: "search", placeholder: "Search creature, spell, item, condition, rule…"},
+		attr: {type: "search", placeholder: "Search creatures, items, homebrew, campaign notes…"},
 	});
 	const hitsEl = searchEl.createDiv({cls: "fiveetools-dmscreen__hits"});
 
@@ -64,38 +70,75 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 		for (const panel of state.panels) paintCard(grid, panel);
 	};
 
+	let hitToken = 0;
 	const paintHits = () => {
+		const token = ++hitToken;
 		hitsEl.empty();
 		const term = String(searchInput.value || "").trim();
 		if (term.length < 2) return;
-		const docs = searchEntities(term, {categoriesExact: PIN_CATEGORIES, limit: 8});
-		if (!docs.length) {
-			hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No matches."});
-			return;
-		}
-		for (const doc of docs) {
-			const row = hitsEl.createDiv({cls: "fiveetools-dmscreen__hit"});
-			row.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
-			row.createEl("div", {
-				cls: "fiveetools-modal__sub",
-				text: [doc.cf, doc.sA || doc.s].filter(Boolean).join(" · "),
-			});
-			row.addEventListener("click", () => {
-				state.panels.push({
-					id: allocPanelId(),
-					type: "entity",
-					title: doc.n || "Entry",
-					doc: slimDoc(doc),
-					text: "",
-					value: 0,
+		const docs = pinDocs(term);
+		void findCampaignNotes(plugin, term).then((notes) => {
+			if (token !== hitToken) return;
+			hitsEl.empty();
+			if (!docs.length && !notes.length) {
+				hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No matches."});
+				return;
+			}
+			for (const note of notes) {
+				const row = hitsEl.createDiv({cls: "fiveetools-dmscreen__hit"});
+				row.createEl("div", {cls: "fiveetools-modal__name", text: note.title});
+				row.createEl("div", {
+					cls: "fiveetools-modal__sub",
+					text: ["Note", note.campaign].filter(Boolean).join(" · "),
 				});
-				searchInput.value = "";
-				hitsEl.empty();
-				searchEl.addClass("is-hidden");
-				emit();
-				paint();
-			});
-		}
+				row.addEventListener("click", () => pinCampaignNote(note));
+			}
+			for (const doc of docs) {
+				const row = hitsEl.createDiv({cls: "fiveetools-dmscreen__hit"});
+				row.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
+				row.createEl("div", {
+					cls: "fiveetools-modal__sub",
+					text: [doc.s === "HB" ? "Homebrew" : null, doc.cf, doc.sA || doc.s].filter(Boolean).join(" · "),
+				});
+				row.addEventListener("click", () => pinEntity(doc));
+			}
+		});
+	};
+
+	const closeSearch = () => {
+		searchInput.value = "";
+		hitsEl.empty();
+		searchEl.addClass("is-hidden");
+	};
+
+	const pinEntity = (doc) => {
+		state.panels.push({
+			id: allocPanelId(),
+			type: "entity",
+			title: doc.n || "Entry",
+			doc: slimDoc(doc),
+			path: "",
+			text: "",
+			value: 0,
+		});
+		closeSearch();
+		emit();
+		paint();
+	};
+
+	const pinCampaignNote = (note) => {
+		state.panels.push({
+			id: allocPanelId(),
+			type: "campaignNote",
+			title: note.title || "Note",
+			doc: null,
+			path: note.path,
+			text: "",
+			value: 0,
+		});
+		closeSearch();
+		emit();
+		paint();
 	};
 
 	addEntityBtn.addEventListener("click", () => {
@@ -109,6 +152,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 			type: "note",
 			title: "Note",
 			doc: null,
+			path: "",
 			text: "",
 			value: 0,
 		});
@@ -121,6 +165,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 			type: "counter",
 			title: "Counter",
 			doc: null,
+			path: "",
 			text: "",
 			value: 0,
 		});
@@ -132,7 +177,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 	const paintCard = (parent, panel) => {
 		const card = parent.createDiv({cls: "fiveetools-dmscreen__card", attr: {"data-id": panel.id}});
 		const head = card.createDiv({cls: "fiveetools-dmscreen__head"});
-		if (panel.type === "entity") {
+		if (panel.type === "entity" || panel.type === "campaignNote") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -160,6 +205,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 		const body = card.createDiv({cls: "fiveetools-dmscreen__body"});
 		if (panel.type === "note") paintNote(body, panel);
 		else if (panel.type === "counter") paintCounter(body, panel);
+		else if (panel.type === "campaignNote") void paintCampaignNote(body, panel);
 		else void paintEntity(body, panel);
 	};
 
@@ -200,6 +246,25 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 		plus.addEventListener("click", () => setValue((Number(panel.value) || 0) + 1));
 	};
 
+	const paintCampaignNote = async (body, panel) => {
+		body.setText("Loading…");
+		try {
+			const entry = await readCampaignNote(plugin, panel.path);
+			if (!body.isConnected) return;
+			body.empty();
+			if (!entry) {
+				body.createEl("p", {text: "Note not found."});
+				return;
+			}
+			const host = body.createDiv({cls: "fiveetools-dmscreen__markdown"});
+			await MarkdownRenderer.render(plugin.app, entry.body || "", host, panel.path, plugin);
+		} catch (e) {
+			if (!body.isConnected) return;
+			body.empty();
+			body.createEl("p", {text: e.message || "Could not load note."});
+		}
+	};
+
 	const paintEntity = async (body, panel) => {
 		body.setText("Loading…");
 		try {
@@ -225,6 +290,60 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange}
 	};
 
 	paint();
+}
+
+function pinDocs (term) {
+	const needle = String(term || "").trim().toLowerCase();
+	const brew = [];
+	for (const type of HOMEBREW_TYPES) {
+		for (const ent of listBrewEntities(type.id)) {
+			if (!String(ent?.name || "").toLowerCase().includes(needle)) continue;
+			brew.push(brewDocFromEntity(ent, type));
+		}
+	}
+	const rest = searchEntities(term, {categoriesExact: PIN_CATEGORIES, limit: 12});
+	const seen = new Set();
+	const out = [];
+	for (const doc of [...brew, ...rest]) {
+		const key = `${doc.s}|${doc.u}|${doc.c}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(doc);
+		if (out.length >= 8) break;
+	}
+	return out;
+}
+
+async function findCampaignNotes (plugin, term) {
+	const needle = String(term || "").trim().toLowerCase();
+	if (needle.length < 2) return [];
+	const campaigns = await listCampaigns(plugin);
+	const out = [];
+	for (const camp of campaigns) {
+		const entries = await listEntries(plugin, camp.slug, "notes");
+		for (const entry of entries) {
+			const fromFile = fileStem(entry.path);
+			const title = String(entry.fields?.name || "").trim() || fromFile || "Note";
+			const blob = `${title}\n${fromFile}\n${entry.body || ""}`.toLowerCase();
+			if (!blob.includes(needle)) continue;
+			out.push({
+				title,
+				path: entry.path,
+				campaign: camp.name,
+				rank: title.toLowerCase().includes(needle) ? 0 : 1,
+			});
+		}
+	}
+	out.sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title));
+	return out.slice(0, 8);
+}
+
+async function readCampaignNote (plugin, filePath) {
+	const vault = plugin?.app?.vault;
+	if (!vault || !filePath) return null;
+	const file = vault.getAbstractFileByPath(filePath);
+	if (!file || file.children) return null;
+	return parseCampaignMarkdown(await vault.read(file));
 }
 
 function slimDoc (doc) {

@@ -79,14 +79,19 @@ function normalizeBoard (raw) {
 
 function normalizePanel (raw) {
 	if (!raw || typeof raw !== "object") return null;
-	const type = raw.type === "entity" || raw.type === "counter" ? raw.type : "note";
+	const type = raw.type === "entity" || raw.type === "counter" || raw.type === "campaignNote"
+		? raw.type
+		: "note";
 	const doc = slimDoc(raw.doc);
+	const path = String(raw.path || "");
 	if (type === "entity" && !doc) return null;
+	if (type === "campaignNote" && !path) return null;
 	return {
 		id: String(raw.id || allocPanelId()),
 		type,
 		title: String(raw.title || defaultTitle(type, doc)).trim() || defaultTitle(type, doc),
 		doc,
+		path,
 		text: String(raw.text || ""),
 		value: Number.isFinite(Number(raw.value)) ? Math.trunc(Number(raw.value)) : 0,
 	};

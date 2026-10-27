@@ -272,7 +272,7 @@ a.fiveetools-inline-link {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	max-height: 12em;
+	max-height: 18em;
 	overflow: auto;
 }
 
@@ -351,6 +351,14 @@ a.fiveetools-inline-link {
 .fiveetools-dmscreen__body {
 	padding: 8px 10px;
 	min-width: 0;
+}
+
+.fiveetools-dmscreen__markdown {
+	font-size: 0.95em;
+}
+
+.fiveetools-dmscreen__markdown > :first-child {
+	margin-top: 0;
 }
 
 .fiveetools-dmscreen__note {
