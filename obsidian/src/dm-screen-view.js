@@ -3,7 +3,9 @@ import {fileStem, listCampaigns, listEntries, parseCampaignMarkdown} from "./cam
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
-import {bindDiceRollers} from "./dice-roll.js";
+import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
+import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
+import {rollOnTable} from "./roll-tables/table-roll.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {adjustHp, listKindGroups} from "./encounter-view.js";
@@ -60,6 +62,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		text: "Counter",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button"},
+	});
+	const addTableBtn = bar.createEl("button", {
+		text: "Roll table",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Pin a roll table"},
 	});
 	const addEncounterBtn = bar.createEl("button", {
 		text: "Encounter",
@@ -128,11 +135,13 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				cls: "fiveetools-btn fiveetools-btn--ghost",
 				attr: {type: "button", title: "Add a counter to this column"},
 			});
-			entryBtn.addEventListener("click", () => {
-				pinColumn = column;
-				searchEl.removeClass("is-hidden");
-				searchInput.focus();
+			const tableBtn = actions.createEl("button", {
+				text: "Table",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
+				attr: {type: "button", title: "Add a roll table to this column"},
 			});
+			entryBtn.addEventListener("click", () => openSearch("entry", column));
+			tableBtn.addEventListener("click", () => openSearch("table", column));
 			noteBtn.addEventListener("click", () => {
 				column.items.push(blankPanel("note", "Note"));
 				emit();
@@ -152,11 +161,53 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	plugin._dmScreenColumnObserver = null;
 
 	let pinColumn = null;
+	let searchMode = "entry";
 	let hitToken = 0;
+
+	const openSearch = (mode, column) => {
+		searchMode = mode;
+		pinColumn = column || null;
+		searchInput.placeholder = mode === "table"
+			? "Search roll tables…"
+			: "Search creatures, items, homebrew, campaign notes…";
+		searchEl.removeClass("is-hidden");
+		searchInput.focus();
+		paintHits();
+	};
+
 	const paintHits = () => {
 		const token = ++hitToken;
 		hitsEl.empty();
 		const term = String(searchInput.value || "").trim();
+		if (searchMode === "table") {
+			void listRollTables(plugin).then((tables) => {
+				if (token !== hitToken) return;
+				hitsEl.empty();
+				const needle = term.toLowerCase();
+				const hits = (tables || []).filter(table => !needle || String(table.name || "").toLowerCase().includes(needle));
+				if (!hits.length) {
+					hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No tables."});
+					return;
+				}
+				for (const table of hits) {
+					const row = hitsEl.createDiv({cls: "fiveetools-dmscreen__hit"});
+					row.createEl("div", {cls: "fiveetools-modal__name", text: table.name || "Table"});
+					row.createEl("div", {cls: "fiveetools-modal__sub", text: "Roll table"});
+					row.addEventListener("click", () => {
+						placePanel({
+							id: allocPanelId(),
+							type: "rollTable",
+							title: table.name || "Roll table",
+							doc: null,
+							path: table.path,
+							text: "",
+							value: 0,
+						});
+					});
+				}
+			});
+			return;
+		}
 		if (term.length < 2) return;
 		const docs = pinDocs(term);
 		void findCampaignNotes(plugin, term).then((notes) => {
@@ -189,6 +240,8 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 
 	const closeSearch = () => {
 		pinColumn = null;
+		searchMode = "entry";
+		searchInput.placeholder = "Search creatures, items, homebrew, campaign notes…";
 		searchInput.value = "";
 		hitsEl.empty();
 		searchEl.addClass("is-hidden");
@@ -229,10 +282,12 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	addEntityBtn.addEventListener("click", () => {
-		pinColumn = null;
-		const open = searchEl.hasClass("is-hidden");
-		searchEl.toggleClass("is-hidden", !open);
-		if (open) searchInput.focus();
+		if (!searchEl.hasClass("is-hidden") && searchMode === "entry" && !pinColumn) closeSearch();
+		else openSearch("entry", null);
+	});
+	addTableBtn.addEventListener("click", () => {
+		if (!searchEl.hasClass("is-hidden") && searchMode === "table" && !pinColumn) closeSearch();
+		else openSearch("table", null);
 	});
 	addNoteBtn.addEventListener("click", () => {
 		addColumn(blankPanel("note", "Note"));
@@ -265,7 +320,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				evt.stopPropagation();
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -299,7 +354,71 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "campaignNote") void paintCampaignNote(body, panel);
 		else if (panel.type === "encounter") paintEncounter(body);
 		else if (panel.type === "reference") void paintReference(body, panel);
+		else if (panel.type === "rollTable") void paintRollTable(body, panel);
 		else void paintEntity(body, panel);
+	};
+
+	const paintRollTable = async (body, panel) => {
+		body.empty();
+		const rollBtn = body.createEl("button", {
+			text: "Roll",
+			cls: "fiveetools-btn fiveetools-dmscreen__rollbtn",
+			attr: {type: "button"},
+		});
+		const resultEl = body.createDiv({cls: "fiveetools-dmscreen__rollresult"});
+		const saved = savedRoll(panel.text);
+		if (saved) showRollResult(resultEl, saved);
+		const tableHost = body.createDiv({cls: "fiveetools-dmscreen__rolltable"});
+		const parsed = await readRollTableNote(plugin, panel.path);
+		if (!body.isConnected) return;
+		if (!parsed.ok) {
+			tableHost.createEl("p", {text: "Table not found."});
+			return;
+		}
+		if (parsed.name) panel.title = parsed.name;
+		const table = tableHost.createEl("table", {cls: "fiveetools-dmscreen__table"});
+		const head = table.createEl("thead").createEl("tr");
+		for (const header of parsed.headers) head.createEl("th", {text: header});
+		const tbody = table.createEl("tbody");
+		for (const cells of parsed.rows) {
+			const tr = tbody.createEl("tr");
+			for (const cell of cells) {
+				const td = tr.createEl("td");
+				appendTextWithDiceRollers(td, cell);
+			}
+		}
+		bindDiceRollers(tableHost, plugin);
+		rollBtn.addEventListener("click", () => {
+			try {
+				const draw = rollOnTable(parsed.headers, parsed.rows, parsed.name);
+				const next = {
+					dieLabel: draw.die?.label || "",
+					total: draw.total,
+					cells: (draw.cells || []).map(cell => ({header: cell.header || "", text: String(cell.text || "")})),
+				};
+				panel.text = JSON.stringify(next);
+				resultEl.empty();
+				showRollResult(resultEl, next);
+				emit();
+			} catch (e) {
+				resultEl.empty();
+				resultEl.createEl("p", {text: e.message || "Roll failed."});
+			}
+		});
+	};
+
+	const showRollResult = (host, roll) => {
+		const badge = roll.dieLabel && roll.total != null
+			? `${roll.dieLabel}: ${roll.total}`
+			: (roll.total != null ? String(roll.total) : "");
+		if (badge) host.createEl("div", {cls: "fiveetools-dmscreen__rolldie", text: badge});
+		for (const cell of roll.cells || []) {
+			const line = host.createDiv({cls: "fiveetools-dmscreen__rollline"});
+			if (cell.header) line.createEl("span", {cls: "fiveetools-dmscreen__rolllabel", text: cell.header});
+			const value = line.createSpan();
+			appendTextWithDiceRollers(value, cell.text || "");
+		}
+		bindDiceRollers(host, plugin);
 	};
 
 	const paintNote = (body, panel) => {
@@ -506,6 +625,16 @@ function copyColumns (board) {
 		id: col.id || allocPanelId(),
 		items: (col.items || []).map(it => ({...it, doc: it.doc ? {...it.doc} : null})),
 	})).filter(col => col.items.length);
+}
+
+function savedRoll (text) {
+	try {
+		const data = JSON.parse(text || "");
+		if (!data || !Array.isArray(data.cells)) return null;
+		return data;
+	} catch (_) {
+		return null;
+	}
 }
 
 function blankPanel (type, title) {

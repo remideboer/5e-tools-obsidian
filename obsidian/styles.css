@@ -311,6 +311,44 @@ a.fiveetools-inline-link {
 	overflow-y: auto;
 }
 
+.fiveetools-dmscreen__rollbtn {
+	margin-bottom: 6px;
+}
+
+.fiveetools-dmscreen__rollresult {
+	margin-bottom: 8px;
+}
+
+.fiveetools-dmscreen__rolldie {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.fiveetools-dmscreen__rollline {
+	display: flex;
+	gap: 6px;
+	font-size: 0.92em;
+}
+
+.fiveetools-dmscreen__rolllabel {
+	color: var(--text-muted);
+	flex: 0 0 auto;
+}
+
+.fiveetools-dmscreen__table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+.fiveetools-dmscreen__table th,
+.fiveetools-dmscreen__table td {
+	border: 1px solid var(--background-modifier-border);
+	padding: 3px 6px;
+	text-align: left;
+	vertical-align: top;
+}
+
 .fiveetools-dmscreen__colactions {
 	display: flex;
 	flex-wrap: wrap;
@@ -800,7 +838,8 @@ a.fiveetools-inline-link {
 
 .fiveetools-view .render-roller,
 .fiveetools-roll-results .render-roller,
-.fiveetools-rolltables__reader .render-roller {
+.fiveetools-rolltables__reader .render-roller,
+.fiveetools-dmscreen .render-roller {
 	cursor: pointer;
 	color: var(--text-accent);
 	text-decoration: underline dotted;

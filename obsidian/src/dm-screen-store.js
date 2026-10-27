@@ -88,7 +88,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference"]);
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -98,7 +98,7 @@ function normalizePanel (raw) {
 	const path = String(raw.path || "");
 	const ref = String(raw.ref || "");
 	if (type === "entity" && !doc) return null;
-	if (type === "campaignNote" && !path) return null;
+	if ((type === "campaignNote" || type === "rollTable") && !path) return null;
 	if (type === "reference" && !REFERENCE_IDS.has(ref)) return null;
 	return {
 		id: String(raw.id || allocPanelId()),
@@ -117,6 +117,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "counter") return "Counter";
 	if (type === "encounter") return "Encounter";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
+	if (type === "rollTable") return "Roll table";
 	return "Note";
 }
 
