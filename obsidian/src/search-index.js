@@ -331,6 +331,34 @@ export function findEditionDoc (name, {categoriesExact = [], edition = "classic"
 	return pool.sort(compareEditionDoc)[0];
 }
 
+const FEATURE_CATEGORIES = new Set(["class feature", "subclass feature", "optional feature"]);
+
+/** Class and subclass features are indexed as "Class Level; Name". */
+export function findNamedFeature (name, {edition = "classic", prefer = []} = {}) {
+	const needle = String(name || "").trim().toLowerCase();
+	if (!needle || !searchIndex) return null;
+	const Parser = getParser();
+	const modern = new Set([Parser.SRC_XPHB, Parser.SRC_XDMG, Parser.SRC_XMM]);
+	const preferLc = prefer.map(token => String(token || "").toLowerCase()).filter(token => token.length > 3);
+	const hits = Object.values(searchIndex.documentStore.docs).filter(doc => {
+		if (!doc || !FEATURE_CATEGORIES.has(String(doc.cf || "").toLowerCase())) return false;
+		const title = String(doc.n || "").toLowerCase();
+		return title === needle || title.endsWith(`; ${needle}`);
+	});
+	if (!hits.length) return null;
+	const classic = hits.filter(doc => !modern.has(doc.s));
+	const reprinted = hits.filter(doc => modern.has(doc.s));
+	const pool = edition === "one"
+		? (reprinted.length ? reprinted : classic)
+		: (classic.length ? classic : []);
+	if (!pool.length) return null;
+	const rank = (doc) => {
+		const title = String(doc.n || "").toLowerCase();
+		return preferLc.reduce((sum, token) => sum + (title.includes(token) ? 1 : 0), 0);
+	};
+	return pool.sort((a, b) => rank(b) - rank(a) || compareEditionDoc(a, b))[0];
+}
+
 export function sourceAbbr (source) {
 	const Parser = getParser();
 	const id = String(source || "");
@@ -436,6 +464,7 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.ensureSearchIndex = ensureSearchIndex;
 	globalThis.FiveEToolsObsidian.findEntityDoc = findEntityDoc;
 	globalThis.FiveEToolsObsidian.findEditionDoc = findEditionDoc;
+	globalThis.FiveEToolsObsidian.findNamedFeature = findNamedFeature;
 	globalThis.FiveEToolsObsidian.sourceAbbr = sourceAbbr;
 	globalThis.FiveEToolsObsidian.indexHomebrewDocs = indexHomebrewDocs;
 	globalThis.FiveEToolsObsidian.brewDocFromEntity = brewDocFromEntity;

@@ -2,7 +2,7 @@ import {MarkdownRenderer, Notice} from "obsidian";
 import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter} from "./character-store.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
-import {findEntityDoc, sourceAbbr} from "./search-index.js";
+import {ensureSearchIndex, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 
@@ -21,6 +21,7 @@ export async function renderCharacterCard (host, plugin, ddbId) {
 		await MarkdownRenderer.render(plugin.app, markdown, body, record.path, plugin);
 		return record;
 	}
+	await ensureSearchIndex(plugin);
 	paintLinkedCard(host, plugin, record);
 	return record;
 }
@@ -48,7 +49,10 @@ function paintLinkedCard (host, plugin, record) {
 	paintCombat(host, fields, snapshot.rolls);
 	paintAbilities(host, snapshot.abilities, snapshot.rolls);
 	paintSkills(host, snapshot.rolls);
-	paintActions(host, snapshot.actions);
+	paintActions(host, plugin, snapshot.actions, {
+		edition: snapshot.edition === "one" ? "one" : "classic",
+		prefer: preferNames(refs),
+	});
 	paintRefSection(host, plugin, "Spells", refs.filter(ref => ref.kind === "spell"));
 	paintRefSection(host, plugin, "Feats", refs.filter(ref => ref.kind === "feat"));
 	paintRefSection(host, plugin, "Gear", refs.filter(ref => ref.kind === "item"));
@@ -94,7 +98,7 @@ function paintRefButton (parent, plugin, ref, label) {
 		evt.preventDefault();
 		evt.stopPropagation();
 		const doc = findEntityDoc(ref.name, {
-			categoriesExact: REF_CATEGORIES[ref.kind] || [],
+			categoriesExact: REF_CATEGORIES[ref.kind] || (ref.kind ? [ref.kind] : []),
 			source: ref.source,
 		});
 		if (doc && String(doc.s || "").toLowerCase() === String(ref.source).toLowerCase()) {
@@ -173,16 +177,28 @@ function paintRollList (host, title, rows, labelOf, rollName) {
 	}
 }
 
-function paintActions (host, actions) {
+function paintActions (host, plugin, actions, {edition = "classic", prefer = []} = {}) {
 	if (!actions?.length) return;
 	host.createEl("h3", {text: "Actions"});
 	const list = host.createEl("ul", {cls: "fiveetools-character-card__refs"});
 	for (const action of actions) {
 		const line = list.createEl("li");
-		const bits = [action.name];
-		if (action.activation) bits.push(action.activation);
-		if (action.uses) bits.push(`${action.uses} uses`);
-		line.createSpan({text: bits.join(" · ")});
+		const doc = action.lookup && action.source
+			? {n: action.lookup, s: action.source, cf: action.kind}
+			: findNamedFeature(action.name, {edition, prefer});
+		if (doc?.n && doc.s) {
+			paintRefButton(line, plugin, {
+				kind: String(doc.cf || action.kind || "").toLowerCase(),
+				name: doc.n,
+				source: doc.s,
+			}, action.name);
+		} else {
+			line.createSpan({text: action.name});
+		}
+		const extra = [];
+		if (action.activation) extra.push(action.activation);
+		if (action.uses) extra.push(`${action.uses} uses`);
+		if (extra.length) line.createSpan({text: ` · ${extra.join(" · ")}`});
 		if (action.dice) {
 			line.createSpan({text: " "});
 			const roll = line.createSpan();
@@ -229,6 +245,13 @@ function paintTraits (host, traits) {
 		line.createEl("strong", {text: `${label}. `});
 		line.createSpan({text: String(text).trim()});
 	}
+}
+
+function preferNames (refs) {
+	return (refs || [])
+		.filter(ref => ref.kind === "class" || ref.kind === "subclass")
+		.flatMap(ref => String(ref.name || ref.label || "").toLowerCase().split(/[^a-z0-9]+/))
+		.filter(token => token.length > 3);
 }
 
 function modifierFromScore (score) {

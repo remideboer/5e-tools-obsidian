@@ -1,5 +1,5 @@
 import {parseCampaignMarkdown, serializeCampaignMarkdown} from "./campaign-store.js";
-import {ensureSearchIndex, findEditionDoc, sourceAbbr} from "./search-index.js";
+import {ensureSearchIndex, findEditionDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
 
 export const REF_CATEGORIES = {
 	spell: ["spell"],
@@ -63,6 +63,7 @@ export async function saveCharacter (plugin, card) {
 	const avatarPath = card.avatar ? await writeAvatar(plugin, id, card.avatar) : existingAvatarPath(plugin, id);
 	const filePath = characterFilePath(plugin, id);
 	const refs = resolveRefs(card.refs || []);
+	const actions = resolveActions(card.actions || [], card.edition === "one" ? "one" : "classic", preferNames(card.refs));
 	const text = serializeCampaignMarkdown({
 		fields: {
 			ddb_id: id,
@@ -76,12 +77,12 @@ export async function saveCharacter (plugin, card) {
 			hp_current: card.hpCurrent ?? "",
 			speed: card.speed ?? "",
 		},
-		body: characterMarkdown(card, avatarPath, refs),
+		body: characterMarkdown({...card, actions}, avatarPath, refs),
 		snapshot: {
 			edition: card.edition || "classic",
 			abilities: card.abilities || null,
 			rolls: card.rolls || null,
-			actions: card.actions || [],
+			actions,
 			traits: card.traits || null,
 			coins: card.coins || null,
 			refs,
@@ -130,6 +131,25 @@ function resolveRefs (refs) {
 			...(ref.equipped ? {equipped: true} : {}),
 		};
 	}).filter(ref => ref.label || ref.name);
+}
+
+function resolveActions (actions, edition, prefer) {
+	return (actions || []).map(action => {
+		const name = String(action?.name || "").trim();
+		const doc = findNamedFeature(name, {edition, prefer});
+		return {
+			...action,
+			name,
+			...(doc ? {kind: String(doc.cf || "").toLowerCase(), lookup: doc.n, source: doc.s} : {}),
+		};
+	}).filter(action => action.name);
+}
+
+function preferNames (refs) {
+	return (refs || [])
+		.filter(ref => ref.kind === "class" || ref.kind === "subclass")
+		.flatMap(ref => String(ref.name || ref.label || "").toLowerCase().split(/[^a-z0-9]+/))
+		.filter(token => token.length > 3);
 }
 
 function characterMarkdown (card, avatarPath, refs) {
@@ -238,6 +258,7 @@ function actionLines (actions) {
 	const lines = ["", "## Actions", ""];
 	for (const action of actions) {
 		const bits = [action.name];
+		if (action.source) bits.push(sourceAbbr(action.source));
 		if (action.activation) bits.push(action.activation);
 		if (action.uses) bits.push(`${action.uses} uses`);
 		if (action.dice) bits.push(action.dice);
