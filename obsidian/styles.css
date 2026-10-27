@@ -222,6 +222,171 @@ a.fiveetools-inline-link {
 	min-height: 0;
 }
 
+.fiveetools-library.is-dmscreen .fiveetools-library__reader {
+	display: none;
+}
+
+.fiveetools-library__listcol--dmscreen {
+	flex: 1 1 auto;
+	width: auto;
+	min-width: 0;
+}
+
+.fiveetools-library.is-dmscreen .fiveetools-library__list {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	padding: 8px;
+}
+
+.fiveetools-dmscreen {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-height: 0;
+}
+
+.fiveetools-dmscreen__bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
+.fiveetools-dmscreen__search {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 0 0 auto;
+}
+
+.fiveetools-dmscreen__search.is-hidden {
+	display: none;
+}
+
+.fiveetools-dmscreen__searchinput {
+	width: 100%;
+}
+
+.fiveetools-dmscreen__hits {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 12em;
+	overflow: auto;
+}
+
+.fiveetools-dmscreen__hit {
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	cursor: pointer;
+}
+
+.fiveetools-dmscreen__hit:hover {
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-dmscreen__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 10px;
+	align-content: start;
+	align-items: start;
+}
+
+.fiveetools-dmscreen__card {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	overflow: hidden;
+}
+
+.fiveetools-dmscreen__head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-primary-alt, var(--background-primary));
+}
+
+.fiveetools-dmscreen__title {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-dmscreen__titleinput {
+	flex: 1 1 auto;
+	min-width: 0;
+	font: inherit;
+	font-weight: 600;
+	border: 0;
+	background: transparent;
+	color: var(--text-normal);
+	padding: 0;
+}
+
+.fiveetools-dmscreen__remove {
+	flex: 0 0 auto;
+	width: 1.5em;
+	height: 1.5em;
+	padding: 0;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	cursor: pointer;
+	line-height: 1;
+}
+
+.fiveetools-dmscreen__body {
+	padding: 8px 10px;
+	min-width: 0;
+}
+
+.fiveetools-dmscreen__note {
+	width: 100%;
+	min-height: 6em;
+	resize: vertical;
+	box-sizing: border-box;
+	font: inherit;
+}
+
+.fiveetools-dmscreen__counter {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.fiveetools-dmscreen__count {
+	min-width: 2em;
+	font-size: 1.4em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+.fiveetools-dmscreen__countbtn {
+	width: 1.8em;
+	height: 1.8em;
+	padding: 0;
+	border-radius: 4px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	cursor: pointer;
+	line-height: 1;
+}
+
 .fiveetools-library__listcol--encounter,
 .fiveetools-library__listcol--homebrew {
 	width: 560px;

@@ -9,6 +9,7 @@ import {pluginVaultDir} from "./src/plugin-dir.js";
 import {ensureSearchIndex, indexHomebrewDocs} from "./src/search-index.js";
 import {cacheBrewInDataLoader, loadHomebrewFromVault} from "./src/homebrew-store.js";
 import {flushEncounterSave, getEncounterInstance, loadEncountersFromVault, setEncounterInstance} from "./src/encounter-store.js";
+import {flushDmScreenSave, getDmScreenBoard, loadDmScreenFromVault} from "./src/dm-screen-store.js";
 import {FiveEToolsSettingTab} from "./src/settings.js";
 import {registerLinkSuggest} from "./src/link-suggest.js";
 import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
@@ -94,12 +95,15 @@ export default class FiveEToolsPlugin extends Plugin {
 		indexHomebrewDocs();
 		await loadEncountersFromVault(this);
 		if (!this._encounterSession) this._encounterSession = getEncounterInstance();
+		await loadDmScreenFromVault(this);
+		if (!this._dmScreenBoard) this._dmScreenBoard = getDmScreenBoard();
 		return true;
 	}
 
 	onunload () {
 		if (this._encounterSession) setEncounterInstance(this._encounterSession);
 		void flushEncounterSave(this);
+		void flushDmScreenSave(this);
 		teardownMapView(this, {closePlayer: true});
 	}
 

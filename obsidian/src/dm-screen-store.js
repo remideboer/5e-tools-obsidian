@@ -1,0 +1,131 @@
+let boardJson = emptyBoard();
+let nextPanelId = 1;
+let saveTimer = null;
+
+export function emptyBoard () {
+	return {panels: []};
+}
+
+export function dmScreenVaultPath (plugin) {
+	const folder = String(plugin?.settings?.notesFolder || "5etools").replace(/\\/g, "/").replace(/\/+$/, "");
+	return `${folder}/_dmscreen/board.json`;
+}
+
+export function getDmScreenBoard () {
+	return copyJson(boardJson);
+}
+
+export function setDmScreenBoard (board) {
+	boardJson = normalizeBoard(board);
+	return getDmScreenBoard();
+}
+
+export function allocPanelId () {
+	return `p${nextPanelId++}`;
+}
+
+export async function loadDmScreenFromVault (plugin) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return getDmScreenBoard();
+	const file = vault.getAbstractFileByPath(dmScreenVaultPath(plugin));
+	if (!file || file.children) {
+		setDmScreenBoard(emptyBoard());
+		return getDmScreenBoard();
+	}
+	try {
+		const text = await vault.read(file);
+		setDmScreenBoard(JSON.parse(text));
+	} catch (_) {
+		setDmScreenBoard(emptyBoard());
+	}
+	return getDmScreenBoard();
+}
+
+export async function saveDmScreenToVault (plugin) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return getDmScreenBoard();
+	const filePath = dmScreenVaultPath(plugin);
+	const folder = filePath.replace(/\/[^/]+$/, "");
+	await ensureFolder(plugin.app, folder);
+	const text = `${JSON.stringify(boardJson, null, "\t")}\n`;
+	const existing = vault.getAbstractFileByPath(filePath);
+	if (existing && !existing.children) await vault.modify(existing, text);
+	else await vault.create(filePath, text);
+	return getDmScreenBoard();
+}
+
+export function queueSaveDmScreen (plugin, delay = 250) {
+	if (!plugin?.app?.vault) return;
+	if (saveTimer) clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => {
+		saveTimer = null;
+		saveDmScreenToVault(plugin).catch(() => {});
+	}, delay);
+}
+
+export async function flushDmScreenSave (plugin) {
+	if (saveTimer) {
+		clearTimeout(saveTimer);
+		saveTimer = null;
+	}
+	return saveDmScreenToVault(plugin);
+}
+
+function normalizeBoard (raw) {
+	const panels = (raw?.panels || []).map(normalizePanel).filter(Boolean);
+	bumpPanelId(panels);
+	return {panels};
+}
+
+function normalizePanel (raw) {
+	if (!raw || typeof raw !== "object") return null;
+	const type = raw.type === "entity" || raw.type === "counter" ? raw.type : "note";
+	const doc = slimDoc(raw.doc);
+	if (type === "entity" && !doc) return null;
+	return {
+		id: String(raw.id || allocPanelId()),
+		type,
+		title: String(raw.title || defaultTitle(type, doc)).trim() || defaultTitle(type, doc),
+		doc,
+		text: String(raw.text || ""),
+		value: Number.isFinite(Number(raw.value)) ? Math.trunc(Number(raw.value)) : 0,
+	};
+}
+
+function defaultTitle (type, doc) {
+	if (type === "entity") return doc?.n || "Entry";
+	if (type === "counter") return "Counter";
+	return "Note";
+}
+
+function slimDoc (doc) {
+	if (!doc?.u && !doc?.n) return null;
+	return {
+		n: doc.n || "",
+		u: doc.u || "",
+		s: doc.s || "",
+		c: doc.c ?? null,
+		cf: doc.cf || "",
+		sA: doc.sA || "",
+	};
+}
+
+function bumpPanelId (panels) {
+	for (const it of panels || []) {
+		const n = Number(String(it.id || "").replace(/^p/, ""));
+		if (Number.isFinite(n) && n >= nextPanelId) nextPanelId = n + 1;
+	}
+}
+
+function copyJson (value) {
+	return JSON.parse(JSON.stringify(value));
+}
+
+async function ensureFolder (app, folderPath) {
+	const parts = String(folderPath || "").split("/").filter(Boolean);
+	let acc = "";
+	for (const part of parts) {
+		acc = acc ? `${acc}/${part}` : part;
+		if (!app.vault.getAbstractFileByPath(acc)) await app.vault.createFolder(acc);
+	}
+}

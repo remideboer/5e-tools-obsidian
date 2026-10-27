@@ -39,6 +39,7 @@ export const LIBRARY_NAV = [
 			{id: "loot", label: "Loot Generator", tool: "loot"},
 			{id: "rolltables", label: "Roll tables", tool: "rolltables"},
 			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
+			{id: "dmscreen", label: "DM screen", tool: "dmscreen"},
 			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
 			{id: "campaign", label: "Campaigns", tool: "campaign"},
 			{id: "map", label: "Map", tool: "map"},

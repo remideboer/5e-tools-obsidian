@@ -16,6 +16,8 @@ import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
+import {renderDmScreen} from "./dm-screen-view.js";
+import {getDmScreenBoard} from "./dm-screen-store.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
@@ -315,6 +317,8 @@ export class FiveEToolsLibraryView extends ItemView {
 		const item = currentNavItem(this.navId);
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--dmscreen", !globalTerm && item?.tool === "dmscreen");
+		this.contentEl?.classList.toggle("is-dmscreen", !globalTerm && item?.tool === "dmscreen");
 		clearListToolClasses(this.listEl);
 		if (item?.tool !== "campaign" || globalTerm.length >= 2) {
 			teardownCampaignManager(this.plugin);
@@ -376,6 +380,20 @@ export class FiveEToolsLibraryView extends ItemView {
 				plugin: this.plugin,
 				onOpenItem: (doc) => { void this.plugin.openPreview(doc); },
 				onSessionChange: (next) => { this.plugin._rolltablesSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "dmscreen") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const board = this.plugin._dmScreenBoard || getDmScreenBoard();
+			this.readerEl?.empty();
+			renderDmScreen(this.listEl, this.readerEl, {
+				plugin: this.plugin,
+				board,
+				onBoardChange: (next) => { this.plugin._dmScreenBoard = next; },
 			});
 			this.docs = [];
 			return;
@@ -635,6 +653,7 @@ function clearListToolClasses (el) {
 		"fiveetools-dice-roller",
 		"fiveetools-rolltables",
 		"fiveetools-encounter",
+		"fiveetools-dmscreen",
 		"fiveetools-homebrew",
 		"fiveetools-campaign",
 		"fiveetools-map",
