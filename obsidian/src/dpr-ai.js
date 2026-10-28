@@ -10,7 +10,7 @@ const ROWS = 8;
  */
 export function planTurn (actor, actors) {
 	const role = roleOf(actor);
-	const foes = (actors || []).filter(it => it.side !== actor.side && !it.dead && (it.hp > 0 || it.dying || it.stable));
+	const foes = (actors || []).filter(it => it.side !== actor.side && !it.dead && (it.hp > 0 || it.dying || it.stable || it.traits?.regen?.holdDeath));
 	const standing = foes.filter(it => it.hp > 0);
 	const friends = (actors || []).filter(it => it.side === actor.side && !it.dead && it.hp < it.max && (it !== actor || actor.hp > 0));
 	const speed = Math.max(1, Math.floor((actor.speed || 30) / 5));
@@ -72,7 +72,9 @@ export function planTurn (actor, actors) {
 			shortfall: null,
 		};
 	}
-	const disengage = disengageMode(actor, cell, foes, role);
+	const leaving = disengageMode(actor, cell, foes, role);
+	const sealing = (choice?.targets || []).some(target => sealsRegen(choice?.option, target));
+	const disengage = sealing && leaving === "action" ? null : leaving;
 	const action = disengage === "action" ? null : choice;
 	const bonus = disengage === "bonus" ? null : bestBonus(actor, attacks, actors, foes, friends, cell, role, action);
 	const engaged = standing.some(foe => feetBetween(actor, foe) <= 5);
@@ -213,8 +215,27 @@ function bestCell (actor, option, actors, foes, friends, steps, role) {
 function fightGoals (option, foes, friends) {
 	if (option?.kind === "heal") return [friends];
 	const standing = (foes || []).filter(it => it.hp > 0);
+	const sealing = (foes || []).filter(it => it.hp <= 0 && !it.dead && sealsRegen(option, it));
+	if (sealing.length) return [sealing, standing].filter(list => list.length);
 	if (standing.length) return [standing];
-	return [(foes || []).filter(it => it.hp <= 0)];
+	return [(foes || []).filter(it => it.hp <= 0 && !it.dead)];
+}
+
+function sealsRegen (option, target) {
+	const regen = target?.traits?.regen;
+	if (!regen || target.regenBlocked || target.dead) return false;
+	const type = String(option?.damage || "").toLowerCase();
+	return !!type && (regen.suppress || []).includes(type);
+}
+
+function sealScore (cast, target) {
+	if (!sealsRegen(cast, target)) return 0;
+	const amount = Number(target.traits.regen.amount) || 10;
+	return amount + 30 + (target.hp <= amount ? 24 : 0);
+}
+
+function actorCanSeal (actor, target) {
+	return (actor?.options || []).some(option => !option.rider && sealsRegen(option, target));
 }
 
 function intellect (actor) {
@@ -244,6 +265,7 @@ function aimBias (actor, goal, actors) {
 	let score = (1 - smart) * near * 0.5 + smart * outgoingDamage(goal) * 3;
 	if (actor?.traits?.pack && (actors || []).some(it => it !== actor && it.side === actor.side && it.hp > 0 && !it.dead && feetBetween(it, goal) <= 5)) score += 30;
 	if (actor?.traits?.frenzy && goal.hp < goal.max) score += 12;
+	if (actorCanSeal(actor, goal)) score += 18;
 	return score;
 }
 
@@ -317,6 +339,7 @@ function swingScore (option, actor, target, range, actors) {
 					saveBonus: saveOf(target, cast.saveAbility),
 				}) * damageFactor(cast.damage, target.defenses);
 				score += onHitScore(cast, target) * hitChance(cast, target);
+				score += sealScore(cast, target);
 			}
 			score += riderScore(cast, actor, target, actors);
 		}
@@ -391,7 +414,7 @@ function nearest (actor, goals) {
 
 function targetsFor (cell, goal, range, foes) {
 	if (feetBetween(cell, goal) > range.feet) return [];
-	if (range.aoe) return foes.filter(it => (it.hp > 0 || it.dying || it.stable) && feetBetween(goal, it) <= range.aoe);
+	if (range.aoe) return foes.filter(it => (it.hp > 0 || it.dying || it.stable || it.traits?.regen?.holdDeath) && feetBetween(goal, it) <= range.aoe);
 	return [goal];
 }
 

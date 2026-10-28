@@ -843,6 +843,13 @@ function saveAbility (value) {
 	return {strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha"}[key] || key;
 }
 
+function damageTypeOf (ent, text) {
+	const fromBook = String(ent?.damageInflict?.[0] || "").toLowerCase();
+	if (fromBook) return fromBook;
+	const match = String(text || "").match(/\b(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\s+damage\b/i);
+	return match ? match[1].toLowerCase() : "";
+}
+
 async function spellSource (spell, casting, edition, characterLevel) {
 	let ent = null;
 	const doc = findEditionDoc(spell?.name || spell?.label, {categoriesExact: ["spell"], edition});
@@ -887,7 +894,7 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		baseFlat: parts.flat,
 		baseCount: shape?.count || (/^divine smite\b/i.test(name) ? 2 : 0),
 		baseFaces: shape?.faces || (/^divine smite\b/i.test(name) ? 8 : 0),
-		damage: String(ent?.damageInflict?.[0] || (/^divine smite\b/i.test(name) ? "radiant" : "")).toLowerCase(),
+		damage: damageTypeOf(ent, text) || (/^divine smite\b/i.test(name) ? "radiant" : ""),
 		range: spell.range || "",
 		blurb: text.slice(0, 240),
 		...(riderFields(name, text, ent)),

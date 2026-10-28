@@ -234,6 +234,22 @@ function crFromEnt (ent) {
 	return cr == null ? "" : String(cr);
 }
 
+function addedGroups (added) {
+	const groups = [];
+	const byKey = new Map();
+	for (const row of added || []) {
+		const key = [row.doc?.u || "", row.doc?.s || "", row.doc?.n || row.name || ""].join("|");
+		let group = byKey.get(key);
+		if (!group) {
+			group = {key, name: row.doc?.n || row.name || "Creature", rows: []};
+			byKey.set(key, group);
+			groups.push(group);
+		}
+		group.rows.push(row);
+	}
+	return groups;
+}
+
 function nextCreatureName (name, added) {
 	const base = String(name || "Creature");
 	const used = new Set((added || []).map(row => row.name));
@@ -391,24 +407,48 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		cls: "fiveetools-encounter__search",
 		attr: {type: "search", placeholder: "Add creature…"},
 	});
-	const copiesEl = searchRow.createEl("select", {cls: "fiveetools-encounter__count", attr: {title: "Copies to add"}});
-	for (let n = 1; n <= 8; n++) copiesEl.createEl("option", {text: String(n), attr: {value: String(n)}});
 	const hitsEl = creatureWrap.createDiv({cls: "fiveetools-encounter__hits"});
 	const addedEl = creatureWrap.createDiv({cls: "fiveetools-sim__members"});
+	const pushCreature = (doc) => {
+		state.added.push({
+			id: `a${Date.now().toString(36)}${state.added.length}`,
+			name: nextCreatureName(doc.n, state.added),
+			doc: {n: doc.n, u: doc.u || "", s: doc.s || "", c: doc.c, cf: doc.cf, sA: doc.sA},
+		});
+	};
+	const commitAdded = () => {
+		paintAdded();
+		onThreat();
+	};
 	const paintAdded = () => {
 		addedEl.empty();
-		if (!state.added.length) {
-			addedEl.createEl("p", {cls: "fiveetools-view__meta", text: "Search the library or homebrew, then Add."});
+		const groups = addedGroups(state.added);
+		if (!groups.length) {
+			addedEl.createEl("p", {cls: "fiveetools-view__meta", text: "Search to add a creature."});
 			return;
 		}
-		for (const row of state.added) {
+		for (const group of groups) {
 			const line = addedEl.createDiv({cls: "fiveetools-sim__member"});
-			line.createSpan({text: row.name});
-			const remove = line.createEl("button", {text: "Remove", cls: "fiveetools-btn"});
-			remove.addEventListener("click", () => {
-				state.added = state.added.filter(it => it.id !== row.id);
-				paintAdded();
-				onThreat();
+			line.createSpan({cls: "fiveetools-sim__member-name", text: group.name});
+			const stepper = line.createSpan({cls: "fiveetools-sim__stepper"});
+			const minus = stepper.createEl("button", {text: "−", cls: "fiveetools-btn", attr: {type: "button", "aria-label": `Remove one ${group.name}`}});
+			stepper.createSpan({cls: "fiveetools-sim__count", text: String(group.rows.length)});
+			const plus = stepper.createEl("button", {text: "+", cls: "fiveetools-btn", attr: {type: "button", "aria-label": `Add one ${group.name}`}});
+			const clear = stepper.createEl("button", {text: "×", cls: "fiveetools-btn", attr: {type: "button", "aria-label": `Remove ${group.name}`}});
+			minus.addEventListener("click", () => {
+				const last = group.rows[group.rows.length - 1];
+				state.added = state.added.filter(it => it.id !== last.id);
+				commitAdded();
+			});
+			plus.addEventListener("click", () => {
+				const sample = group.rows[0];
+				pushCreature(sample.doc);
+				commitAdded();
+			});
+			clear.addEventListener("click", () => {
+				const ids = new Set(group.rows.map(row => row.id));
+				state.added = state.added.filter(it => !ids.has(it.id));
+				commitAdded();
 			});
 		}
 	};
@@ -426,23 +466,28 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			const meta = hit.createDiv({cls: "fiveetools-encounter__hitmeta"});
 			meta.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
 			meta.createEl("div", {cls: "fiveetools-modal__sub", text: [doc.sA || doc.s, doc.cf].filter(Boolean).join(" · ")});
-			const addBtn = hit.createEl("button", {text: "Add", cls: "fiveetools-btn"});
-			addBtn.addEventListener("click", (evt) => {
-				evt.stopPropagation();
-				const copies = clamp(copiesEl.value, 1, 8, 1);
-				for (let i = 0; i < copies; i++) {
-					state.added.push({
-						id: `a${Date.now().toString(36)}${state.added.length}`,
-						name: nextCreatureName(doc.n, state.added),
-						doc: {n: doc.n, u: doc.u || "", s: doc.s || "", c: doc.c, cf: doc.cf, sA: doc.sA},
-					});
-				}
-				paintAdded();
-				onThreat();
+			hit.addEventListener("click", () => {
+				pushCreature(doc);
+				searchEl.value = "";
+				hitsEl.empty();
+				commitAdded();
+				searchEl.focus();
 			});
 		}
 	};
 	searchEl.addEventListener("input", paintHits);
+	searchEl.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		const term = searchEl.value.trim();
+		if (term.length < 2) return;
+		const first = searchEntities(term, {categoriesExact: ["bestiary"], limit: 1})[0];
+		if (!first) return;
+		pushCreature(first);
+		searchEl.value = "";
+		hitsEl.empty();
+		commitAdded();
+	});
 	paintAdded();
 
 	const crWrap = host.createDiv();

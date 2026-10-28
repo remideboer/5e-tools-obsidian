@@ -2383,16 +2383,30 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	margin: 3px 0;
 }
 
-.fiveetools-sim__member span {
+.fiveetools-sim__member-name {
 	min-width: 0;
+	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.fiveetools-sim__member button {
+.fiveetools-sim__stepper {
+	display: flex;
+	align-items: center;
+	gap: 2px;
 	flex: none;
-	padding: 2px 8px;
+}
+
+.fiveetools-sim__count {
+	min-width: 1.2em;
+	text-align: center;
+}
+
+.fiveetools-sim__stepper button {
+	flex: none;
+	min-width: 1.6em;
+	padding: 0 4px;
 }
 
 .fiveetools-dpr__stage {

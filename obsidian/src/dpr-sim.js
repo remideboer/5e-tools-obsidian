@@ -588,7 +588,7 @@ function resolveChoice (fight, actor, choice) {
 			const goals = choice.targets || [];
 			const target = swing.kind === "heal"
 				? goals.find(it => !isGone(it) && it.hp < it.max)
-				: goals.find(it => !it.dead && (it.hp > 0 || it.dying || it.stable));
+				: goals.find(it => !isGone(it));
 			if (!target) break;
 			applyCast(fight, actor, swing, target, range, goals);
 		}
@@ -695,7 +695,7 @@ function hurt (fight, actor, target, amount, crit, holdDeath, type) {
 	const before = target.hp;
 	target.hp = Math.max(0, before - amount);
 	actor.dealt += amount;
-	noteRegen(target, type, amount);
+	noteRegen(fight, target, type, amount);
 	if (amount > 0 && target.conditions.has("turned")) {
 		target.conditions.delete("turned");
 		log(fight, target, `${target.name} is no longer turned.`);
@@ -1440,10 +1440,13 @@ function rollSave (fight, target, ability, dc, detail) {
 	return {save, failed};
 }
 
-function noteRegen (target, type, amount) {
+function noteRegen (fight, target, type, amount) {
 	const regen = target?.traits?.regen;
-	if (!(amount > 0) || !regen || !type) return;
-	if ((regen.suppress || []).includes(String(type).toLowerCase())) target.regenBlocked = true;
+	if (!(amount > 0) || !regen || !type || target.regenBlocked) return;
+	const kind = String(type).toLowerCase();
+	if (!(regen.suppress || []).includes(kind)) return;
+	target.regenBlocked = true;
+	log(fight, target, `${target.name} takes ${kind} damage. Regeneration will not function on its next turn.`);
 }
 
 function regenerate (fight, actor) {
@@ -1456,7 +1459,9 @@ function regenerate (fight, actor) {
 		if (actor.hp <= 0 && regen.holdDeath) {
 			log(fight, actor, `${actor.name} does not regenerate and dies.`);
 			markDead(fight, actor);
+			return;
 		}
+		log(fight, actor, `${actor.name}'s regeneration does not function.`);
 		return;
 	}
 	if (actor.hp >= actor.max) return;
