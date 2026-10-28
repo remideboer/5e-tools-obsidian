@@ -2420,11 +2420,12 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	border-radius: 6px;
 	margin: 0 0 6px;
 	width: min(100%, 420px);
-	height: calc(1.3em + 8px);
+	height: calc(2.6em + 8px);
 	box-sizing: border-box;
 	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 }
 
 .fiveetools-dpr__action:empty {
