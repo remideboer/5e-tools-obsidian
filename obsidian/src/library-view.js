@@ -499,6 +499,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				plugin: this.plugin,
 				session: this.plugin._simSession || {},
 				onSessionChange: (next) => { this.plugin._simSession = next; },
+				onOpenEncounter: () => this.selectNav("encounter"),
 			});
 			this.docs = [];
 			return;

@@ -55,8 +55,10 @@ export function xpBudgetRange (party, tier = "moderate") {
 	};
 }
 
-export function encounterDifficulty ({combatants = [], party, style} = {}) {
-	const {count, level} = normalizeParty(party);
+export function encounterDifficulty ({combatants = [], party, style, levels} = {}) {
+	const members = memberLevels(party, levels);
+	const count = members.length;
+	const level = members[0] || normalizeParty(party).level;
 	const styleHint = style || getStyleHint() || "one";
 	const xpValues = (combatants || []).map(it => xpFromCr(it?.cr)).filter(n => n > 0);
 	const totalXp = xpValues.reduce((sum, n) => sum + n, 0);
@@ -72,10 +74,10 @@ export function encounterDifficulty ({combatants = [], party, style} = {}) {
 		label: "—",
 		budgets: {},
 	};
-	if (!xpValues.length) return empty;
+	if (!count || !xpValues.length) return empty;
 
 	if (styleHint === "one") {
-		const budgets = scaleBudgets(XP_ONE, level, count);
+		const budgets = scaleBudgetLevels(XP_ONE, members);
 		budgets.absurd = budgets.high + (budgets.high - budgets.moderate);
 		let difficulty = "absurd";
 		for (const tier of TIERS_ONE) {
@@ -97,7 +99,7 @@ export function encounterDifficulty ({combatants = [], party, style} = {}) {
 		};
 	}
 
-	const budgets = scaleBudgets(XP_CLASSIC, level, count);
+	const budgets = scaleBudgetLevels(XP_CLASSIC, members);
 	budgets.absurd = budgets.deadly + (budgets.deadly - budgets.hard);
 	const adjustedXp = Math.floor(totalXp * classicMultiplier(xpValues.length, count));
 	let difficulty = "trivial";
@@ -127,6 +129,20 @@ function scaleBudgets (table, level, count) {
 	const out = {};
 	for (const [tier, arr] of Object.entries(table)) {
 		out[tier] = (arr[level] || 0) * count;
+	}
+	return out;
+}
+
+function memberLevels (party, levels) {
+	if (Array.isArray(levels)) return levels.map(level => clampInt(level, 1, 20, 1));
+	const {count, level} = normalizeParty(party);
+	return Array.from({length: count}, () => level);
+}
+
+function scaleBudgetLevels (table, levels) {
+	const out = {};
+	for (const [tier, arr] of Object.entries(table)) {
+		out[tier] = levels.reduce((sum, level) => sum + (arr[level] || 0), 0);
 	}
 	return out;
 }

@@ -2371,6 +2371,10 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	color: var(--text-muted);
 }
 
+.fiveetools-sim__difficulty {
+	margin: 8px 0 4px;
+}
+
 .fiveetools-sim__creatures .fiveetools-encounter__row {
 	margin-top: 4px;
 }

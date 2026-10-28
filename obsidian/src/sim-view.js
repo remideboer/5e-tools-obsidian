@@ -17,7 +17,8 @@ import {
 	sourcesFor,
 } from "./dpr-view.js";
 import {listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
-import {initiativeFromEnt, kindKey} from "./encounter-view.js";
+import {encounterDifficulty} from "./encounter-difficulty.js";
+import {addCombatants, initiativeFromEnt, kindKey} from "./encounter-view.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
@@ -25,7 +26,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
-export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessionChange} = {}) {
+export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessionChange, onOpenEncounter} = {}) {
 	listEl.empty();
 	listEl.addClass("fiveetools-sim");
 	readerEl?.empty();
@@ -37,7 +38,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		threat: session.threat === "encounter" || session.threat === "creatures" ? session.threat : "cr",
 		added: restoreAdded(session),
 		cr: String(session.cr || "1"),
-		monsters: clamp(session.monsters, 1, 12, 1),
+		monsters: clamp(session.monsters, 1, 10, 1),
 		encounterId: String(session.encounterId || ""),
 		simCount: clamp(session.simCount, 1, 20, 1),
 		initStyle: session.initStyle === "players" ? "players" : "current",
@@ -76,6 +77,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 
 	const refresh = () => {
 		emit();
+		state.paintDifficulty?.();
 		paintSimControls(controlsEl, state, plugin, refresh);
 		ensureSim(resultsEl, state);
 	};
@@ -409,6 +411,11 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 	});
 	const hitsEl = creatureWrap.createDiv({cls: "fiveetools-encounter__hits"});
 	const addedEl = creatureWrap.createDiv({cls: "fiveetools-sim__members"});
+	const sendBtn = creatureWrap.createEl("button", {
+		text: "Send to encounter",
+		cls: "fiveetools-btn",
+		attr: {type: "button"},
+	});
 	const pushCreature = (doc) => {
 		state.added.push({
 			id: `a${Date.now().toString(36)}${state.added.length}`,
@@ -422,6 +429,7 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 	};
 	const paintAdded = () => {
 		addedEl.empty();
+		sendBtn.disabled = !state.added.length;
 		const groups = addedGroups(state.added);
 		if (!groups.length) {
 			addedEl.createEl("p", {cls: "fiveetools-view__meta", text: "Search to add a creature."});
@@ -488,7 +496,43 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		hitsEl.empty();
 		commitAdded();
 	});
+	sendBtn.addEventListener("click", () => { void sendAddedToEncounter(); });
 	paintAdded();
+
+	async function sendAddedToEncounter () {
+		const groups = addedGroups(state.added);
+		if (!groups.length) return;
+		let roster = {combatants: [], selectedId: null};
+		const skipped = [];
+		const kept = [];
+		for (const group of groups) {
+			try {
+				let left = group.rows.length;
+				while (left > 0) {
+					const batch = Math.min(10, left);
+					const next = await addCombatants(roster, group.rows[0].doc, batch);
+					roster = {combatants: next.combatants, selectedId: next.selectedId};
+					left -= batch;
+				}
+				kept.push(group.name);
+			} catch (_) {
+				skipped.push(group.name);
+			}
+		}
+		if (!roster.combatants.length) {
+			new Notice(skipped.length ? `Could not load ${skipped.join(", ")}.` : "No creatures to send.");
+			return;
+		}
+		if (skipped.length) new Notice(`Skipped ${skipped.join(", ")}.`);
+		plugin._encounterSession = {
+			combatants: roster.combatants,
+			selectedId: roster.selectedId,
+			name: kept.join(", "),
+			savedId: null,
+			pickedId: null,
+		};
+		onOpenEncounter?.();
+	}
 
 	const crWrap = host.createDiv();
 	const crRow = field(crWrap, "CR");
@@ -500,9 +544,11 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		onThreat();
 	});
 	const countRow = field(crWrap, "Monsters");
-	const countEl = countRow.createEl("input", {attr: {type: "number", min: "1", max: "12", value: String(state.monsters)}});
+	const countEl = countRow.createEl("select", {attr: {title: "How many of that challenge rating"}});
+	for (let n = 1; n <= 10; n++) countEl.createEl("option", {text: String(n), attr: {value: String(n)}});
+	countEl.value = String(state.monsters);
 	countEl.addEventListener("change", () => {
-		state.monsters = clamp(countEl.value, 1, 12, 1);
+		state.monsters = clamp(countEl.value, 1, 10, 1);
 		countEl.value = String(state.monsters);
 		onThreat();
 	});
@@ -532,6 +578,30 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		onThreat();
 	});
 	showThreat();
+	const diffWrap = host.createDiv({cls: "fiveetools-sim__difficulty"});
+	const diffEl = diffWrap.createDiv({cls: "fiveetools-encounter__diff"});
+	const xpEl = diffWrap.createDiv({cls: "fiveetools-encounter__xp"});
+	state.paintDifficulty = () => paintSimDifficulty(diffEl, xpEl, state);
+	state.paintDifficulty();
+}
+
+function paintSimDifficulty (diffEl, xpEl, state) {
+	const levels = partyRecords(state).map(record => Number(record.fields?.level) || 1);
+	const info = encounterDifficulty({
+		combatants: difficultyCreatures(state),
+		levels,
+		party: {count: Math.max(1, levels.length), level: levels[0] || 1},
+	});
+	diffEl.setText(levels.length && info.difficulty ? `Difficulty: ${info.label}` : "Difficulty: —");
+	xpEl.setText(levels.length && info.difficulty ? `${info.totalXp.toLocaleString()} XP · ${info.xpPerPlayer.toLocaleString()} per player` : "");
+}
+
+function difficultyCreatures (state) {
+	if (state.threat === "cr") {
+		const profile = crProfile(state.cr) || crProfile("1");
+		return Array.from({length: state.monsters}, () => ({cr: profile.cr}));
+	}
+	return (state.creatures || []).map(creature => ({cr: creature.cr}));
 }
 
 function ensureSim (host, state) {
