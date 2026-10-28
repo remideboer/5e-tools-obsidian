@@ -199,7 +199,8 @@ export function creatureRound (ent) {
 export function creatureTurn (ent) {
 	const swings = creatureRound(ent);
 	const bonus = (Array.isArray(ent?.bonus) ? ent.bonus : []).map(attackFromAction).find(Boolean);
-	return bonus ? [...swings, bonus] : swings;
+	const actionSwings = swings.map(swing => ({...swing, activation: "action"}));
+	return bonus ? [...actionSwings, {...bonus, activation: "bonus"}] : actionSwings;
 }
 
 export function economySlot (activation) {
@@ -363,18 +364,22 @@ export function spellAtSlot (spell, slotLevel, characterLevel) {
 		for (const row of spell.cantrip) {
 			if (row.level <= level) pick = row;
 		}
-		return {...spell, dice: pick.dice, flat: pick.flat, castLevel: 0};
+		return {...spell, dice: pick.dice, flat: pick.flat, count: pick.count || spell.count || 0, faces: pick.faces || spell.faces || 0, castLevel: 0};
 	}
 	const slot = Number(slotLevel) || Number(spell?.level) || 0;
 	let dice = Number(spell?.dice) || 0;
 	let flat = Number(spell?.flat) || 0;
+	let count = Number(spell?.count) || 0;
+	let faces = Number(spell?.faces) || 0;
 	const scale = spell?.scale;
 	if (scale && slot > scale.from) {
 		const steps = Math.floor((slot - scale.from) / (scale.every || 1));
 		dice += steps * (Number(scale.dice) || 0);
 		flat += steps * (Number(scale.flat) || 0);
+		count += steps * (Number(scale.count) || 0);
+		faces = faces || scale.faces || 0;
 	}
-	return {...spell, dice, flat, castLevel: slot};
+	return {...spell, dice, flat, count, faces, castLevel: slot};
 }
 
 /** `{@scaledice 1d8|1-9|1d8}` adds the last dice once per step above the first number. */
@@ -398,7 +403,8 @@ export function scaleFromText (text) {
 			if (sorted.every((n, i) => i === 0 || n - sorted[i - 1] === step)) every = step;
 		}
 	}
-	return {from, every, dice: add.dice, flat: add.flat, label: String(parts[2] || "").replace(/\s+/g, "")};
+	const shape = diceShape(parts[2] || "");
+	return {from, every, dice: add.dice, flat: add.flat, count: shape?.count || 0, faces: shape?.faces || 0, label: String(parts[2] || "").replace(/\s+/g, "")};
 }
 
 export function cantripRows (scaling) {
@@ -406,7 +412,8 @@ export function cantripRows (scaling) {
 	return Object.entries(scaling)
 		.map(([level, dice]) => {
 			const parts = averageFromText(dice);
-			return parts ? {level: Number(level), dice: parts.dice, flat: parts.flat, label: String(dice).replace(/\s+/g, "")} : null;
+			const shape = diceShape(dice);
+			return parts ? {level: Number(level), dice: parts.dice, flat: parts.flat, count: shape?.count || 0, faces: shape?.faces || 0, label: String(dice).replace(/\s+/g, "")} : null;
 		})
 		.filter(row => row && row.level > 0)
 		.sort((a, b) => a.level - b.level);
@@ -527,12 +534,33 @@ function attackFromAction (action) {
 	const tagged = text.match(/\{@damage\s+([^}]+)\}/i);
 	const parts = averageFromText(tagged ? tagged[1] : text);
 	if (!parts || (!hit && !tagged)) return null;
+	const shape = diceShape(tagged ? tagged[1] : "");
+	const reach = text.match(/reach\s+(\d+)/i);
+	const ranged = text.match(/range\s+(\d+)/i);
 	return {
 		name: String(action?.name || "Attack"),
 		bonus: hit ? Number(hit[1]) : 0,
 		kind: hit ? "attack" : "auto",
 		...parts,
+		count: shape?.count || 0,
+		faces: shape?.faces || 0,
+		flat: shape?.flat ?? parts.flat,
+		rangeFeet: reach ? Number(reach[1]) : (ranged ? Number(ranged[1]) : (hit ? 5 : 60)),
+		melee: !!reach || !ranged,
+		blurb: text.slice(0, 240),
 	};
+}
+
+export function diceShape (text) {
+	const raw = String(text || "");
+	const match = raw.match(/(\d*)d(\d+)/i);
+	if (!match) return null;
+	const count = Number(match[1] || 1);
+	const faces = Number(match[2]);
+	const rest = raw.slice((match.index || 0) + match[0].length);
+	const flatMatch = rest.match(/([+-])\s*(\d+)/);
+	const flat = flatMatch ? (flatMatch[1] === "-" ? -1 : 1) * Number(flatMatch[2]) : 0;
+	return {count, faces, flat};
 }
 
 function living (list) {

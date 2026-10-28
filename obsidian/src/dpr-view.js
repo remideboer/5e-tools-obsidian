@@ -14,7 +14,10 @@ import {
 	simulateFight,
 	spellAtSlot,
 	spellExtras,
+	diceShape,
 } from "./dpr-calc.js";
+import {createFight, combineReports, runFight, stepRound, stepTurn, summarize} from "./dpr-sim.js";
+import {resolveTokenImage} from "./image-resolver.js";
 import {loadEntity} from "./entity-loader.js";
 import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
 import {ensureSearchIndex, findEditionDoc} from "./search-index.js";
@@ -74,6 +77,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 	const paint = () => {
 		emit();
 		paintResults(resultsEl, state);
+		ensureSim(resultsEl, state, plugin);
 	};
 
 	void start();
@@ -108,6 +112,8 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 		const token = ++state.token;
 		resultsEl.empty();
 		resultsEl.createEl("p", {cls: "fiveetools-view__meta", text: "Reading spells…"});
+		state.fight = null;
+		state.reports = [];
 		const sheets = {};
 		for (const record of partyRecords(state)) {
 			const id = characterId(record);
@@ -141,9 +147,15 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 		const creatures = [];
 		for (const combatant of saved.combatants || []) {
 			let attacks = [];
+			let image = "";
+			let speed = 30;
 			try {
 				const ent = combatant.ent || (combatant.doc ? (await loadEntity(combatant.doc))?.ent : null);
 				attacks = creatureTurn(ent);
+				const token = ent ? resolveTokenImage(ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl}) : null;
+				image = token?.url || "";
+				const walk = ent?.speed?.walk ?? ent?.speed;
+				speed = Number(walk) || 30;
 			} catch (_) { /* fall back to the CR table */ }
 			creatures.push({
 				name: combatant.label || "Creature",
@@ -151,6 +163,8 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 				hp: Number(combatant.hpMax) || 0,
 				cr: combatant.cr,
 				attacks,
+				image,
+				speed,
 			});
 		}
 		if (gen !== state.encounterGen) return;
@@ -262,6 +276,7 @@ function paintSetup (host, state, paint, onCharacter, onThreat) {
 }
 
 function paintChecks (host, state, paint) {
+	const sim = host.querySelector(".fiveetools-dpr__sim");
 	host.empty();
 	const checks = host.createDiv();
 	for (const record of partyRecords(state)) {
@@ -276,6 +291,7 @@ function paintChecks (host, state, paint) {
 		paintGroup(checks, "Healing", sheet.heals, picks.heals, paint);
 	}
 	host.createDiv({cls: "fiveetools-dpr__results"});
+	if (sim) host.append(sim);
 }
 
 function paintGroup (host, title, rows, selected, paint) {
@@ -572,6 +588,10 @@ function actionSource (action, casting) {
 		name: action.name,
 		activation: action.activation || "",
 		slot: economySlot(action.activation),
+		range: action.range || "",
+		blurb: String(action.snippet || ""),
+		count: diceShape(notation)?.count || 0,
+		faces: diceShape(notation)?.faces || 0,
 		kind,
 		bonus: bonus ?? 0,
 		dc,
@@ -600,6 +620,7 @@ async function spellSource (spell, casting, edition, characterLevel) {
 	const name = spell.label || spell.name || "Spell";
 	const heal = isHealing(name, text);
 	const level = Number.isFinite(Number(spell.level)) ? Number(spell.level) : (extras.cantrip.length ? 0 : null);
+	const shape = diceShape(firstDiceText(extras.text) || firstDiceText(spell?.snippet) || "");
 	const row = {
 		id: `spell:${spell.name || name}`,
 		name,
@@ -614,6 +635,10 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		dc: parseDc(spell.save) ?? (Number(line?.dc) || 0),
 		dice: parts.dice,
 		flat: parts.flat,
+		count: shape?.count || 0,
+		faces: shape?.faces || 0,
+		range: spell.range || "",
+		blurb: text.slice(0, 240),
 	};
 	const shown = spellAtSlot(row, level > 0 ? level : 0, characterLevel);
 	const baseText = firstDiceText(extras.text) || firstDiceText(spell?.snippet) || diceLabel(parts, spell?.snippet);
@@ -622,6 +647,8 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		...row,
 		dice: shown.dice,
 		flat: shown.flat,
+		count: shown.count || row.count,
+		faces: shown.faces || row.faces,
 		notation: cantripLabel || (extras.scale ? `${baseText} +${extras.scale.label}/slot` : baseText),
 	};
 }
@@ -746,4 +773,208 @@ function xTicks (min, max) {
 	for (let value = min; value <= max + 1e-6; value += step) out.push(Math.round(value));
 	if (out[out.length - 1] !== max) out.push(max);
 	return out;
+}
+
+function ensureSim (host, state, plugin) {
+	let sim = host.querySelector(".fiveetools-dpr__sim");
+	if (!sim) sim = host.createDiv({cls: "fiveetools-dpr__sim"});
+	paintSim(sim, state, plugin);
+}
+
+function paintSim (host, state, plugin) {
+	host.empty();
+	host.createEl("h3", {text: "Simulation"});
+	host.createEl("p", {
+		cls: "fiveetools-view__meta",
+		text: "Dice and a 5-foot grid. Each creature uses its best option, not the checkboxes. Step a turn or a round, or run several fights.",
+	});
+	const row = host.createDiv({cls: "fiveetools-dpr__row"});
+	const count = row.createEl("input", {attr: {type: "number", min: "1", max: "20", value: String(state.simCount || 1)}});
+	count.addEventListener("change", () => { state.simCount = clamp(count.value, 1, 20, 1); });
+	const refresh = () => paintSim(host, state, plugin);
+	simButton(row, "Step turn", () => { beginFight(state, plugin); stepTurn(state.fight); refresh(); });
+	simButton(row, "Step round", () => { beginFight(state, plugin); stepRound(state.fight); refresh(); });
+	simButton(row, "Run", () => { beginFight(state, plugin); runFight(state.fight); state.reports = [summarize(state.fight)]; refresh(); });
+	simButton(row, "Run N", () => {
+		const n = clamp(count.value, 1, 20, 1);
+		const reports = [];
+		let last = null;
+		for (let i = 0; i < n; i++) {
+			last = createFight(...simSides(state, plugin));
+			runFight(last);
+			reports.push(summarize(last));
+		}
+		state.fight = last;
+		state.reports = reports;
+		refresh();
+	});
+	paintBoard(host, state.fight);
+	paintLog(host, state.fight);
+	paintReport(host, state.reports, state.fight);
+}
+
+function beginFight (state, plugin) {
+	if (state.fight && !state.fight.over) return;
+	state.fight = createFight(...simSides(state, plugin));
+	state.reports = [];
+}
+
+function simSides (state, plugin) {
+	const party = partyRecords(state).map(record => {
+		const id = characterId(record);
+		const sheet = state.sheets[id] || {attacks: [], spells: [], heals: [], swings: 1};
+		return {
+			name: characterName(record),
+			ac: acOf(record) || 10,
+			max: hpOf(record) || 1,
+			speed: parseSpeed(record.fields?.speed),
+			initMod: Number(record.snapshot?.rolls?.initiative) || 0,
+			image: avatarFrom(plugin, record.body),
+			options: [...(sheet.attacks || []), ...(sheet.spells || []), ...(sheet.heals || [])],
+			extraSwings: sheet.swings || 1,
+			characterLevel: Number(record.fields?.level) || 1,
+			pool: slotPool(record.snapshot?.slots),
+			saveBonus: saveMod(record),
+		};
+	});
+	return [party, simEnemies(state)];
+}
+
+function simEnemies (state) {
+	if (state.threat === "encounter" && state.creatures.length) {
+		return state.creatures.map(creature => ({
+			name: creature.name,
+			ac: creature.ac || 10,
+			max: creature.hp || 1,
+			speed: creature.speed || 30,
+			initMod: 2,
+			image: creature.image || "",
+			options: enemyOptions(creature.attacks),
+			extraSwings: 1,
+			saveBonus: crProfile(creature.cr)?.save || 0,
+		}));
+	}
+	const profile = crProfile(state.cr) || crProfile("1");
+	const swing = attackFromCr(profile);
+	const avg = Number(swing.dice) || 4;
+	const count = Math.max(1, Math.round(avg / 4.5));
+	const option = {...swing, count, faces: 8, flat: 0, melee: true, rangeFeet: 5, activation: "action"};
+	return Array.from({length: state.monsters}, (_, index) => ({
+		name: `CR ${profile.cr} ${index + 1}`,
+		ac: profile.ac,
+		max: profile.hp,
+		speed: 30,
+		initMod: 2,
+		image: "",
+		options: [option],
+		extraSwings: 1,
+		saveBonus: profile.save,
+	}));
+}
+
+function enemyOptions (attacks) {
+	const action = (attacks || []).filter(attack => attack.activation !== "bonus");
+	const bonus = (attacks || []).filter(attack => attack.activation === "bonus");
+	const options = [];
+	if (action.length) {
+		options.push({
+			...action[0],
+			name: action.length > 1 ? "Multiattack" : action[0].name,
+			repeats: action,
+			activation: "action",
+		});
+	}
+	for (const item of bonus) options.push({...item, activation: "bonus"});
+	return options;
+}
+
+function paintBoard (host, fight) {
+	const board = host.createDiv({cls: "fiveetools-dpr__board"});
+	if (!fight) {
+		board.createEl("p", {cls: "fiveetools-view__meta", text: "Step or run to place tokens."});
+		return;
+	}
+	const next = fight.over ? null : fight.actors.find(actor => actor.id === fight.order[fight.cursor]);
+	board.style.gridTemplateColumns = `repeat(${fight.cols}, 1fr)`;
+	for (let y = 0; y < fight.rows; y++) {
+		for (let x = 0; x < fight.cols; x++) {
+			const cell = board.createDiv({cls: "fiveetools-dpr__cell"});
+			const actor = fight.actors.find(it => it.x === x && it.y === y && it.hp > 0);
+			if (!actor) continue;
+			const token = cell.createDiv({cls: `fiveetools-dpr__token${actor.side === "enemy" ? " is-enemy" : ""}${next && next.id === actor.id ? " is-active" : ""}`});
+			if (actor.image) token.createEl("img", {attr: {src: actor.image, alt: actor.name}});
+			else token.createSpan({text: actor.name.slice(0, 1)});
+			token.createEl("span", {cls: "fiveetools-dpr__hp", text: String(Math.max(0, Math.round(actor.hp)))});
+		}
+	}
+}
+
+function paintLog (host, fight) {
+	const log = host.createDiv({cls: "fiveetools-dpr__log"});
+	if (!fight?.log?.length) {
+		log.createEl("p", {cls: "fiveetools-view__meta", text: "No actions yet."});
+		return;
+	}
+	for (const line of fight.log.slice(-12)) {
+		log.createEl("p", {text: `R${line.round} ${line.text}`});
+	}
+}
+
+function paintReport (host, reports, fight) {
+	const card = host.createDiv({cls: "fiveetools-dpr__report"});
+	if (!fight) return;
+	const many = (reports || []).length > 1;
+	const summary = many ? combineReports(reports) : summarize(fight);
+	card.createEl("h3", {text: many ? `${summary.runs} fights` : "Report"});
+	const stats = card.createDiv({cls: "fiveetools-dpr__stats"});
+	statTile(stats, "Rounds", many ? rangeText(summary.rounds) : String(summary.rounds || "—"));
+	statTile(stats, "Damage", many ? rangeText(summary.damage) : formatNum(summary.damage));
+	statTile(stats, "Healing", many ? rangeText(summary.healing) : formatNum(summary.healing));
+	const dropped = many ? "" : (summary.dropped || []).join(", ");
+	if (dropped) card.createEl("p", {text: `Down: ${dropped}`});
+	const rows = many ? summary.actors : summary.actors;
+	if (!rows?.length) return;
+	for (const actor of rows) {
+		const line = card.createDiv({cls: "fiveetools-dpr__actor"});
+		line.createSpan({cls: "fiveetools-dpr__actor-name", text: actor.name});
+		if (many) {
+			line.createSpan({text: `${rangeText(actor.damage)} damage · ${rangeText(actor.healing)} healing`});
+		} else {
+			line.createSpan({text: `${formatNum(actor.damage)} damage · ${formatNum(actor.healing)} healing · ${actor.hits} hits · ${actor.hp}/${actor.max}`});
+		}
+	}
+}
+
+function statTile (host, label, value) {
+	const tile = host.createDiv({cls: "fiveetools-dpr__stat"});
+	tile.createDiv({cls: "fiveetools-dpr__stat-label", text: label});
+	tile.createDiv({cls: "fiveetools-dpr__stat-value", text: value});
+}
+
+function rangeText (stat) {
+	if (!stat) return "—";
+	return `${formatNum(stat.avg)} (${formatNum(stat.min)}–${formatNum(stat.max)})`;
+}
+
+function simButton (row, text, onClick) {
+	const button = row.createEl("button", {text, cls: "fiveetools-btn"});
+	button.addEventListener("click", onClick);
+}
+
+function parseSpeed (value) {
+	const match = String(value ?? "").match(/(\d+)/);
+	return match ? Number(match[1]) : 30;
+}
+
+function saveMod (record) {
+	const saves = record?.snapshot?.rolls?.saves || [];
+	if (!saves.length) return 0;
+	return saves.reduce((sum, save) => sum + (Number(save.mod) || 0), 0) / saves.length;
+}
+
+function avatarFrom (plugin, body) {
+	const match = String(body || "").match(/!\[\[([^\]|]+)/);
+	const path = String(match?.[1] || "").trim();
+	if (!path) return "";
+	try { return plugin?.app?.vault?.adapter?.getResourcePath(path) || ""; } catch (_) { return ""; }
 }

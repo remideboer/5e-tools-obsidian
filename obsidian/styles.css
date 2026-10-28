@@ -2077,6 +2077,105 @@ a.fiveetools-inline-link {
 .fiveetools-dpr__line--heal { stroke: var(--text-success, var(--color-green)); }
 .fiveetools-dpr__line--other { stroke: var(--text-warning, var(--color-yellow)); }
 
+.fiveetools-dpr__sim {
+	margin-top: 16px;
+	padding-top: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-dpr__board {
+	display: grid;
+	gap: 2px;
+	width: min(100%, 420px);
+	margin: 8px 0;
+}
+
+.fiveetools-dpr__cell {
+	aspect-ratio: 1;
+	background: var(--background-secondary);
+	border-radius: 3px;
+	position: relative;
+}
+
+.fiveetools-dpr__token {
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 700;
+	box-sizing: border-box;
+}
+
+.fiveetools-dpr__token.is-enemy { background: var(--text-error, var(--color-red)); }
+.fiveetools-dpr__token.is-active { outline: 2px solid var(--text-normal); }
+
+.fiveetools-dpr__token img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.fiveetools-dpr__hp {
+	position: absolute;
+	right: 1px;
+	bottom: 0;
+	font-size: 9px;
+	line-height: 1;
+	background: var(--background-primary);
+	border-radius: 3px;
+	padding: 0 2px;
+}
+
+.fiveetools-dpr__log {
+	max-height: 9em;
+	overflow: auto;
+	font-size: 12px;
+}
+
+.fiveetools-dpr__report {
+	margin-top: 8px;
+	padding: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+}
+
+.fiveetools-dpr__stats {
+	display: flex;
+	gap: 8px;
+	margin: 6px 0 10px;
+}
+
+.fiveetools-dpr__stat {
+	flex: 1;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+}
+
+.fiveetools-dpr__stat-label {
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.fiveetools-dpr__stat-value { font-weight: 700; }
+
+.fiveetools-dpr__actor {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 13px;
+	padding: 3px 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-dpr__actor-name { font-weight: 600; }
+
 .fiveetools-encounter h3 {
 	margin: 8px 0 4px;
 }

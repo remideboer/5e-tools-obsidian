@@ -235,6 +235,11 @@ function rollNotation (notation) {
 	};
 }
 
+/** Roll a notation without showing a popup. A d20 natural 1 or 20 is `diceTotal`. */
+export function rollDice (notation) {
+	return rollNotation(notation);
+}
+
 function parseSimpleDice (raw) {
 	let s = String(raw || "").replace(/\s+/g, "");
 	if (!s) return null;
