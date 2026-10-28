@@ -2200,8 +2200,25 @@ a.fiveetools-inline-link {
 .fiveetools-table-player {
 	position: relative;
 	height: 100%;
-	background: #111;
+	background: #000;
 	overflow: hidden;
+}
+
+.workspace-leaf-content[data-type="fiveetools-table"] {
+	padding: 0;
+	background: #000;
+}
+
+.workspace-leaf-content[data-type="fiveetools-table"] .view-header {
+	display: none;
+}
+
+.workspace-leaf-content[data-type="fiveetools-table"] .view-content,
+.fiveetools-table-player {
+	padding: 0;
+	overflow: hidden;
+	background: #000;
+	height: 100%;
 }
 
 .fiveetools-table-player__image {
@@ -2210,7 +2227,51 @@ a.fiveetools-inline-link {
 	width: 100%;
 	height: 100%;
 	object-fit: contain;
-	background: #111;
+	background: #000;
+}
+
+body.fiveetools-table-window .fiveetools-table-player__frame {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	width: 100vw;
+	height: 100vh;
+	background: #000;
+	-webkit-app-region: drag;
+}
+
+body.fiveetools-table-window,
+body.fiveetools-table-window .workspace,
+body.fiveetools-table-window .workspace-split,
+body.fiveetools-table-window .workspace-leaf,
+body.fiveetools-table-window .workspace-leaf-content,
+body.fiveetools-table-window .view-content {
+	margin: 0;
+	background: #000 !important;
+}
+
+.fiveetools-table-player__roster {
+	-webkit-app-region: no-drag;
+}
+
+body.fiveetools-table-window .workspace-ribbon,
+body.fiveetools-table-window .workspace-tab-header-container,
+body.fiveetools-table-window .view-header,
+body.fiveetools-table-window .status-bar,
+body.fiveetools-table-window .titlebar,
+body.fiveetools-table-window #titlebar,
+body.fiveetools-table-window .titlebar-button-container,
+body.fiveetools-table-window .mod-top-left-space,
+body.fiveetools-table-window .mod-top-right-space {
+	display: none !important;
+}
+
+body.fiveetools-table-window .fiveetools-dice-overlay {
+	z-index: 1100;
+}
+
+body.fiveetools-table-window .fiveetools-roll-popup {
+	z-index: 1101;
 }
 
 .fiveetools-table-player__roster {

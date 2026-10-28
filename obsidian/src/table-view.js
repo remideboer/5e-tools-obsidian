@@ -40,20 +40,20 @@ export class FiveEToolsTableView extends ItemView {
 	async onOpen () {
 		this.contentEl.addClass("fiveetools-table-player");
 		this._off = onTableChange(() => this.paint());
+		markTableWindow(this, true);
 		this.paint();
-		this.contentEl.addEventListener("contextmenu", (evt) => {
-			const img = evt.target?.closest?.("img");
-			const src = img && img.classList?.contains("fiveetools-table-player__image") ? "" : (img?.currentSrc || img?.src || "");
-			evt.preventDefault();
-			const menu = new Menu();
-			fillTableMenu(this.plugin, menu, src);
-			menu.showAtMouseEvent(evt);
+		this.contentEl.onWindowMigrated?.(() => {
+			markTableWindow(this, true);
+			this.paint();
 		});
 	}
 
 	async onClose () {
 		this._off?.();
 		this._off = null;
+		this.frame?.remove();
+		this.frame = null;
+		markTableWindow(this, false);
 		this.revokeUrl();
 		this.contentEl.empty();
 	}
@@ -67,17 +67,51 @@ export class FiveEToolsTableView extends ItemView {
 
 	paint () {
 		const session = ensureTableSession(this.plugin);
-		this.contentEl.empty();
-		this.contentEl.addClass("fiveetools-table-player");
+		const frame = this.frame;
+		if (!frame) return;
+		frame.empty?.();
+		while (frame.firstChild) frame.removeChild(frame.firstChild);
 		const src = imageSrc(this, session);
 		if (src) {
-			this.contentEl.createEl("img", {
-				cls: "fiveetools-table-player__image",
-				attr: {src, alt: ""},
-			});
+			const img = this.contentEl.win.document.createElement("img");
+			img.className = "fiveetools-table-player__image";
+			img.alt = "";
+			img.src = src;
+			frame.appendChild(img);
 		}
-		if (session.combatants?.length) paintPlayerRoster(this.contentEl, session);
+		if (session.combatants?.length) paintPlayerRoster(frame, session, this.contentEl.win.document);
 	}
+}
+
+function markTableWindow (view, on) {
+	document.body.classList.remove("fiveetools-table-window");
+	const win = view?.contentEl?.win;
+	const body = view?.contentEl?.doc?.body;
+	if (!win || win === window || !body) return;
+	body.classList.toggle("fiveetools-table-window", on);
+	if (!on) return;
+	if (!view.frame || view.frame.ownerDocument !== win.document) mountTableFrame(view);
+	view.contentEl.doc.title = "Table";
+	win.document.documentElement.style.background = "#000";
+	body.style.background = "#000";
+}
+
+function mountTableFrame (view) {
+	const win = view.contentEl.win;
+	if (!win || win === window) return;
+	view.frame?.remove();
+	const frame = win.document.createElement("div");
+	frame.className = "fiveetools-table-player__frame";
+	win.document.body.appendChild(frame);
+	view.frame = frame;
+	frame.addEventListener("contextmenu", (evt) => {
+		evt.preventDefault();
+		const img = evt.target?.closest?.("img");
+		const src = img && !img.classList?.contains("fiveetools-table-player__image") ? (img.currentSrc || img.src || "") : "";
+		const menu = new Menu();
+		fillTableMenu(view.plugin, menu, src, evt);
+		menu.showAtMouseEvent(evt);
+	});
 }
 
 function imageSrc (view, session) {
@@ -91,25 +125,35 @@ function imageSrc (view, session) {
 	return session.image || "";
 }
 
-function paintPlayerRoster (host, session) {
-	const panel = host.createDiv({cls: "fiveetools-table-player__roster"});
-	panel.createEl("h2", {text: "Initiative"});
+function paintPlayerRoster (host, session, doc) {
+	const panel = doc.createElement("div");
+	panel.className = "fiveetools-table-player__roster";
+	const title = doc.createElement("h2");
+	title.textContent = "Initiative";
+	panel.appendChild(title);
 	for (const group of listKindGroups(session.combatants)) {
-		const block = panel.createDiv({cls: "fiveetools-table-player__group"});
-		const head = block.createDiv({cls: "fiveetools-table-player__head"});
-		head.createSpan({
-			cls: "fiveetools-table-player__name",
-			text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
-		});
-		head.createSpan({
-			cls: "fiveetools-table-player__score",
-			text: group.initScore != null ? String(group.initScore) : "—",
-		});
+		const block = doc.createElement("div");
+		block.className = "fiveetools-table-player__group";
+		const head = doc.createElement("div");
+		head.className = "fiveetools-table-player__head";
+		const name = doc.createElement("span");
+		name.className = "fiveetools-table-player__name";
+		name.textContent = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
+		const score = doc.createElement("span");
+		score.className = "fiveetools-table-player__score";
+		score.textContent = group.initScore != null ? String(group.initScore) : "—";
+		head.append(name, score);
+		block.appendChild(head);
 		for (const member of group.members) {
 			if (group.members.length === 1 && member.label === group.label) continue;
-			block.createDiv({cls: "fiveetools-table-player__member", text: member.label});
+			const line = doc.createElement("div");
+			line.className = "fiveetools-table-player__member";
+			line.textContent = member.label;
+			block.appendChild(line);
 		}
+		panel.appendChild(block);
 	}
+	host.appendChild(panel);
 }
 
 export function renderTableTool (listEl, readerEl, {plugin} = {}) {
@@ -136,7 +180,9 @@ async function paintInserts (listEl, plugin) {
 		text: "The Table window keeps one image as its background. This roster and public dice sit on top of it.",
 	});
 	const actions = box.createDiv({cls: "fiveetools-dpr__sim-controls"});
-	toolButton(actions, "Open table", () => { void openTableWindow(plugin); });
+	toolButton(actions, "Open table", (evt) => {
+		castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
+	});
 	toolButton(actions, "Clear table", () => clearTableImage(plugin));
 	toolButton(actions, "Close table", () => closeTableWindow(plugin));
 	const session = ensureTableSession(plugin);
@@ -383,23 +429,122 @@ function toolButton (row, text, onClick) {
 	return button;
 }
 
-export async function openTableWindow (plugin) {
+export async function openTableWindow (plugin, {display = null} = {}) {
 	const workspace = plugin.app?.workspace;
 	if (typeof workspace?.openPopoutLeaf !== "function") {
 		new Notice("The Table window needs the Obsidian desktop app.");
 		return;
 	}
+	const target = display || primaryDisplay();
+	const area = target?.workAreaSize || target?.size;
 	try {
 		let leaf = workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_TABLE)[0];
 		if (!leaf) {
-			leaf = workspace.openPopoutLeaf({size: {width: 1280, height: 720}});
+			const size = area
+				? {width: Math.max(800, area.width | 0), height: Math.max(600, area.height | 0)}
+				: {width: 1280, height: 720};
+			leaf = workspace.openPopoutLeaf({size});
 			await leaf.setViewState({type: VIEW_TYPE_FIVEETOOLS_TABLE, active: true});
 		}
 		workspace.revealLeaf(leaf);
-		leaf.view?.paint?.();
+		const view = leaf.view;
+		if (view?.getViewType?.() === VIEW_TYPE_FIVEETOOLS_TABLE) {
+			markTableWindow(view, true);
+			view.paint?.();
+			const win = view.contentEl?.win;
+			if (target && win && win !== window) {
+				requestAnimationFrame(() => placePopoutOnDisplay(win, target));
+			}
+		}
 	} catch (err) {
 		new Notice(err?.message || "Could not open the Table window.");
 	}
+}
+
+function castTableWindow (plugin, {anchorEl, mouseEvent} = {}) {
+	const displays = listDisplays();
+	const primary = primaryDisplay();
+	const finish = (display) => { void openTableWindow(plugin, {display}); };
+	if (displays.length <= 1) {
+		finish(displays[0] || primary);
+		return;
+	}
+	const menu = new Menu();
+	displays.forEach((display, index) => {
+		menu.addItem((item) => {
+			item.setTitle(displayLabel(display, index, primary)).onClick(() => finish(display));
+		});
+	});
+	if (mouseEvent) menu.showAtMouseEvent(mouseEvent);
+	else if (anchorEl) {
+		const rect = anchorEl.getBoundingClientRect();
+		menu.showAtPosition({x: rect.left, y: rect.bottom});
+	} else finish(primary);
+}
+
+function electronRemote () {
+	return window.electron?.remote || null;
+}
+
+function listDisplays () {
+	try {
+		const displays = electronRemote()?.screen?.getAllDisplays?.();
+		return Array.isArray(displays) ? displays : [];
+	} catch (_) {
+		return [];
+	}
+}
+
+function primaryDisplay () {
+	try {
+		return electronRemote()?.screen?.getPrimaryDisplay?.() || listDisplays()[0] || null;
+	} catch (_) {
+		return listDisplays()[0] || null;
+	}
+}
+
+function browserWindowFor (win) {
+	if (!win) return null;
+	try {
+		if (typeof win.electron?.remote?.getCurrentWindow === "function") return win.electron.remote.getCurrentWindow();
+	} catch (_) { /* ignore */ }
+	try {
+		const req = win.require || window.require;
+		const remote = req?.("electron")?.remote;
+		if (typeof remote?.getCurrentWindow === "function") return remote.getCurrentWindow();
+	} catch (_) { /* ignore */ }
+	return null;
+}
+
+function placePopoutOnDisplay (win, display) {
+	if (!win || !display) return;
+	const bw = browserWindowFor(win);
+	if (!bw) return;
+	try {
+		const area = display.workArea || display.bounds;
+		if (area && typeof bw.setBounds === "function") {
+			bw.setBounds({
+				x: area.x | 0,
+				y: area.y | 0,
+				width: Math.max(200, area.width | 0),
+				height: Math.max(200, area.height | 0),
+			});
+		} else if (area && typeof bw.setPosition === "function") {
+			bw.setPosition(area.x | 0, area.y | 0);
+		}
+		if (typeof bw.maximize === "function") bw.maximize();
+	} catch (_) { /* ignore */ }
+}
+
+function displayLabel (display, index, primary) {
+	const size = display?.size || display?.bounds || {};
+	const w = size.width || display?.workAreaSize?.width || "?";
+	const h = size.height || display?.workAreaSize?.height || "?";
+	const tags = [];
+	if (primary && display?.id === primary.id) tags.push("primary");
+	if (display?.internal) tags.push("built-in");
+	const suffix = tags.length ? ` (${tags.join(", ")})` : "";
+	return `Screen ${index + 1} — ${w}×${h}${suffix}`;
 }
 
 export function closeTableWindow (plugin) {
@@ -436,17 +581,16 @@ export async function showOnTable (plugin, src) {
 		session.imageBytes = null;
 	}
 	refreshTable(plugin);
-	await openTableWindow(plugin);
 }
 
-export function fillTableMenu (plugin, menu, src) {
+export function fillTableMenu (plugin, menu, src, mouseEvent) {
 	if (src) {
 		menu.addItem((item) => {
-			item.setTitle("Show on table").onClick(() => { void showOnTable(plugin, src); });
+			item.setTitle("Show on table").onClick(() => { void showOnTable(plugin, src).then(() => castTableWindow(plugin, {mouseEvent})); });
 		});
 	}
 	menu.addItem((item) => {
-		item.setTitle("Open table").onClick(() => { void openTableWindow(plugin); });
+		item.setTitle("Open table").onClick(() => castTableWindow(plugin, {mouseEvent}));
 	});
 	menu.addItem((item) => {
 		item.setTitle("Clear table").onClick(() => clearTableImage(plugin));
@@ -466,7 +610,7 @@ export function bindTableImageMenu (el, plugin) {
 		if (!src) return;
 		evt.preventDefault();
 		const menu = new Menu();
-		fillTableMenu(plugin, menu, src);
+		fillTableMenu(plugin, menu, src, evt);
 		menu.showAtMouseEvent(evt);
 	});
 }

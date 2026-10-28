@@ -1323,7 +1323,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 					schedule();
 				});
 		});
-		fillTableMenu(plugin, menu, plugin._mapTableSrc || "");
+		fillTableMenu(plugin, menu, plugin._mapTableSrc || "", evt);
 		menu.showAtMouseEvent(evt);
 	});
 	diagEl.addEventListener("change", () => {
