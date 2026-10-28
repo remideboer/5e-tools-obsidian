@@ -254,6 +254,15 @@ export class FiveEToolsLibraryView extends ItemView {
 		}
 		this.renderNav();
 		this.refreshList();
+		this.focusLibraryList();
+	}
+
+	focusLibraryList () {
+		if (this.plugin?.settings?.focusListOnNav === false) return;
+		const list = this.listEl;
+		if (!list) return;
+		list.setAttr("tabindex", "0");
+		list.focus();
 	}
 
 	/** Replace bestiary filter facets (habitat deep-links from creature stats). */

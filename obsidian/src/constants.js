@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
 	dice3d: false,
 	dicePublic: false,
 	convertHeicOnPaste: true,
+	focusListOnNav: true,
 };
 
 export const MAX_SEARCH_RESULTS = 40;

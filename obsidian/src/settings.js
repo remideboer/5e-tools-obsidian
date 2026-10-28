@@ -93,6 +93,16 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName("Focus the list after choosing a section")
+			.setDesc("When you pick an item in the library navigation, the cursor moves to that list so the arrow keys work. Turn this off to leave focus where it was.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.focusListOnNav !== false)
+				.onChange(async (value) => {
+					this.plugin.settings.focusListOnNav = !!value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName("Statblock style")
 			.setDesc("Classic (2014) or modern (2024) compact rendering.")
 			.addDropdown(dropdown => dropdown
