@@ -1,6 +1,6 @@
 import {setIcon, Notice} from "obsidian";
 import {characterName, listCharacters} from "./character-store.js";
-import {attackFromCr, crOptions, crProfile, creatureTurn, formatNum, normalizeDefenses} from "./dpr-calc.js";
+import {abilityMod, attackFromCr, combatTraits, crOptions, crProfile, creatureSaves, creatureTurn, creatureType, formatNum, normalizeDefenses} from "./dpr-calc.js";
 import {combineReports, createFight, runFight, stepRound, stepTurn, summarize} from "./dpr-sim.js";
 import {planTurn} from "./dpr-ai.js";
 import {
@@ -172,10 +172,16 @@ async function loadAdded (plugin, added) {
 		let ac = 10;
 		let hp = 1;
 		let cr = "";
+		let saveMods = null;
+		let type = "";
+		let traits = null;
 		try {
 			const ent = row.doc ? (await loadEntity(row.doc))?.ent : null;
 			attacks = creatureTurn(ent);
 			defenses = normalizeDefenses(ent);
+			saveMods = ent ? creatureSaves(ent) : null;
+			type = creatureType(ent);
+			traits = ent ? combatTraits(ent) : null;
 			const token = ent ? resolveTokenImage(ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl}) : null;
 			image = token?.url || "";
 			const walk = ent?.speed?.walk ?? ent?.speed;
@@ -195,6 +201,9 @@ async function loadAdded (plugin, added) {
 			speed,
 			defenses,
 			int,
+			saveMods,
+			type,
+			traits,
 		});
 	}
 	return creatures;
@@ -564,6 +573,15 @@ function startAuto (state, plugin, refresh) {
 	refresh();
 }
 
+function saveModsFrom (record) {
+	const out = {};
+	for (const save of record?.snapshot?.rolls?.saves || []) {
+		const key = String(save.key || "").toLowerCase();
+		if (key) out[key] = Number(save.mod) || 0;
+	}
+	return out;
+}
+
 function simPace (state) {
 	const pace = Number(state?.simPace);
 	return [400, 800, 1200, 2000, 3000].includes(pace) ? pace : 800;
@@ -599,6 +617,12 @@ function simSides (state, plugin) {
 			int: Number(record.snapshot?.abilities?.int) || 10,
 			defenses: normalizeDefenses(record.snapshot?.defenses),
 			saveBonus: saveMod(record),
+			saveMods: saveModsFrom(record),
+			chaMod: abilityMod(record.snapshot?.abilities?.cha),
+			wisMod: abilityMod(record.snapshot?.abilities?.wis),
+			spellDc: Number(record.snapshot?.spellcasting?.[0]?.dc) || (8 + abilityMod(record.snapshot?.abilities?.wis) + (Number(record.snapshot?.rolls?.proficiency) || 2)),
+			pb: Number(record.snapshot?.rolls?.proficiency) || 2,
+			type: "humanoid",
 		};
 	});
 	return [party, simEnemies(state)];
@@ -619,6 +643,9 @@ function simEnemies (state) {
 			int: Number.isFinite(Number(creature.int)) ? Number(creature.int) : null,
 			defenses: creature.defenses || normalizeDefenses(null),
 			saveBonus: crProfile(creature.cr)?.save || 0,
+			saveMods: creature.saveMods || null,
+			type: creature.type || "",
+			traits: creature.traits || null,
 		}));
 	}
 	const profile = crProfile(state.cr) || crProfile("1");

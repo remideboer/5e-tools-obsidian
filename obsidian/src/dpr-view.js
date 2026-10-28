@@ -16,6 +16,13 @@ import {
 	spellExtras,
 	diceShape,
 	normalizeDefenses,
+	onHitFromText,
+	abilityMod,
+	creatureSaves,
+	creatureType,
+	combatTraits,
+	classLevel,
+	beamCounts,
 } from "./dpr-calc.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {loadEntity} from "./entity-loader.js";
@@ -153,10 +160,16 @@ export async function encounterCreatures (plugin, encounterId) {
 		let speed = 30;
 		let defenses = normalizeDefenses(null);
 		let int = null;
+		let saveMods = null;
+		let type = "";
+		let traits = null;
 		try {
 			const ent = combatant.ent || (combatant.doc ? (await loadEntity(combatant.doc))?.ent : null);
 			attacks = creatureTurn(ent);
 			defenses = normalizeDefenses(ent);
+			saveMods = ent ? creatureSaves(ent) : null;
+			type = creatureType(ent);
+			traits = ent ? combatTraits(ent) : null;
 			const token = ent ? resolveTokenImage(ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl}) : null;
 			image = token?.url || "";
 			const walk = ent?.speed?.walk ?? ent?.speed;
@@ -173,6 +186,9 @@ export async function encounterCreatures (plugin, encounterId) {
 			speed,
 			defenses,
 			int,
+			saveMods,
+			type,
+			traits,
 		});
 	}
 	return creatures;
@@ -292,9 +308,9 @@ function paintChecks (host, state, paint) {
 		const swings = sheet.swings > 1 ? ` · ${sheet.swings} swings` : "";
 		column.createEl("h3", {text: `${characterName(record)} · AC ${acOf(record) ?? "—"} · HP ${hpOf(record) || "—"}${swings}`});
 		const picks = memberPicks(state, id);
-		paintGroup(column, "Attacks", sheet.attacks, picks.attacks, paint);
-		paintGroup(column, "Spells", sheet.spells, picks.spells, paint);
-		paintGroup(column, "Healing", sheet.heals, picks.heals, paint);
+		paintGroup(column, "Attacks", listedSources(sheet.attacks), picks.attacks, paint);
+		paintGroup(column, "Spells", listedSources(sheet.spells), picks.spells, paint);
+		paintGroup(column, "Healing", listedSources(sheet.heals), picks.heals, paint);
 	}
 	host.createDiv({cls: "fiveetools-dpr__results"});
 }
@@ -434,9 +450,9 @@ function memberTurn (state, record) {
 	const sheet = state.sheets[id] || {attacks: [], spells: [], heals: [], swings: 1};
 	const picks = memberPicks(state, id);
 	const checked = [
-		...sheet.attacks.filter(row => picks.attacks.has(row.id)),
-		...sheet.spells.filter(row => picks.spells.has(row.id)),
-		...sheet.heals.filter(row => picks.heals.has(row.id)),
+		...listedSources(sheet.attacks).filter(row => picks.attacks.has(row.id)),
+		...listedSources(sheet.spells).filter(row => picks.spells.has(row.id)),
+		...listedSources(sheet.heals).filter(row => picks.heals.has(row.id)),
 	];
 	return {
 		name: characterName(record),
@@ -564,7 +580,14 @@ export async function sourcesFor (plugin, record) {
 	await ensureSearchIndex(plugin);
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	const casting = snapshot.spellcasting || [];
-	const attacks = (snapshot.actions || []).map(action => actionSource(action, casting)).filter(Boolean);
+	const attacks = (snapshot.actions || []).map(action => actionSource(action, casting, snapshot.actions, record)).filter(Boolean);
+	const notes = [...(snapshot.actions || []), ...(snapshot.features || [])];
+	if (notes.some(it => /disciple of life/i.test(it?.name || ""))) {
+		attacks.push({id: "feature:disciple", name: "Disciple of Life", kind: "utility", utility: "disciple", hidden: true, spell: false});
+	}
+	if (notes.some(it => /agonizing blast/i.test(`${it?.name || ""} ${it?.snippet || ""}`))) {
+		attacks.push({id: "feature:agonizing", name: "Agonizing Blast", kind: "utility", utility: "agonizing", hidden: true, spell: false});
+	}
 	try {
 		await attachWildShape(record, attacks);
 	} catch (_) { /* the shape stays a bonus action with no beast */ }
@@ -637,43 +660,169 @@ async function bestBeast (cap) {
 	return best;
 }
 
-function actionSource (action, casting) {
-	if (/wild shape/i.test(action?.name || "")) {
-		return {
-			id: `action:${action.name}`,
-			name: action.name,
-			kind: "utility",
-			utility: "wildshape",
-			slot: "bonus",
-			activation: "bonus",
-			spell: false,
-		};
-	}
+function listedSources (rows) {
+	return (rows || []).filter(row => !row?.hidden && !row?.rider && row?.kind !== "rider");
+}
+
+function actionSource (action, casting, actions, record) {
+	const name = String(action?.name || "");
+	const snippet = String(action?.snippet || "");
+	const feature = featureSource(action, actions, record);
+	if (feature) return feature;
+	if (feature === null && /divine sense/i.test(name)) return null;
 	const notation = String(action?.dice || action?.snippet || "").trim();
 	const parts = averageFromText(notation);
-	if (!parts) return null;
+	const onHit = onHitFromText(`${notation} ${snippet}`);
+	if (!parts && !onHit?.conditionOnHit && !onHit?.conditionOnFail) return null;
 	const bonus = parseBonus(action.attack);
 	const line = casting[0];
 	const dc = parseDc(action.save) ?? (Number(line?.dc) || 0);
 	let kind = "auto";
 	if (bonus != null && action.attack) kind = "attack";
-	else if (action.save) kind = "save";
+	else if (action.save || onHit?.save) kind = onHit?.save && bonus != null ? "attack" : "save";
+	const shape = diceShape(notation);
 	return {
-		id: `action:${action.name}`,
-		name: action.name,
+		id: `action:${name}`,
+		name,
 		activation: action.activation || "",
 		slot: economySlot(action.activation),
 		range: action.range || "",
-		blurb: String(action.snippet || ""),
-		count: diceShape(notation)?.count || 0,
-		faces: diceShape(notation)?.faces || 0,
+		blurb: snippet,
+		count: shape?.count || 0,
+		faces: shape?.faces || 0,
 		damage: String(action.damage || "").toLowerCase(),
 		kind,
 		bonus: bonus ?? 0,
-		dc,
-		notation: diceLabel(parts, notation),
-		...parts,
+		dc: onHit?.save?.dc || dc,
+		saveAbility: onHit?.save?.ability || saveAbility(action.save),
+		notation: parts ? diceLabel(parts, notation) : "",
+		...(parts || {dice: 0, flat: 0, average: 0}),
+		...(onHit ? {onHit} : {}),
 	};
+}
+
+function featureSource (action, actions, record) {
+	const name = String(action?.name || "");
+	const snippet = String(action?.snippet || "");
+	const edition = /XPHB|2024/i.test(String(action?.source || "")) ? "one" : "classic";
+	if (/^wild shape$/i.test(name)) {
+		const moon = (actions || []).some(it => /combat wild shape/i.test(it?.name || ""));
+		const slot = moon ? "bonus" : economySlot(action.activation);
+		return {
+			id: `action:${name}`,
+			name,
+			kind: "utility",
+			utility: "wildshape",
+			slot,
+			activation: slot,
+			spell: false,
+		};
+	}
+	if (/combat wild shape/i.test(name)) {
+		return {id: `action:${name}`, name, kind: "heal", utility: "shape-heal", slot: "bonus", activation: "bonus", spell: false, hidden: true};
+	}
+	if (/sneak attack/i.test(name)) {
+		const notation = String(action.dice || snippet);
+		const parts = averageFromText(notation);
+		if (!parts) return null;
+		const shape = diceShape(notation);
+		return {id: `action:${name}`, name, kind: "rider", rider: "sneak", hidden: true, spell: false, ...parts, count: shape?.count || 0, faces: shape?.faces || 0, flat: shape?.flat ?? parts.flat};
+	}
+	if (/cunning action/i.test(name)) {
+		return {id: `action:${name}`, name, kind: "utility", utility: "disengage", slot: "bonus", activation: "bonus", spell: false, hidden: true};
+	}
+	if (/steady aim/i.test(name)) {
+		return {id: `action:${name}`, name, kind: "utility", utility: "steady", slot: "bonus", activation: "bonus", spell: false, hidden: true};
+	}
+	if (/^divine smite$/i.test(name)) {
+		const cap = /maximum of\s+5d8|5d8/i.test(snippet) ? 5 : 0;
+		return {
+			id: `action:${name}`,
+			name,
+			kind: "rider",
+			rider: "smite",
+			bonusAction: false,
+			hidden: true,
+			spell: true,
+			level: 1,
+			damage: "radiant",
+			dice: 9,
+			flat: 0,
+			count: 2,
+			faces: 8,
+			baseDice: 9,
+			baseFlat: 0,
+			baseCount: 2,
+			baseFaces: 8,
+			cap,
+			scale: {from: 1, every: 1, dice: 4.5, flat: 0, count: 1, faces: 8},
+		};
+	}
+	if (/action surge/i.test(name)) {
+		return {id: `action:${name}`, name, kind: "utility", utility: "surge", uses: Number(action.uses) || (classLevel(record?.fields?.classes, "fighter") >= 17 ? 2 : 1), edition, spell: false, hidden: true};
+	}
+	if (/^rage\b/i.test(name)) {
+		const modern = edition === "one" || /short rest/i.test(snippet);
+		return {id: `action:${name}`, name: "Rage", kind: "utility", utility: "rage", slot: "bonus", activation: "bonus", uses: Number(action.uses) || 0, edition: modern ? "one" : "classic", spell: false, hidden: true};
+	}
+	if (/stunning strike/i.test(name)) {
+		const modern = edition === "one" || /focus point/i.test(snippet);
+		return {id: `action:${name}`, name, kind: "rider", rider: "stun", edition: modern ? "one" : "classic", spell: false, hidden: true};
+	}
+	if (/^(ki|ki points|focus points|focus)$/i.test(name)) {
+		return {id: `action:${name}`, name, kind: "utility", utility: "ki", uses: Number(action.uses) || 0, spell: false, hidden: true};
+	}
+	if (/lay on hands/i.test(name)) {
+		const bonus = /bonus/i.test(`${action.activation || ""} ${snippet}`);
+		return {id: `action:${name}`, name, kind: "heal", utility: "lay", slot: bonus ? "bonus" : "action", activation: bonus ? "bonus" : "action", spell: false, hidden: true};
+	}
+	if (/^channel divinity$/i.test(name)) {
+		return {id: `action:${name}`, name, kind: "utility", utility: "channel-pool", uses: Number(action.uses) || 1, spell: false, hidden: true};
+	}
+	if (/divine sense/i.test(name)) return null;
+	return channelSource(action) || undefined;
+}
+
+function channelSource (action) {
+	const name = String(action?.name || "");
+	const label = name.replace(/^channel divinity:\s*/i, "");
+	if (!/channel divinity|divine spark|turn undead|preserve life|vow of enmity|harness divine power|invoke duplicity/i.test(name)) return null;
+	const id = `action:${name}`;
+	if (/divine spark/i.test(label)) {
+		const notation = String(action.dice || "1d8");
+		const parts = averageFromText(notation) || {dice: 4.5, flat: 0, average: 4.5};
+		const shape = diceShape(notation);
+		return {id, name: "Divine Spark", kind: "save", utility: "spark", slot: "action", activation: "action", spell: false, hidden: true, range: action.range || "30 ft", damage: "radiant", saveAbility: "con", ...parts, count: shape?.count || 1, faces: shape?.faces || 8, flat: 0};
+	}
+	if (/turn undead/i.test(label)) return {id, name: "Turn Undead", kind: "utility", utility: "turn", slot: "action", activation: "action", spell: false, hidden: true, range: "30 ft"};
+	if (/preserve life/i.test(label)) return {id, name: "Preserve Life", kind: "heal", utility: "preserve", slot: "action", activation: "action", spell: false, hidden: true, range: "30 ft"};
+	if (/vow of enmity/i.test(label)) return {id, name: "Vow of Enmity", kind: "utility", utility: "vow", spell: false, hidden: true, range: "30 ft"};
+	if (/harness divine power/i.test(label)) return {id, name: "Harness Divine Power", kind: "utility", utility: "harness", slot: "bonus", activation: "bonus", spell: false, hidden: true};
+	if (/invoke duplicity/i.test(label)) return {id, name: "Invoke Duplicity", kind: "utility", utility: "duplicity", slot: "bonus", activation: "bonus", spell: false, hidden: true};
+	const onHit = onHitFromText(action.snippet || "");
+	const parts = averageFromText(action.dice || action.snippet || "");
+	if (!parts && !onHit) return null;
+	return {
+		id,
+		name: label,
+		kind: onHit?.save ? "save" : "auto",
+		utility: "channel",
+		slot: economySlot(action.activation),
+		activation: action.activation || "action",
+		spell: false,
+		hidden: true,
+		range: action.range || "",
+		blurb: String(action.snippet || ""),
+		...(parts || {dice: 0, flat: 0, average: 0}),
+		...(onHit ? {onHit, dc: onHit.save?.dc || 0, saveAbility: onHit.save?.ability || ""} : {}),
+	};
+}
+
+function saveAbility (value) {
+	const match = String(value || "").match(/\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma|Str|Dex|Con|Int|Wis|Cha)\b/i);
+	if (!match) return "";
+	const key = match[1].toLowerCase();
+	return {strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha"}[key] || key;
 }
 
 async function spellSource (spell, casting, edition, characterLevel) {
@@ -713,9 +862,14 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		flat: parts.flat,
 		count: shape?.count || 0,
 		faces: shape?.faces || 0,
+		baseDice: parts.dice,
+		baseFlat: parts.flat,
+		baseCount: shape?.count || 0,
+		baseFaces: shape?.faces || 0,
 		damage: String(ent?.damageInflict?.[0] || "").toLowerCase(),
 		range: spell.range || "",
 		blurb: text.slice(0, 240),
+		...(riderFields(name, text, ent)),
 	};
 	const shown = spellAtSlot(row, level > 0 ? level : 0, characterLevel);
 	const baseText = firstDiceText(extras.text) || firstDiceText(spell?.snippet) || diceLabel(parts, spell?.snippet);
@@ -728,6 +882,20 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		faces: shown.faces || row.faces,
 		notation: cantripLabel || (extras.scale ? `${baseText} +${extras.scale.label}/slot` : baseText),
 	};
+}
+
+function riderFields (name, text, ent) {
+	if (/^divine smite$/i.test(name)) {
+		return {kind: "rider", rider: "smite", bonusAction: true, hidden: true, cap: /5d8/i.test(text) ? 5 : 0};
+	}
+	if (/^(hex|hunter's mark)$/i.test(name)) {
+		return {kind: "rider", rider: "mark", hidden: true, slot: "bonus", activation: "bonus", scale: null};
+	}
+	if (/eldritch blast/i.test(name)) {
+		const beams = beamCounts(text);
+		return beams.length ? {beams} : {};
+	}
+	return {};
 }
 
 function firstDiceText (text) {

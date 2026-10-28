@@ -231,7 +231,7 @@ export function creatureRound (ent) {
 	const word = text.match(/\b(two|three|four|five|six)\b/i);
 	const count = word ? COUNT_WORD[word[1].toLowerCase()] : 1;
 	if (!attacks[0]) return [];
-	return Array.from({length: count}, () => attacks[0]);
+	return Array.from({length: count}, (_, index) => attacks[index % attacks.length]);
 }
 
 /** Multiattack as the action, plus one damaging bonus action if the creature has one. */
@@ -254,6 +254,71 @@ export function creatureTurn (ent) {
 		...(bonus ? [{...bonus, activation: "bonus"}] : []),
 		...utility,
 	];
+}
+
+const TRAIT_TYPES = ["acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic", "piercing", "poison", "psychic", "radiant", "slashing", "thunder"];
+
+/** Combat traits from a stat block. Flavor traits (climb, senses, breathing) are left out. */
+export function combatTraits (ent) {
+	const list = Array.isArray(ent?.trait) ? ent.trait : [];
+	const out = {};
+	for (const trait of list) {
+		const name = String(trait?.name || "");
+		const text = plainAttackText(flattenEntries(trait?.entries || trait?.entry || ""));
+		if (/regeneration/i.test(name)) out.regen = regenTrait(text);
+		else if (/pack tactics/i.test(name)) out.pack = true;
+		else if (/blood frenzy/i.test(name)) out.frenzy = true;
+		else if (/magic resistance/i.test(name)) out.magicResist = true;
+		else if (/legendary resistance/i.test(name)) out.legendary = Number((`${name} ${text}`.match(/(\d+)\s*\/\s*day/i) || [])[1]) || 3;
+		else if (/undead fortitude/i.test(name)) out.fortitude = true;
+		else if (/\bbrave\b/i.test(name)) out.brave = true;
+		else if (/flyby/i.test(name)) out.flyby = true;
+		else if (/aggressive/i.test(name)) out.aggressive = true;
+		else if (/pounce|^charge\b/i.test(name)) out.pounce = pounceTrait(text);
+		else if (/rampage/i.test(name)) out.rampage = {attack: (text.match(/make (?:a |one )?([a-z][a-z '-]*?) attack/i) || [])[1] || "bite"};
+		else if (/death burst/i.test(name)) out.burst = burstTrait(text);
+		else if (/ambusher/i.test(name)) out.ambush = true;
+	}
+	return out;
+}
+
+function regenTrait (text) {
+	const amount = Number((text.match(/regains?\s+(\d+)/i) || [])[1]) || 10;
+	const takes = text.match(/takes\s+([^.]+?)\s+damage/i);
+	const suppress = [];
+	if (takes) {
+		for (const type of TRAIT_TYPES) {
+			if (new RegExp(`\\b${type}\\b`, "i").test(takes[1])) suppress.push(type);
+		}
+	}
+	return {
+		amount,
+		suppress,
+		onlyAlive: /at least 1 hit point/i.test(text),
+		holdDeath: /dies only if/i.test(text),
+	};
+}
+
+function pounceTrait (text) {
+	const extra = text.match(/extra\s+(?:\d+\s*\()?(\d*d\d+(?:\s*[+-]\s*\d+)?)\)?\s+(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)/i);
+	const packet = extra ? damagePacket(extra[1], extra[2], true) : null;
+	return {
+		dc: Number((text.match(/DC\s*(\d+)/i) || [])[1]) || 10,
+		prone: /prone/i.test(text),
+		extra: packet,
+	};
+}
+
+function burstTrait (text) {
+	const ability = (text.match(/DC\s*\d+\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma|Str|Dex|Con|Int|Wis|Cha)/i) || [])[1];
+	const rolled = text.match(/(\d*d\d+(?:\s*[+-]\s*\d+)?)\)?\s+(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)/i);
+	return {
+		dc: Number((text.match(/DC\s*(\d+)/i) || [])[1]) || 10,
+		ability: ability ? SAVE_ABILITY[ability.toLowerCase()] : "dex",
+		feet: Number((text.match(/within\s+(\d+)\s*(?:feet|ft)/i) || [])[1]) || 5,
+		half: /half as much/i.test(text),
+		extra: rolled ? damagePacket(rolled[1], rolled[2], true) : null,
+	};
 }
 
 function attackForms (action) {
@@ -449,10 +514,11 @@ export function spellAtSlot (spell, slotLevel, characterLevel) {
 		return {...spell, dice: pick.dice, flat: pick.flat, count: pick.count || spell.count || 0, faces: pick.faces || spell.faces || 0, castLevel: 0};
 	}
 	const slot = Number(slotLevel) || Number(spell?.level) || 0;
-	let dice = Number(spell?.dice) || 0;
-	let flat = Number(spell?.flat) || 0;
-	let count = Number(spell?.count) || 0;
-	let faces = Number(spell?.faces) || 0;
+	const hasBase = spell?.baseDice != null || spell?.baseFlat != null || spell?.baseCount != null;
+	let dice = Number(hasBase ? spell.baseDice : spell?.dice) || 0;
+	let flat = Number(hasBase ? spell.baseFlat : spell?.flat) || 0;
+	let count = Number(hasBase ? spell.baseCount : spell?.count) || 0;
+	let faces = Number(hasBase ? spell.baseFaces : spell?.faces) || 0;
 	const scale = spell?.scale;
 	if (scale && slot > scale.from) {
 		const steps = Math.floor((slot - scale.from) / (scale.every || 1));
@@ -576,6 +642,132 @@ export function takeHighestSlot (pool, minLevel) {
 	return pool.splice(index, 1)[0];
 }
 
+/** A higher slot is worth spending when the book adds dice or a flat bonus. */
+export function scaleAddsDice (spell) {
+	const scale = spell?.scale;
+	if (!scale) return false;
+	return (Number(scale.dice) || 0) > 0 || (Number(scale.flat) || 0) > 0 || (Number(scale.count) || 0) > 0;
+}
+
+/**
+ * Which remaining slot to spend. Damage that scales uses the highest slot.
+ * A heal steps up only until the dice cover the hit points still missing.
+ * Anything else, including Hex, uses the lowest slot that can cast it.
+ */
+export function spendSlot (pool, spell, {missing = Infinity, disciple = false, characterLevel = 1} = {}) {
+	const index = slotIndex(pool, spell, {missing, disciple, characterLevel});
+	if (index < 0) return null;
+	return pool.splice(index, 1)[0];
+}
+
+export function peekSlot (pool, spell, opts) {
+	const index = slotIndex(pool, spell, opts);
+	return index < 0 ? null : pool[index];
+}
+
+function slotIndex (pool, spell, {missing = Infinity, disciple = false, characterLevel = 1} = {}) {
+	const min = Number(spell?.level) || 0;
+	if (!(min > 0)) return -1;
+	const indexes = [];
+	for (let i = 0; i < (pool || []).length; i++) {
+		if ((pool[i].level || 0) >= min) indexes.push(i);
+	}
+	if (!indexes.length) return -1;
+	const levelOf = (index) => pool[index].level || 0;
+	const heal = spell?.kind === "heal";
+	const low = spell?.rider === "mark" || (!heal && !scaleAddsDice(spell));
+	if (low) {
+		indexes.sort((a, b) => levelOf(a) - levelOf(b) || (pool[a].pact ? 1 : 0) - (pool[b].pact ? 1 : 0));
+		return indexes[0];
+	}
+	if (heal) {
+		indexes.sort((a, b) => levelOf(a) - levelOf(b));
+		let pick = indexes[0];
+		for (const index of indexes) {
+			pick = index;
+			if (healAmount(spell, levelOf(index), disciple, characterLevel) >= missing) break;
+		}
+		return pick;
+	}
+	let best = indexes[0];
+	for (const index of indexes) {
+		const level = levelOf(index);
+		const bestLevel = levelOf(best);
+		if (level > bestLevel || (level === bestLevel && pool[best].pact && !pool[index].pact)) best = index;
+	}
+	return best;
+}
+
+export function healAmount (spell, slotLevel, disciple, characterLevel) {
+	const cast = spellAtSlot(spell, slotLevel, characterLevel);
+	let total = (Number(cast.dice) || 0) + (Number(cast.flat) || 0);
+	if (disciple && slotLevel > 0) total += 2 + slotLevel;
+	return total;
+}
+
+export function classLevel (label, name) {
+	const match = String(label || "").match(new RegExp(`${name}\\s+(\\d+)`, "i"));
+	return match ? Number(match[1]) : 0;
+}
+
+/** Barbarian Features table: +2, then +3 at 9th, +4 at 16th. */
+export function rageDamage (level) {
+	const n = Number(level) || 1;
+	if (n >= 16) return 4;
+	if (n >= 9) return 3;
+	return 2;
+}
+
+export function abilityMod (score) {
+	const n = Number(score);
+	if (!Number.isFinite(n)) return 0;
+	return Math.floor((n - 10) / 2);
+}
+
+export function creatureSaves (ent) {
+	const keys = ["str", "dex", "con", "int", "wis", "cha"];
+	const out = {};
+	for (const key of keys) out[key] = abilityMod(ent?.[key]);
+	const listed = ent?.save || {};
+	for (const key of keys) {
+		if (listed[key] == null) continue;
+		const raw = listed[key];
+		const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[^\d+-]/g, ""));
+		if (Number.isFinite(n)) out[key] = n;
+	}
+	return out;
+}
+
+export function creatureType (ent) {
+	const type = ent?.type;
+	if (typeof type === "string") return type.toLowerCase();
+	if (type && typeof type === "object") return String(type.type || type.choose || "").toLowerCase();
+	return "";
+}
+
+const BEAM_WORD = {one: 1, two: 2, three: 3, four: 4, five: 5};
+
+/** "two beams at level 5" from a cantrip upgrade paragraph. */
+export function beamCounts (text) {
+	const plain = plainAttackText(text);
+	const out = [];
+	const re = /\b(one|two|three|four|five|\d+)\s+beams?\s+at\s+(?:character\s+)?level\s+(\d+)/gi;
+	let match;
+	while ((match = re.exec(plain))) {
+		const count = BEAM_WORD[match[1].toLowerCase()] || Number(match[1]);
+		if (count > 0) out.push({level: Number(match[2]), count});
+	}
+	return out.sort((a, b) => a.level - b.level);
+}
+
+export function beamsAt (rows, characterLevel) {
+	let count = 1;
+	for (const row of rows || []) {
+		if (row.level <= (Number(characterLevel) || 1)) count = row.count;
+	}
+	return count;
+}
+
 function isWeapon (source) {
 	return source?.kind === "attack" && !source.spell;
 }
@@ -609,28 +801,96 @@ export function spellText (ent) {
 	return Array.isArray(entries) && entries.length ? flattenEntries(entries[0]) : flattenEntries(entries);
 }
 
+const SAVE_ABILITY = {
+	strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha",
+	str: "str", dex: "dex", con: "con", int: "int", wis: "wis", cha: "cha",
+};
+
+const HIT_CONDITION = ["poisoned", "restrained", "stunned", "paralyzed", "prone", "frightened", "grappled", "incapacitated"];
+
+export function plainAttackText (text) {
+	return String(text || "")
+		.replace(/\{@condition\s+([^}|]+)[^}]*\}/gi, "$1")
+		.replace(/\{@dc\s+(\d+)\}/gi, "DC $1")
+		.replace(/\{@(?:damage|dice|hit)\s+([^}]+)\}/gi, "$1")
+		.replace(/\{@h\}/gi, "Hit: ")
+		.replace(/\{@[^}]+\}/g, " ");
+}
+
+/**
+ * The clause after the attack's own damage: extra poison, a named save,
+ * or a condition the hit imposes. An escape check later in the text is not a save.
+ */
+export function onHitFromText (text) {
+	const plain = plainAttackText(text);
+	if (!plain.trim()) return null;
+	const lead = plain.split(/if the \w+ damage reduces|as an action|can make a DC/i)[0];
+	const save = lead.match(/(?:must (?:make|succeed on)|making) (?:a |on a )?DC\s*(\d+)\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma|Str|Dex|Con|Int|Wis|Cha)\s+saving throw/i);
+	const half = /half as much/i.test(lead);
+	const plus = lead.match(/plus\s+(?:\d+\s*\()?(\d*d\d+(?:\s*[+-]\s*\d+)?)\)?\s+(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\b/i);
+	let extra = null;
+	if (plus) extra = damagePacket(plus[1], plus[2], true);
+	if (!extra && save) {
+		const after = lead.slice(save.index);
+		const rolled = after.match(/(\d*d\d+(?:\s*[+-]\s*\d+)?)\)?\s+(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\s+damage/i);
+		if (rolled) extra = damagePacket(rolled[1], rolled[2], false);
+	}
+	const orCond = lead.match(/\bor\s+(?:be\s+|have the\s+)?(poisoned|restrained|stunned|paralyzed|prone|frightened|grappled|incapacitated)\b/i);
+	const onHitCond = !save && lead.match(/\b(?:target|creature)\s+is\s+(poisoned|restrained|stunned|paralyzed|prone|frightened|grappled|incapacitated)\b/i);
+	const zeroAt = plain.search(/0 hit points/i);
+	const zeroText = zeroAt >= 0 ? plain.slice(zeroAt) : "";
+	const onZero = HIT_CONDITION.filter(name => new RegExp(`\\b${name}\\b`, "i").test(zeroText));
+	if (!extra && !orCond && !onHitCond && !onZero.length) return null;
+	return {
+		save: save ? {dc: Number(save[1]), ability: SAVE_ABILITY[save[2].toLowerCase()]} : null,
+		half: !!(extra && !extra.always && half),
+		extra,
+		condition: String(orCond?.[1] || onHitCond?.[1] || "").toLowerCase(),
+		conditionOnFail: !!orCond,
+		conditionOnHit: !!onHitCond && !orCond,
+		onZero,
+	};
+}
+
+function damagePacket (notation, type, always) {
+	const parts = averageFromText(notation);
+	if (!parts) return null;
+	const shape = diceShape(notation);
+	return {
+		...parts,
+		count: shape?.count || 0,
+		faces: shape?.faces || 0,
+		flat: shape?.flat ?? parts.flat,
+		damage: String(type || "").toLowerCase(),
+		always: !!always,
+	};
+}
+
 function attackFromAction (action) {
 	if (/multiattack/i.test(action?.name || "")) return null;
 	const text = flattenEntries(action?.entries);
 	const hit = text.match(/\{@hit\s+(-?\d+)/i) || text.match(/([+-]\d+)\s+to hit/i);
 	const tagged = text.match(/\{@damage\s+([^}]+)\}/i);
-	const parts = averageFromText(tagged ? tagged[1] : text);
-	if (!parts || (!hit && !tagged)) return null;
+	const parts = averageFromText(tagged ? tagged[1] : "");
+	const onHit = onHitFromText(text);
+	if ((!parts || (!hit && !tagged)) && !(hit && (onHit?.conditionOnHit || onHit?.conditionOnFail))) return null;
 	const shape = diceShape(tagged ? tagged[1] : "");
 	const reach = text.match(/reach\s+(\d+)/i);
 	const ranged = text.match(/range\s+(\d+)/i);
+	const damageText = tagged ? text.slice(0, text.search(/\{@damage/i) + 80) : text;
 	return {
 		name: String(action?.name || "Attack"),
 		bonus: hit ? Number(hit[1]) : 0,
 		kind: hit ? "attack" : "auto",
-		...parts,
+		...(parts || {dice: 0, flat: 0, average: 0}),
 		count: shape?.count || 0,
 		faces: shape?.faces || 0,
-		flat: shape?.flat ?? parts.flat,
+		flat: shape?.flat ?? parts?.flat ?? 0,
 		rangeFeet: reach ? Number(reach[1]) : (ranged ? Number(ranged[1]) : (hit ? 5 : 60)),
 		melee: !!reach || !ranged,
-		damage: (text.match(/\b(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\b/i) || [])[1]?.toLowerCase() || "",
+		damage: (damageText.match(/\b(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\b/i) || [])[1]?.toLowerCase() || "",
 		blurb: text.slice(0, 240),
+		...(onHit ? {onHit} : {}),
 	};
 }
 
