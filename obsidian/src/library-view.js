@@ -499,7 +499,10 @@ export class FiveEToolsLibraryView extends ItemView {
 				plugin: this.plugin,
 				session: this.plugin._simSession || {},
 				onSessionChange: (next) => { this.plugin._simSession = next; },
-				onOpenEncounter: () => this.selectNav("encounter"),
+				onOpenEncounter: () => {
+					try { this.app.workspace.revealLeaf(this.leaf); } catch (_) { /* the library leaf is already showing */ }
+					this.selectNav("encounter");
+				},
 			});
 			this.docs = [];
 			return;

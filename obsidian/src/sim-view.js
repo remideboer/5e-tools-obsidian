@@ -50,6 +50,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		encounterId: String(session.encounterId || ""),
 		simCount: runCount(session.simCount),
 		initStyle: session.initStyle === "players" ? "players" : "current",
+		openEncounter: onOpenEncounter,
 		encounterGen: 0,
 		characters: [],
 		sheets: {},
@@ -523,10 +524,7 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		evt.preventDefault();
 		addHit(hitDocs[hitIndex]);
 	});
-	sendBtn.addEventListener("click", () => { void sendAddedToEncounter(); });
-	paintAdded();
-
-	async function sendAddedToEncounter () {
+	const sendAddedToEncounter = async () => {
 		const groups = addedGroups(state.added);
 		if (!groups.length) return;
 		let roster = {combatants: [], selectedId: null};
@@ -551,6 +549,9 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			return;
 		}
 		if (skipped.length) new Notice(`Skipped ${skipped.join(", ")}.`);
+		state.token += 1;
+		state.encounterGen += 1;
+		stopSimTimer(plugin);
 		plugin._encounterSession = {
 			combatants: roster.combatants,
 			selectedId: roster.selectedId,
@@ -558,8 +559,10 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			savedId: null,
 			pickedId: null,
 		};
-		onOpenEncounter?.();
-	}
+		if (state.openEncounter) state.openEncounter();
+	};
+	sendBtn.addEventListener("click", () => { void sendAddedToEncounter(); });
+	paintAdded();
 
 	const crWrap = host.createDiv();
 	const crRow = field(crWrap, "CR");
