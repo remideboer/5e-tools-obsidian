@@ -4,7 +4,7 @@ import {acOf, avatarFrom, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
 import {characterName, listCharacters} from "./character-store.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
-import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
+import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
 import {
 	addCombatants,
 	applyGroupInitScore,
@@ -17,7 +17,7 @@ import {ensureSearchIndex, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {ICON_ID} from "./icon.js";
-import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
+import {ensureTableSession, onTableChange, refreshTable, bindTableEncounterSync} from "./table-session.js";
 
 let nextId = 1;
 
@@ -313,6 +313,14 @@ async function paintInserts (box, plugin) {
 	const encEl = box.createEl("select", {cls: "fiveetools-table__select"});
 	encEl.createEl("option", {text: "Choose…", attr: {value: ""}});
 	try { await loadEncountersFromVault(plugin); } catch (_) { /* saved list may be empty */ }
+	const current = liveEncounter(plugin);
+	if (current) {
+		const label = String(current.name || "").trim();
+		encEl.createEl("option", {
+			text: label ? `Current: ${label}` : "Current encounter",
+			attr: {value: "__current__"},
+		});
+	}
 	for (const encounter of listSavedEncounters()) {
 		encEl.createEl("option", {text: encounter.name || "Encounter", attr: {value: encounter.id}});
 	}
@@ -461,7 +469,8 @@ async function dropOnScore (plugin, score, evt) {
 }
 
 function placeGroup (session, key, score) {
-	const n = Math.max(1, Math.min(25, Math.round(Number(score))));
+	const n = Math.round(Number(score));
+	if (!Number.isFinite(n)) return;
 	applyGroupInitScore(session.combatants, key, n);
 	const groups = listKindGroups(session.combatants);
 	const moved = groups.find(group => group.key === key);
@@ -571,13 +580,24 @@ async function addCreature (plugin, doc, count) {
 
 async function addEncounter (plugin, id) {
 	if (!id) return;
-	const saved = getSavedEncounter(id);
-	if (!saved?.combatants?.length) {
+	const roster = id === "__current__" ? liveEncounter(plugin)?.combatants : getSavedEncounter(id)?.combatants;
+	if (!roster?.length) {
 		new Notice("That encounter has no creatures.");
 		return;
 	}
+	await addEncounterRoster(plugin, roster);
+}
+
+function liveEncounter (plugin) {
+	const session = plugin?._encounterSession;
+	if (session?.combatants?.length) return session;
+	const instance = getEncounterInstance();
+	return instance?.combatants?.length ? instance : null;
+}
+
+async function addEncounterRoster (plugin, roster) {
 	const session = ensureTableSession(plugin);
-	for (const combatant of saved.combatants) {
+	for (const combatant of roster) {
 		if (combatant?.doc?.n) {
 			try {
 				const next = await addCombatants(session, combatant.doc, 1);
@@ -887,3 +907,41 @@ export function bindTableImageMenu (el, plugin) {
 export function tableKind (combatant) {
 	return kindKey(combatant);
 }
+
+async function syncRolledGroups (plugin, combatants) {
+	const session = ensureTableSession(plugin);
+	const groups = listKindGroups(combatants).filter(group => group.initScore != null && Number.isFinite(Number(group.initScore)));
+	for (const group of groups) {
+		const have = listKindGroups(session.combatants).some(it => it.key === group.key);
+		const sample = group.members[0];
+		if (!have && sample?.doc?.n) {
+			try {
+				const next = await addCombatants(session, sample.doc, group.members.length);
+				session.combatants = next.combatants;
+				await rememberCreatureImage(plugin, sample.doc);
+			} catch (_) { continue; }
+		} else if (!have && sample?.label) {
+			for (const member of group.members) pushNamed(session, member.label, member);
+		}
+		placeGroup(session, group.key, group.initScore);
+	}
+	refreshTable(plugin);
+}
+
+function returnGroupsToList (plugin, combatants) {
+	const session = ensureTableSession(plugin);
+	const keys = new Set(listKindGroups(combatants).map(group => group.key));
+	let changed = false;
+	for (const combatant of session.combatants) {
+		if (!keys.has(kindKey(combatant)) || combatant.initScore == null) continue;
+		combatant.initScore = null;
+		changed = true;
+	}
+	if (!changed) return;
+	session.turnKey = null;
+	session.doneKeys = [];
+	refreshTable(plugin);
+}
+
+bindTableEncounterSync({onRoll: syncRolledGroups, onReset: returnGroupsToList});
+

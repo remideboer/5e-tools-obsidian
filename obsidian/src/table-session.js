@@ -27,6 +27,22 @@ export function refreshTable (plugin) {
 	}
 }
 
+let rollSync = null;
+let resetSync = null;
+
+export function bindTableEncounterSync (handlers = {}) {
+	rollSync = handlers.onRoll || null;
+	resetSync = handlers.onReset || null;
+}
+
+export function syncTableFromRoll (plugin, combatants) {
+	return rollSync?.(plugin, combatants);
+}
+
+export function returnRolledToList (plugin, combatants) {
+	resetSync?.(plugin, combatants);
+}
+
 export function tableDocument (plugin) {
 	const leaves = plugin?.app?.workspace?.getLeavesOfType?.(VIEW_TYPE_FIVEETOOLS_TABLE) || [];
 	const doc = leaves[0]?.view?.contentEl?.win?.document;

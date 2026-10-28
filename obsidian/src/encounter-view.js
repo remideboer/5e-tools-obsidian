@@ -21,6 +21,7 @@ import {
 	setEncounterInstance,
 	upsertSavedEncounter,
 } from "./encounter-store.js";
+import {returnRolledToList, syncTableFromRoll} from "./table-session.js";
 import {encounterDifficulty, normalizeParty} from "./encounter-difficulty.js";
 import {
 	DIFFICULTY_OPTIONS,
@@ -526,6 +527,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		}
 		emit();
 		paintRoster();
+		void syncTableFromRoll(plugin, combatants);
 	};
 
 	const paintRoster = () => {
@@ -880,6 +882,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			combatants = reorderCombatantsByGroups(sortGroupsByInitiative(listKindGroups(combatants)));
 			emit();
 			paintRoster();
+			void syncTableFromRoll(plugin, combatants);
 		} finally {
 			rollAllBtn.removeAttribute("disabled");
 			syncInitToolbar();
@@ -902,6 +905,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		initOrderBaseline = null;
 		emit();
 		paintRoster();
+		returnRolledToList(plugin, combatants);
 	});
 	newBtn.addEventListener("click", () => {
 		combatants = [];
