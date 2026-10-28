@@ -2,6 +2,7 @@ import {MarkdownRenderer, Notice} from "obsidian";
 import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
+import {cardFromPdf} from "./pdf-character.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {loadEntity} from "./entity-loader.js";
 import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, indexHomebrewDocs, searchEntities, sourceAbbr} from "./search-index.js";
@@ -1095,7 +1096,7 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	catalog.createEl("h3", {text: "Characters"});
 	catalog.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Paste a public D&D Beyond character URL or id.",
+		text: "Paste a public D&D Beyond character URL or id, or choose a character-sheet PDF.",
 	});
 	const importRow = catalog.createDiv({cls: "fiveetools-homebrew__row"});
 	const importInput = importRow.createEl("input", {
@@ -1103,6 +1104,9 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		attr: {type: "text", placeholder: "https://www.dndbeyond.com/characters/12345678"},
 	});
 	const importBtn = importRow.createEl("button", {text: "Import", cls: "fiveetools-btn"});
+	const fileInput = importRow.createEl("input", {attr: {type: "file", accept: ".pdf,application/pdf"}});
+	fileInput.style.display = "none";
+	const pdfBtn = importRow.createEl("button", {text: "Import PDF", cls: "fiveetools-btn"});
 	const listEl = catalog.createDiv({cls: "fiveetools-homebrew__list"});
 
 	const actions = resultEl.createDiv({cls: "fiveetools-characters__actions"});
@@ -1177,6 +1181,26 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		emit();
 	};
 
+	const runPdf = async (file) => {
+		if (busy) return;
+		busy = true;
+		pdfBtn.disabled = true;
+		syncSelection();
+		try {
+			const card = cardFromPdf(new Uint8Array(await file.arrayBuffer()));
+			const saved = await saveCharacter(plugin, card);
+			selectedId = characterId(saved) || card.ddbId;
+			await reload();
+			new Notice(`Imported ${card.name}.`);
+		} catch (e) {
+			new Notice(e.message || "Could not import that PDF.");
+		} finally {
+			busy = false;
+			pdfBtn.disabled = false;
+			syncSelection();
+		}
+	};
+
 	const runImport = async (idOrUrl) => {
 		if (busy) return;
 		busy = true;
@@ -1199,6 +1223,12 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	};
 
 	importBtn.addEventListener("click", () => { void runImport(importInput.value); });
+	pdfBtn.addEventListener("click", () => fileInput.click());
+	fileInput.addEventListener("change", () => {
+		const file = fileInput.files?.[0];
+		fileInput.value = "";
+		if (file) void runPdf(file);
+	});
 	importInput.addEventListener("keydown", (evt) => {
 		if (evt.key === "Enter") {
 			evt.preventDefault();
@@ -1207,6 +1237,10 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	});
 	refreshBtn.addEventListener("click", () => {
 		if (!selectedId) return;
+		if (selectedId.startsWith("pdf-")) {
+			new Notice("This character came from a PDF. Import the file again to update it.");
+			return;
+		}
 		void runImport(selectedId);
 	});
 	deleteBtn.addEventListener("click", async () => {
