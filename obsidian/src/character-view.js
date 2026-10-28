@@ -83,8 +83,11 @@ function paintSheetHeader (sheet, plugin, record, refs, edition) {
 function paintCombatColumn (col, plugin, record) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
-	paintHpEditor(col, plugin, record);
-	paintCombatStats(col, fields, snapshot.rolls, snapshot.speeds);
+	const vitals = col.createDiv({cls: "fiveetools-character-card__vitals"});
+	paintCombatStats(vitals, fields, snapshot.rolls, snapshot.speeds);
+	const hp = vitals.createDiv({cls: "fiveetools-character-card__vital fiveetools-character-card__vital--hp"});
+	hp.createSpan({cls: "fiveetools-character-card__vital-label", text: "HP"});
+	paintHpEditor(hp, plugin, record);
 	paintLabeledList(col, "Senses", snapshot.senses);
 	paintLabeledList(col, "Defenses", snapshot.defenses);
 	paintConditions(col, plugin, record);
@@ -571,24 +574,25 @@ function paintHpEditor (host, plugin, record) {
 }
 
 function paintCombatStats (host, fields, rolls, speeds) {
-	const line = host.createEl("p", {cls: "fiveetools-character-card__combat"});
-	const bits = [];
-	if (fields.ac != null && fields.ac !== "") bits.push(`AC ${fields.ac}`);
-	const speedText = (speeds || []).filter(speed => Number(speed?.value) > 0).map(speed => `${speed.label} ${speed.value}`).join(", ");
-	if (speedText) bits.push(speedText);
-	else if (fields.speed != null && fields.speed !== "") bits.push(`Speed ${fields.speed}`);
-	if (bits.length) line.createSpan({text: bits.join(" · ")});
-	if (rolls && rolls.initiative != null) {
-		line.createSpan({text: `${bits.length ? " · " : ""}Initiative `});
-		paintRoll(line, "Initiative", rolls.initiative);
-		if (rolls.initiativeEdge) {
-			line.createSpan({cls: "fiveetools-character-card__source", text: rolls.initiativeEdge === "adv" ? " adv" : " dis"});
-		}
+	const tile = (label) => {
+		const box = host.createDiv({cls: "fiveetools-character-card__vital"});
+		box.createSpan({cls: "fiveetools-character-card__vital-label", text: label});
+		return box.createSpan({cls: "fiveetools-character-card__vital-value"});
+	};
+	if (fields.ac != null && fields.ac !== "") tile("AC").setText(String(fields.ac));
+	const listed = (speeds || []).filter(speed => Number(speed?.value) > 0);
+	if (listed.length) {
+		for (const speed of listed) tile(speed.label || "Speed").setText(String(speed.value));
+	} else if (fields.speed != null && fields.speed !== "") {
+		tile("Speed").setText(String(fields.speed));
 	}
-	const tail = [];
-	if (rolls?.proficiency != null) tail.push(`PB ${signed(rolls.proficiency)}`);
-	if (rolls?.passivePerception != null) tail.push(`Passive Perception ${rolls.passivePerception}`);
-	if (tail.length) line.createSpan({text: `${bits.length || rolls?.initiative != null ? " · " : ""}${tail.join(" · ")}`});
+	if (rolls && rolls.initiative != null) {
+		const value = tile("Initiative");
+		paintRoll(value, "Initiative", rolls.initiative);
+		if (rolls.initiativeEdge) value.createSpan({cls: "fiveetools-character-card__source", text: rolls.initiativeEdge === "adv" ? " adv" : " dis"});
+	}
+	if (rolls?.proficiency != null) tile("PB").setText(signed(rolls.proficiency));
+	if (rolls?.passivePerception != null) tile("Passive Perception").setText(String(rolls.passivePerception));
 }
 
 function paintLabeledList (host, title, values) {

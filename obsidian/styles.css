@@ -770,6 +770,57 @@ a.fiveetools-inline-link {
 	vertical-align: middle;
 }
 
+.fiveetools-character-card__vitals {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 12px;
+}
+
+.fiveetools-character-card__vital {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	min-width: 4.6em;
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+
+.fiveetools-character-card__vital-label {
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	text-align: center;
+}
+
+.fiveetools-character-card__vital-value {
+	font-size: 1.45em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.15;
+}
+
+.fiveetools-character-card__vital-value .render-roller {
+	font-size: inherit;
+	font-weight: inherit;
+}
+
+.fiveetools-character-card__vital--hp {
+	align-items: stretch;
+	min-width: 11em;
+}
+
+.fiveetools-character-card__vital--hp .fiveetools-encounter__hpinput {
+	font-size: 1.25em;
+	font-weight: 700;
+}
+
 .fiveetools-character-card__hp,
 .fiveetools-character-card__chips,
 .fiveetools-character-card__death,
