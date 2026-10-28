@@ -25,6 +25,8 @@ export default class FiveEToolsPlugin extends Plugin {
 			await this.saveSettings();
 		}
 		if (this.settings.convertHeicOnPaste == null) this.settings.convertHeicOnPaste = true;
+		if (!this.settings.tableInitBackground) this.settings.tableInitBackground = DEFAULT_SETTINGS.tableInitBackground;
+		if (!this.settings.tableInitText) this.settings.tableInitText = DEFAULT_SETTINGS.tableInitText;
 		setStyleHint(this.settings.style);
 		registerFiveEToolsIcon();
 		registerHeicImport(this);

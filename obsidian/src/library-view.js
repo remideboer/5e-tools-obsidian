@@ -383,6 +383,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dpr", !globalTerm && item?.tool === "dpr");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--sim", !globalTerm && item?.tool === "sim");
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--table", !globalTerm && item?.tool === "table");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dmscreen", !globalTerm && item?.tool === "dmscreen");
 		this.contentEl?.classList.toggle("is-dmscreen", !globalTerm && item?.tool === "dmscreen");
@@ -397,10 +398,11 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.readerEl.removeClass("fiveetools-dpr-reader");
 		}
 		if (item?.tool !== "sim") stopSimTimer(this.plugin);
-		if (item?.tool !== "sim" && this.readerEl?.hasClass("fiveetools-sim-reader")) {
-			this.readerEl.empty();
-			this.readerEl.removeClass("fiveetools-sim-reader");
-		}
+	if (item?.tool !== "sim" && this.readerEl?.hasClass("fiveetools-sim-reader")) {
+		this.readerEl.empty();
+		this.readerEl.removeClass("fiveetools-sim-reader");
+	}
+	if (item?.tool !== "table") this.readerEl?.removeClass("fiveetools-table-stage");
 		if ((item?.tool !== "characters" || globalTerm.length >= 2) && this.readerEl?.hasClass("fiveetools-characters-reader")) {
 			this.readerEl.empty();
 			this.readerEl.removeClass("fiveetools-characters-reader");

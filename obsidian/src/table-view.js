@@ -3,6 +3,7 @@ import {VIEW_TYPE_FIVEETOOLS_TABLE} from "./constants.js";
 import {acOf, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
 import {characterName, listCharacters} from "./character-store.js";
+import {listCampaigns, listEntries} from "./campaign-store.js";
 import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
 import {
 	addCombatants,
@@ -84,7 +85,7 @@ export class FiveEToolsTableView extends ItemView {
 			img.src = src;
 			frame.appendChild(img);
 		}
-		if (placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document);
+		if (placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document, this.plugin);
 	}
 }
 
@@ -130,9 +131,12 @@ function imageSrc (view, session) {
 	return session.image || "";
 }
 
-function paintPlayerRoster (host, session, doc) {
+function paintPlayerRoster (host, session, doc, plugin) {
 	const panel = doc.createElement("div");
 	panel.className = "fiveetools-table-player__roster";
+	const settings = plugin?.settings || {};
+	panel.style.background = settings.tableInitBackground || "#000000";
+	panel.style.color = settings.tableInitText || "#ffffff";
 	const title = doc.createElement("h2");
 	title.textContent = "Initiative";
 	panel.appendChild(title);
@@ -150,27 +154,33 @@ export function renderTableTool (listEl, readerEl, {plugin} = {}) {
 	listEl.empty();
 	listEl.addClass("fiveetools-table");
 	readerEl?.empty();
-	const session = ensureTableSession(plugin);
-	const rosterHost = readerEl || listEl;
-	const rosterEl = rosterHost.createDiv({cls: "fiveetools-encounter fiveetools-table__board"});
-	const paint = () => paintDmRoster(rosterEl, plugin);
+	readerEl?.addClass("fiveetools-table-stage");
+	const sourceEl = readerEl?.createDiv({cls: "fiveetools-table__sources"}) || listEl.createDiv({cls: "fiveetools-table__sources"});
+	const rosterEl = readerEl?.createDiv({cls: "fiveetools-table__board"}) || listEl.createDiv({cls: "fiveetools-table__board"});
+	const paint = () => {
+		paintSourceList(sourceEl, plugin);
+		paintDmRoster(rosterEl, plugin);
+	};
 	paint();
 	plugin._tableToolUnsub?.();
 	plugin._tableToolUnsub = onTableChange(() => {
 		if (rosterEl.isConnected) paint();
 	});
-	void paintInserts(listEl, plugin, session);
+	const box = listEl.createDiv({cls: "fiveetools-table__inserts"});
+	void paintInserts(box, plugin);
 }
 
-async function paintInserts (listEl, plugin) {
-	const box = listEl.createDiv({cls: "fiveetools-table__inserts"});
+async function paintInserts (box, plugin) {
 	box.createEl("h3", {text: "Table"});
 	box.createEl("p", {
 		cls: "fiveetools-view__meta",
 		text: "The Table window keeps one image as its background. This roster and public dice sit on top of it.",
 	});
-	const actions = box.createDiv({cls: "fiveetools-dpr__sim-controls"});
+	const actions = box.createDiv({cls: "fiveetools-table__actions"});
 	toolButton(actions, "Open table", (evt) => {
+		castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
+	});
+	toolButton(actions, "Show on table", (evt) => {
 		castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
 	});
 	toolButton(actions, "Clear table", () => clearTableImage(plugin));
@@ -185,42 +195,72 @@ async function paintInserts (listEl, plugin) {
 	if (session.privateRolls) priv.addClass("is-selected");
 
 	box.createEl("h4", {text: "Add a creature"});
-	const searchRow = box.createDiv({cls: "fiveetools-encounter__row"});
-	const searchEl = searchRow.createEl("input", {
+	const searchEl = box.createEl("input", {
 		cls: "fiveetools-encounter__search",
-		attr: {type: "search", placeholder: "Add creature…"},
+		attr: {type: "search", placeholder: "Add creature…", autocomplete: "off"},
 	});
-	const copiesEl = searchRow.createEl("select", {cls: "fiveetools-encounter__count", attr: {title: "Copies to add"}});
-	for (let n = 1; n <= 8; n++) copiesEl.createEl("option", {text: String(n), attr: {value: String(n)}});
 	const hitsEl = box.createDiv({cls: "fiveetools-encounter__hits"});
+	let hitDocs = [];
+	let hitIndex = 0;
+	const addHit = (doc) => {
+		if (!doc) return;
+		void addCreature(plugin, doc, 1);
+		searchEl.value = "";
+		hitDocs = [];
+		hitIndex = 0;
+		hitsEl.empty();
+		searchEl.focus();
+	};
+	const markHit = () => {
+		const rows = [...hitsEl.querySelectorAll(".fiveetools-encounter__hit")];
+		rows.forEach((row, index) => {
+			row.classList.toggle("is-selected", index === hitIndex);
+			if (index === hitIndex) row.scrollIntoView({block: "nearest"});
+		});
+	};
 	try { await ensureSearchIndex(plugin); } catch (_) { /* search stays empty */ }
 	const paintHits = () => {
 		hitsEl.empty();
+		hitIndex = 0;
 		const term = searchEl.value.trim();
-		if (term.length < 2) return;
-		const docs = searchEntities(term, {categoriesExact: ["bestiary"], limit: 8});
-		if (!docs.length) {
+		if (term.length < 2) {
+			hitDocs = [];
+			return;
+		}
+		hitDocs = searchEntities(term, {categoriesExact: ["bestiary"], limit: 8});
+		if (!hitDocs.length) {
 			hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No creatures."});
 			return;
 		}
-		for (const doc of docs) {
-			const hit = hitsEl.createDiv({cls: "fiveetools-encounter__hit"});
+		hitDocs.forEach((doc, index) => {
+			const hit = hitsEl.createDiv({cls: `fiveetools-encounter__hit${index === 0 ? " is-selected" : ""}`});
 			hit.createDiv({cls: "fiveetools-modal__name", text: doc.n});
+			hit.createDiv({cls: "fiveetools-modal__sub", text: [doc.sA || doc.s, doc.cf].filter(Boolean).join(" · ")});
 			hit.setAttr("draggable", "true");
 			hit.addEventListener("dragstart", (evt) => {
 				evt.dataTransfer.setData("text/plain", JSON.stringify({
 					doc: {n: doc.n, u: doc.u || "", s: doc.s || "", c: doc.c, cf: doc.cf, sA: doc.sA},
-					count: Number(copiesEl.value) || 1,
+					count: 1,
 				}));
 				evt.dataTransfer.effectAllowed = "copy";
 			});
-			const addBtn = hit.createEl("button", {text: "Add", cls: "fiveetools-btn", attr: {type: "button"}});
-			addBtn.addEventListener("click", () => {
-				void addCreature(plugin, doc, Number(copiesEl.value) || 1);
-			});
-		}
+			hit.addEventListener("click", () => addHit(doc));
+		});
 	};
 	searchEl.addEventListener("input", paintHits);
+	searchEl.addEventListener("keydown", (evt) => {
+		if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {
+			if (!hitDocs.length) return;
+			evt.preventDefault();
+			const next = evt.key === "ArrowDown" ? hitIndex + 1 : hitIndex - 1;
+			hitIndex = Math.max(0, Math.min(hitDocs.length - 1, next));
+			markHit();
+			return;
+		}
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		addHit(hitDocs[hitIndex]);
+	});
 
 	box.createEl("h4", {text: "Add an encounter"});
 	const encRow = box.createDiv({cls: "fiveetools-encounter__row"});
@@ -232,19 +272,19 @@ async function paintInserts (listEl, plugin) {
 	}
 	toolButton(encRow, "Add", () => { void addEncounter(plugin, encEl.value); });
 
-	box.createEl("h4", {text: "Add a character"});
-	const charRow = box.createDiv({cls: "fiveetools-encounter__row"});
-	const charEl = charRow.createEl("select");
-	charEl.createEl("option", {text: "Choose…", attr: {value: ""}});
-	let characters = [];
-	try { characters = await listCharacters(plugin); } catch (_) { characters = []; }
-	for (const record of characters) {
-		const id = characterId(record);
-		charEl.createEl("option", {text: characterName(record), attr: {value: id}});
+	box.createEl("h4", {text: "Campaign characters"});
+	const campEl = box.createEl("select", {cls: "fiveetools-table__select"});
+	campEl.createEl("option", {text: "Add players…", attr: {value: ""}});
+	let campaigns = [];
+	try { campaigns = await listCampaigns(plugin); } catch (_) { campaigns = []; }
+	if (!campaigns.length) campEl.options[0].text = "No campaigns";
+	for (const camp of campaigns) {
+		campEl.createEl("option", {text: camp.name || camp.slug, attr: {value: camp.slug}});
 	}
-	toolButton(charRow, "Add", () => {
-		const record = characters.find(it => characterId(it) === charEl.value);
-		if (record) addCharacter(plugin, record);
+	campEl.addEventListener("change", () => {
+		const slug = campEl.value;
+		campEl.value = "";
+		if (slug) void addCampaignCharacters(plugin, slug);
 	});
 
 	box.createEl("h4", {text: "Add a name"});
@@ -259,22 +299,22 @@ async function paintInserts (listEl, plugin) {
 	});
 }
 
+function paintSourceList (host, plugin) {
+	host.empty();
+	host.createEl("h3", {text: "Creatures"});
+	const session = ensureTableSession(plugin);
+	const groups = listKindGroups(session.combatants).filter(group => group.initScore == null);
+	if (!listKindGroups(session.combatants).length) {
+		host.createEl("p", {cls: "fiveetools-view__meta", text: "Added creatures and characters appear here. Drag one onto the ruler."});
+		return;
+	}
+	const stack = host.createDiv({cls: "fiveetools-init-stack"});
+	for (const group of groups) mountChip(stack, plugin, group);
+}
+
 function paintDmRoster (host, plugin) {
 	host.empty();
 	const session = ensureTableSession(plugin);
-	const head = host.createDiv({cls: "fiveetools-table__roster-head"});
-	head.createEl("h3", {text: "Initiative"});
-	toolButton(head, "Roll all", () => { void rollAll(plugin); });
-	toolButton(head, "Show on table", (evt) => {
-		castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
-	});
-	const waiting = listKindGroups(session.combatants).filter(group => group.initScore == null);
-	if (waiting.length) {
-		const tray = host.createDiv({cls: "fiveetools-init-tray"});
-		tray.createEl("p", {cls: "fiveetools-view__meta", text: "Drag onto a number."});
-		const row = tray.createDiv({cls: "fiveetools-init-ruler__chips"});
-		for (const group of waiting) mountChip(row, plugin, group);
-	}
 	const ruler = host.createDiv({cls: "fiveetools-init-ruler", attr: {tabindex: "0"}});
 	ruler.addEventListener("keydown", (evt) => onInitiativeKey(plugin, evt));
 	const byScore = new Map();
@@ -286,12 +326,8 @@ function paintDmRoster (host, plugin) {
 	for (let score = 25; score >= 1; score--) {
 		const line = ruler.createDiv({cls: "fiveetools-init-ruler__row"});
 		line.createSpan({cls: "fiveetools-init-ruler__n", text: String(score)});
-		const chips = line.createDiv({cls: "fiveetools-init-ruler__chips"});
-		const groups = byScore.get(score) || [];
-		groups.forEach((group, index) => {
-			if (index) chips.createSpan({cls: "fiveetools-init-ruler__slash", text: "/"});
-			mountChip(chips, plugin, group);
-		});
+		const chips = line.createDiv({cls: "fiveetools-init-stack"});
+		for (const group of byScore.get(score) || []) mountChip(chips, plugin, group);
 		line.addEventListener("dragover", (evt) => {
 			evt.preventDefault();
 			line.addClass("is-drop");
@@ -433,6 +469,25 @@ async function addEncounter (plugin, id) {
 	refreshTable(plugin);
 }
 
+async function addCampaignCharacters (plugin, slug) {
+	let entries = [];
+	try {
+		entries = await listEntries(plugin, slug, "players");
+	} catch (_) { entries = []; }
+	let characters = [];
+	try { characters = await listCharacters(plugin); } catch (_) { characters = []; }
+	const byId = new Map(characters.map(record => [characterId(record), record]));
+	let added = 0;
+	for (const entry of entries) {
+		const record = byId.get(String(entry.fields?.character || "").trim());
+		if (!record) continue;
+		const before = ensureTableSession(plugin).combatants.length;
+		addCharacter(plugin, record);
+		if (ensureTableSession(plugin).combatants.length > before) added += 1;
+	}
+	if (!added) new Notice("That campaign has no linked characters.");
+}
+
 function addCharacter (plugin, record) {
 	const session = ensureTableSession(plugin);
 	const id = characterId(record);
@@ -489,12 +544,6 @@ async function rollGroup (plugin, group) {
 	applyGroupInitScore(session.combatants, group.key, score);
 	sortRoster(session);
 	refreshTable(plugin);
-}
-
-async function rollAll (plugin) {
-	const session = ensureTableSession(plugin);
-	const groups = listKindGroups(session.combatants);
-	for (const group of groups) await rollGroup(plugin, group);
 }
 
 function sortRoster (session) {

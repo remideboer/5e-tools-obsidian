@@ -2,6 +2,7 @@ import {Notice, PluginSettingTab, Setting} from "obsidian";
 import {DEFAULT_SETTINGS} from "./constants.js";
 import {setStyleHint} from "./fiveetools-host.js";
 import {clearMediaCache} from "./media-cache.js";
+import {refreshTable} from "./table-session.js";
 
 export class FiveEToolsSettingTab extends PluginSettingTab {
 	constructor (app, plugin) {
@@ -100,6 +101,30 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.focusListOnNav = !!value;
 					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Table initiative background")
+			.setDesc("Background of the initiative list on the Table window.")
+			.addText(text => text
+				.setPlaceholder("#000000")
+				.setValue(this.plugin.settings.tableInitBackground || "#000000")
+				.onChange(async (value) => {
+					this.plugin.settings.tableInitBackground = value.trim() || "#000000";
+					await this.plugin.saveSettings();
+					refreshTable(this.plugin);
+				}));
+
+		new Setting(containerEl)
+			.setName("Table initiative text")
+			.setDesc("Text color of the initiative list on the Table window.")
+			.addText(text => text
+				.setPlaceholder("#ffffff")
+				.setValue(this.plugin.settings.tableInitText || "#ffffff")
+				.onChange(async (value) => {
+					this.plugin.settings.tableInitText = value.trim() || "#ffffff";
+					await this.plugin.saveSettings();
+					refreshTable(this.plugin);
 				}));
 
 		new Setting(containerEl)

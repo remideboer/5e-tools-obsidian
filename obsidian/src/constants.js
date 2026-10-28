@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS = {
 	dicePublic: false,
 	convertHeicOnPaste: true,
 	focusListOnNav: true,
+	tableInitBackground: "#000000",
+	tableInitText: "#ffffff",
 };
 
 export const MAX_SEARCH_RESULTS = 40;
