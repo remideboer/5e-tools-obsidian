@@ -372,6 +372,7 @@ function characterRefs (char, edition, extraFeats = []) {
 			...(spell.ritual ? {ritual: true} : {}),
 			...(spell.attack ? {attack: spell.attack} : {}),
 			...(spell.save ? {save: spell.save} : {}),
+			...(spell.snippet ? {snippet: spell.snippet} : {}),
 			...(spell.prepared ? {prepared: true} : {}),
 			...(spell.alwaysPrepared ? {alwaysPrepared: true} : {}),
 			...(spell.list ? {list: spell.list} : {}),
@@ -513,6 +514,7 @@ function spellRow (entry, def, listName) {
 	const components = spellComponents(def);
 	const attack = def?.requiresAttackRoll ? "spell attack" : "";
 	const save = def?.requiresSavingThrow ? spellSave(def) : "";
+	const snippet = oneLine(def?.snippet || def?.description || "");
 	return {
 		name: String(def.name).trim(),
 		isLegacy: def?.isLegacy,
@@ -526,6 +528,7 @@ function spellRow (entry, def, listName) {
 		...(def?.ritual ? {ritual: true} : {}),
 		...(attack ? {attack} : {}),
 		...(save ? {save} : {}),
+		...(snippet ? {snippet} : {}),
 		...(entry?.prepared ? {prepared: true} : {}),
 		...(entry?.alwaysPrepared ? {alwaysPrepared: true} : {}),
 		...(listName ? {list: listName} : {}),

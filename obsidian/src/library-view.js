@@ -49,7 +49,11 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.selectedDoc = null;
 		this.navEl = null;
 		this.navGroupsEl = null;
+		this.navFoldEl = null;
+		this.navCollapsed = false;
 		this.listColEl = null;
+		this.listFoldEl = null;
+		this.listCollapsed = false;
 		this.listEl = null;
 		this.readerEl = null;
 		this.searchEl = null;
@@ -83,6 +87,8 @@ export class FiveEToolsLibraryView extends ItemView {
 			navId: this.navId,
 			query: this.query,
 			doc: serializeDoc(this.selectedDoc),
+			navCollapsed: this.navCollapsed,
+			listCollapsed: this.listCollapsed,
 		};
 	}
 
@@ -105,6 +111,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.contentEl.addClass("fiveetools-library");
 
 		this.navEl = this.contentEl.createDiv({cls: "fiveetools-library__nav"});
+		this.navFoldEl = this.mountFold(this.navEl, "nav");
 		this.globalSearchEl = this.navEl.createEl("input", {
 			cls: "fiveetools-library__globalsearch",
 			attr: {type: "search", placeholder: "Search…"},
@@ -115,6 +122,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		});
 		this.navGroupsEl = this.navEl.createDiv({cls: "fiveetools-library__navgroups"});
 		this.listColEl = this.contentEl.createDiv({cls: "fiveetools-library__listcol"});
+		this.listFoldEl = this.mountFold(this.listColEl, "list");
 		this.searchRowEl = this.listColEl.createDiv({cls: "fiveetools-library__searchrow"});
 		this.searchEl = this.searchRowEl.createEl("input", {
 			cls: "fiveetools-library__search",
@@ -131,6 +139,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.contentEl.addEventListener("click", this._closeFilterMenus);
 		this.listEl = this.listColEl.createDiv({cls: "fiveetools-library__list"});
 		this.readerEl = this.contentEl.createDiv({cls: "fiveetools-library__reader fiveetools-view"});
+		this.applyFolds();
 
 		if (!await this.plugin.ensureReady()) {
 			this.readerEl.createEl("p", {text: "Could not load bundled 5etools data."});
@@ -150,8 +159,44 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		this.renderNav();
 		this.refreshList();
+		this.applyFolds();
 		this.readerEl.createEl("p", {text: "Choose a category, then an entry to read."});
 		this.focusGlobalSearch();
+	}
+
+	mountFold (parent, key) {
+		const button = parent.createEl("button", {
+			cls: "fiveetools-library__fold",
+			attr: {type: "button"},
+		});
+		button.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			this.toggleFold(key);
+		});
+		return button;
+	}
+
+	toggleFold (key) {
+		if (key === "nav") this.navCollapsed = !this.navCollapsed;
+		else this.listCollapsed = !this.listCollapsed;
+		this.applyFolds();
+		this.app.workspace.requestSaveLayout?.();
+	}
+
+	applyFolds () {
+		this.paintFold(this.navEl, this.navFoldEl, this.navCollapsed, "navigation");
+		this.paintFold(this.listColEl, this.listFoldEl, this.listCollapsed, "list");
+	}
+
+	paintFold (col, button, collapsed, label) {
+		if (!col || !button) return;
+		col.classList.toggle("is-collapsed", !!collapsed);
+		const action = collapsed ? `Expand ${label}` : `Collapse ${label}`;
+		button.setAttr("aria-expanded", collapsed ? "false" : "true");
+		button.setAttr("title", action);
+		button.setAttr("aria-label", action);
+		setIcon(button, collapsed ? "panel-left-open" : "panel-left-close");
 	}
 
 	focusGlobalSearch () {
@@ -170,6 +215,9 @@ export class FiveEToolsLibraryView extends ItemView {
 
 	async applyState (state) {
 		if (!state) return;
+		if (typeof state.navCollapsed === "boolean") this.navCollapsed = state.navCollapsed;
+		if (typeof state.listCollapsed === "boolean") this.listCollapsed = state.listCollapsed;
+		this.applyFolds();
 		if (state.navId) this.navId = state.navId;
 		if (state.query != null) {
 			this.query = state.query;

@@ -165,7 +165,34 @@ function paintSpellRow (parent, plugin, spell, edition, play) {
 			text: detail.join(" · "),
 		});
 	}
+	setRowTip(row, [
+		spell.label || spell.name,
+		spellTipLevel(spell),
+		spell.school,
+		spell.list,
+		spell.castingTime,
+		spell.range,
+		spell.duration,
+		spell.components,
+		spell.concentration ? "concentration" : "",
+		spell.ritual ? "ritual" : "",
+		spell.attack,
+		spell.save,
+		spell.snippet,
+	]);
 	return row;
+}
+
+function setRowTip (row, parts) {
+	const text = (parts || []).map(part => String(part || "").trim()).filter(Boolean).join(" · ");
+	if (text) row.setAttr("title", text);
+}
+
+function spellTipLevel (spell) {
+	const level = Number(spell?.level);
+	if (!Number.isFinite(level)) return "";
+	if (level === 0) return "Cantrip";
+	return spellLevelLabel(level);
 }
 
 const COIN_FIELDS = [["gp", "GP"], ["sp", "SP"], ["cp", "CP"], ["ep", "EP"], ["pp", "PP"]];
@@ -316,6 +343,15 @@ function paintInventoryRow (parent, plugin, record, item, place) {
 			text: detail.join(" · "),
 		});
 	}
+	setRowTip(row, [
+		item.label || item.name,
+		item.rarity,
+		Number(item.qty) > 1 ? `×${item.qty}` : "",
+		Number(item.weight) > 0 ? `${item.weight} lb` : "",
+		Number(item.charges) > 0 ? `${item.charges} charges` : "",
+		item.attuned ? "attuned" : (item.attunable ? "attunement" : ""),
+		item.snippet,
+	]);
 	equip.addEventListener("change", () => {
 		item.equipped = equip.checked;
 		place(row, item);
@@ -391,6 +427,15 @@ function paintGearRow (parent, plugin, ref) {
 			text: detail.join(" · "),
 		});
 	}
+	setRowTip(row, [
+		ref.label || ref.name,
+		ref.rarity,
+		Number(ref.qty) > 1 ? `×${ref.qty}` : "",
+		Number(ref.weight) > 0 ? `${ref.weight} lb` : "",
+		Number(ref.charges) > 0 ? `${ref.charges} charges` : "",
+		ref.attuned ? "attuned" : (ref.attunable ? "attunement" : ""),
+		ref.snippet,
+	]);
 }
 
 function hasFeatures (snapshot, refs) {
@@ -422,6 +467,7 @@ function paintFeatureColumn (col, plugin, record, edition) {
 			if (companion.snippet) {
 				row.createDiv({cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source", text: companion.snippet});
 			}
+			setRowTip(row, [companion.name, companion.line, companion.snippet]);
 		}
 	}
 }
@@ -438,6 +484,7 @@ function paintFeatureRow (parent, plugin, feature, edition, prefer) {
 	if (feature.snippet) {
 		row.createDiv({cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source", text: feature.snippet});
 	}
+	setRowTip(row, [feature.name, feature.group, feature.snippet]);
 }
 
 function paintStory (columns, story, traits) {
@@ -959,6 +1006,17 @@ function paintActions (host, plugin, actions, {edition = "classic", prefer = []}
 			const second = row.createDiv({cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source"});
 			appendTextWithDiceRollers(second, detail.join(" · "));
 		}
+		setRowTip(row, [
+			action.name,
+			action.activation,
+			action.uses ? `${action.uses} uses` : "",
+			action.attack,
+			action.range,
+			action.dice,
+			action.damage,
+			action.save,
+			action.snippet,
+		]);
 	}
 }
 
