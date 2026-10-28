@@ -25,6 +25,14 @@ import {loadEntity} from "./entity-loader.js";
 import {resolveTokenImage} from "./image-resolver.js";
 
 const SVG = "http://www.w3.org/2000/svg";
+const RUN_COUNTS = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+
+function runCount (value) {
+	const n = Number(value);
+	if (RUN_COUNTS.includes(n)) return n;
+	if (!Number.isFinite(n)) return 1;
+	return RUN_COUNTS.reduce((best, option) => Math.abs(option - n) < Math.abs(best - n) ? option : best);
+}
 
 export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessionChange, onOpenEncounter} = {}) {
 	listEl.empty();
@@ -40,7 +48,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		cr: String(session.cr || "1"),
 		monsters: clamp(session.monsters, 1, 10, 1),
 		encounterId: String(session.encounterId || ""),
-		simCount: clamp(session.simCount, 1, 20, 1),
+		simCount: runCount(session.simCount),
 		initStyle: session.initStyle === "players" ? "players" : "current",
 		encounterGen: 0,
 		characters: [],
@@ -76,6 +84,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 	};
 
 	const refresh = () => {
+		if (!listEl.isConnected || !listEl.classList.contains("fiveetools-sim")) return;
 		emit();
 		state.paintDifficulty?.();
 		paintSimControls(controlsEl, state, plugin, refresh);
@@ -111,7 +120,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 	async function refreshEncounter () {
 		const gen = ++state.encounterGen;
 		state.creatures = await foesFor(state, plugin);
-		if (gen !== state.encounterGen) return;
+		if (gen !== state.encounterGen || !listEl.isConnected || !listEl.classList.contains("fiveetools-sim")) return;
 		placeFight(state, plugin);
 		refresh();
 	}
@@ -132,7 +141,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		state.sheets = sheets;
 		const gen = ++state.encounterGen;
 		state.creatures = await foesFor(state, plugin);
-		if (gen !== state.encounterGen || token !== state.token) return;
+		if (gen !== state.encounterGen || token !== state.token || !listEl.isConnected || !listEl.classList.contains("fiveetools-sim")) return;
 		placeFight(state, plugin);
 		refresh();
 	}
@@ -407,7 +416,7 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 	const searchRow = creatureWrap.createDiv({cls: "fiveetools-encounter__row"});
 	const searchEl = searchRow.createEl("input", {
 		cls: "fiveetools-encounter__search",
-		attr: {type: "search", placeholder: "Add creature…"},
+		attr: {type: "search", placeholder: "Add creature…", autocomplete: "off"},
 	});
 	const hitsEl = creatureWrap.createDiv({cls: "fiveetools-encounter__hits"});
 	const addedEl = creatureWrap.createDiv({cls: "fiveetools-sim__members"});
@@ -460,41 +469,59 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			});
 		}
 	};
+	let hitDocs = [];
+	let hitIndex = 0;
+	const addHit = (doc) => {
+		if (!doc) return;
+		pushCreature(doc);
+		searchEl.value = "";
+		hitDocs = [];
+		hitIndex = 0;
+		hitsEl.empty();
+		commitAdded();
+		searchEl.focus();
+	};
+	const markHit = () => {
+		const rows = [...hitsEl.querySelectorAll(".fiveetools-encounter__hit")];
+		rows.forEach((row, index) => {
+			row.classList.toggle("is-selected", index === hitIndex);
+			if (index === hitIndex) row.scrollIntoView({block: "nearest"});
+		});
+	};
 	const paintHits = () => {
 		hitsEl.empty();
+		hitIndex = 0;
 		const term = searchEl.value.trim();
-		if (term.length < 2) return;
-		const docs = searchEntities(term, {categoriesExact: ["bestiary"], limit: 8});
-		if (!docs.length) {
+		if (term.length < 2) {
+			hitDocs = [];
+			return;
+		}
+		hitDocs = searchEntities(term, {categoriesExact: ["bestiary"], limit: 8});
+		if (!hitDocs.length) {
 			hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No creatures."});
 			return;
 		}
-		for (const doc of docs) {
-			const hit = hitsEl.createDiv({cls: "fiveetools-encounter__hit"});
+		hitDocs.forEach((doc, index) => {
+			const hit = hitsEl.createDiv({cls: `fiveetools-encounter__hit${index === 0 ? " is-selected" : ""}`});
 			const meta = hit.createDiv({cls: "fiveetools-encounter__hitmeta"});
 			meta.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
 			meta.createEl("div", {cls: "fiveetools-modal__sub", text: [doc.sA || doc.s, doc.cf].filter(Boolean).join(" · ")});
-			hit.addEventListener("click", () => {
-				pushCreature(doc);
-				searchEl.value = "";
-				hitsEl.empty();
-				commitAdded();
-				searchEl.focus();
-			});
-		}
+			hit.addEventListener("click", () => addHit(doc));
+		});
 	};
 	searchEl.addEventListener("input", paintHits);
 	searchEl.addEventListener("keydown", (evt) => {
+		if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {
+			if (!hitDocs.length) return;
+			evt.preventDefault();
+			const next = evt.key === "ArrowDown" ? hitIndex + 1 : hitIndex - 1;
+			hitIndex = Math.max(0, Math.min(hitDocs.length - 1, next));
+			markHit();
+			return;
+		}
 		if (evt.key !== "Enter") return;
 		evt.preventDefault();
-		const term = searchEl.value.trim();
-		if (term.length < 2) return;
-		const first = searchEntities(term, {categoriesExact: ["bestiary"], limit: 1})[0];
-		if (!first) return;
-		pushCreature(first);
-		searchEl.value = "";
-		hitsEl.empty();
-		commitAdded();
+		addHit(hitDocs[hitIndex]);
 	});
 	sendBtn.addEventListener("click", () => { void sendAddedToEncounter(); });
 	paintAdded();
@@ -622,9 +649,12 @@ function paintSimControls (host, state, plugin, refresh) {
 	host.empty();
 	if (!partyRecords(state).length) return;
 	const row = host.createDiv({cls: "fiveetools-dpr__sim-controls"});
-	const count = row.createEl("input", {attr: {type: "number", min: "1", max: "20", value: String(state.simCount || 1)}});
+	const count = row.createEl("select", {attr: {title: "How many fights to run"}});
+	for (const n of RUN_COUNTS) count.createEl("option", {text: String(n), attr: {value: String(n)}});
+	state.simCount = runCount(state.simCount);
+	count.value = String(state.simCount);
 	count.addEventListener("change", () => {
-		state.simCount = clamp(count.value, 1, 20, 1);
+		state.simCount = runCount(count.value);
 		count.value = String(state.simCount);
 	});
 	const pace = row.createEl("select", {attr: {title: "Pause between automatic turns"}});
@@ -659,13 +689,13 @@ function paintSimControls (host, state, plugin, refresh) {
 		startAuto(state, plugin, refresh);
 	});
 	simButton(row, state.running ? "Running…" : "Run", () => { void runMany(1); }, state.running);
-	simButton(row, state.running ? "Running…" : "Run N", () => { void runMany(clamp(count.value, 1, 20, 1)); }, state.running);
+	simButton(row, state.running ? "Running…" : "Run N", () => { void runMany(runCount(count.value)); }, state.running);
 
 	async function runMany (n) {
 		if (state.running) return;
 		stopSimTimer(plugin);
 		state.running = true;
-		const total = clamp(n, 1, 20, 1);
+		const total = runCount(n);
 		const reports = [];
 		let last = null;
 		try {
