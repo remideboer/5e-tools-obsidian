@@ -2332,11 +2332,23 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-init-list__row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
 	padding: 4px 8px;
 	border: 2px solid transparent;
 	border-radius: 6px;
 	font-size: 1.35em;
 	font-weight: 700;
+}
+
+.fiveetools-init-list__token {
+	width: 2.2em;
+	height: 2.2em;
+	flex: none;
+	object-fit: cover;
+	border-radius: 4px;
+	background: #111;
 }
 
 .fiveetools-init-list__row.is-current {

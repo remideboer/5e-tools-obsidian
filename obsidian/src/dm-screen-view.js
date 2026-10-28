@@ -51,12 +51,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const bar = listEl.createDiv({cls: "fiveetools-dmscreen__bar"});
-	const turnEl = listEl.createDiv({cls: "fiveetools-init-list", attr: {tabindex: "0"}});
-	const paintTurns = () => paintInitiative(turnEl, plugin);
-	paintTurns();
 	plugin._dmTurnUnsub?.();
-	plugin._dmTurnUnsub = onTableChange(() => { if (turnEl.isConnected) paintTurns(); });
-	listEl.addEventListener("keydown", (evt) => onInitiativeKey(plugin, evt));
+	plugin._dmTurnUnsub = onTableChange(() => {
+		if (!listEl.isConnected) return;
+		listEl.querySelectorAll(".fiveetools-dmscreen__init").forEach(el => paintInitiative(el, plugin));
+	});
 	const addEntityBtn = bar.createEl("button", {
 		text: "Entry / note",
 		cls: "fiveetools-btn",
@@ -82,6 +81,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Pin the current encounter roster"},
 	});
+	const addInitBtn = bar.createEl("button", {
+		text: "Initiative",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Add the initiative roster"},
+	});
 	const refButtons = QUICK_REFS.map((spec) => {
 		const el = bar.createEl("button", {
 			text: spec.label,
@@ -105,6 +109,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 
 	const syncBar = () => {
 		addEncounterBtn.toggleAttribute("disabled", items().some(panel => panel.type === "encounter"));
+		addInitBtn.toggleAttribute("disabled", items().some(panel => panel.type === "initiative"));
 		for (const btn of refButtons) {
 			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
 		}
@@ -308,6 +313,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (items().some(panel => panel.type === "encounter")) return;
 		addColumn(blankPanel("encounter", "Encounter"));
 	});
+	addInitBtn.addEventListener("click", () => {
+		if (items().some(panel => panel.type === "initiative")) return;
+		addColumn(blankPanel("initiative", "Initiative"));
+	});
 
 	const pinReference = (spec) => {
 		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
@@ -329,7 +338,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				evt.stopPropagation();
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -362,6 +371,12 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "counter") paintCounter(body, panel);
 		else if (panel.type === "campaignNote") void paintCampaignNote(body, panel);
 		else if (panel.type === "encounter") paintEncounter(body);
+		else if (panel.type === "initiative") {
+			body.addClass("fiveetools-dmscreen__init");
+			body.setAttr("tabindex", "0");
+			paintInitiative(body, plugin);
+			body.addEventListener("keydown", (evt) => onInitiativeKey(plugin, evt));
+		}
 		else if (panel.type === "reference") void paintReference(body, panel);
 		else if (panel.type === "rollTable") void paintRollTable(body, panel);
 		else void paintEntity(body, panel);
@@ -733,7 +748,10 @@ async function readCampaignNote (plugin, filePath) {
 function paintInitiative (host, plugin) {
 	host.empty();
 	const chips = placedChips(ensureTableSession(plugin));
-	if (!chips.length) return;
+	if (!chips.length) {
+		host.createEl("p", {cls: "fiveetools-view__meta", text: "Drag creatures onto the Table ruler."});
+		return;
+	}
 	const session = ensureTableSession(plugin);
 	const current = chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
 	for (const chip of chips) {

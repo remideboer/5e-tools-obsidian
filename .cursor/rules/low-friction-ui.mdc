@@ -1,0 +1,21 @@
+---
+description: Add and choose with as little friction as possible
+alwaysApply: true
+---
+
+# Low-friction UI
+
+Choosing or adding something should happen in the control itself. Do not add a second button that only confirms what the user already chose.
+
+**Do this:**
+
+- A search list: arrow keys move the highlight, Enter or a click adds the highlighted row, then clear the field and leave the cursor there.
+- A menu of known items (a campaign, a saved encounter): choosing an item performs the action and resets the menu to its placeholder.
+- A short text field (a name): Enter submits, clears the field, and keeps focus.
+
+**Do not do this:**
+
+- An Add button beside a select or a one-line text field.
+- A copies menu when one item per action is enough.
+
+See creature search, campaign characters, saved encounters, and the name field in `obsidian/src/table-view.js`.

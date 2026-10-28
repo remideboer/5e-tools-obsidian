@@ -1,6 +1,6 @@
 import {ItemView, Menu, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_TABLE} from "./constants.js";
-import {acOf, characterId, hpOf} from "./dpr-view.js";
+import {acOf, avatarFrom, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
 import {characterName, listCharacters} from "./character-store.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
@@ -14,6 +14,8 @@ import {
 	sortGroupsByInitiative,
 } from "./encounter-view.js";
 import {ensureSearchIndex, searchEntities} from "./search-index.js";
+import {loadEntity} from "./entity-loader.js";
+import {resolveTokenImage} from "./image-resolver.js";
 import {ICON_ID} from "./icon.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
 
@@ -144,10 +146,53 @@ function paintPlayerRoster (host, session, doc, plugin) {
 	for (const chip of placedChips(session)) {
 		const row = doc.createElement("div");
 		row.className = `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}`;
-		row.textContent = chip.label;
+		const src = chipImage(chip);
+		if (src) {
+			const img = doc.createElement("img");
+			img.className = "fiveetools-init-list__token";
+			img.alt = "";
+			img.src = src;
+			row.appendChild(img);
+		}
+		const name = doc.createElement("span");
+		name.textContent = chip.label;
+		row.appendChild(name);
 		panel.appendChild(row);
 	}
 	host.appendChild(panel);
+	fillMissingImages(plugin, session);
+}
+
+function chipImage (chip) {
+	return chip.members?.find(member => member.image)?.image || "";
+}
+
+function fillMissingImages (plugin, session) {
+	const seen = new Set();
+	for (const combatant of session.combatants || []) {
+		if (combatant.image || combatant._imageTried || !combatant.doc?.n) continue;
+		const key = kindKey(combatant);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		for (const other of session.combatants) {
+			if (kindKey(other) === key) other._imageTried = true;
+		}
+		rememberCreatureImage(plugin, combatant.doc).then(() => refreshTable(plugin));
+	}
+}
+
+async function rememberCreatureImage (plugin, doc) {
+	if (!doc?.n) return;
+	const session = ensureTableSession(plugin);
+	const key = kindKey({doc, label: doc.n});
+	let url = "";
+	try {
+		const loaded = await loadEntity(doc);
+		url = loaded?.ent ? (resolveTokenImage(loaded.ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl})?.url || "") : "";
+	} catch (_) { url = ""; }
+	for (const combatant of session.combatants) {
+		if (kindKey(combatant) === key) combatant.image = url;
+	}
 }
 
 export function renderTableTool (listEl, readerEl, {plugin} = {}) {
@@ -263,14 +308,24 @@ async function paintInserts (box, plugin) {
 	});
 
 	box.createEl("h4", {text: "Add an encounter"});
-	const encRow = box.createDiv({cls: "fiveetools-encounter__row"});
-	const encEl = encRow.createEl("select");
+	const encEl = box.createEl("select", {cls: "fiveetools-table__select"});
 	encEl.createEl("option", {text: "Choose…", attr: {value: ""}});
 	try { await loadEncountersFromVault(plugin); } catch (_) { /* saved list may be empty */ }
 	for (const encounter of listSavedEncounters()) {
 		encEl.createEl("option", {text: encounter.name || "Encounter", attr: {value: encounter.id}});
 	}
-	toolButton(encRow, "Add", () => { void addEncounter(plugin, encEl.value); });
+	const addChosenEncounter = () => {
+		const id = encEl.value;
+		if (!id) return;
+		encEl.value = "";
+		void addEncounter(plugin, id);
+	};
+	encEl.addEventListener("change", addChosenEncounter);
+	encEl.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		addChosenEncounter();
+	});
 
 	box.createEl("h4", {text: "Campaign characters"});
 	const campEl = box.createEl("select", {cls: "fiveetools-table__select"});
@@ -288,20 +343,24 @@ async function paintInserts (box, plugin) {
 	});
 
 	box.createEl("h4", {text: "Add a name"});
-	const nameRow = box.createDiv({cls: "fiveetools-encounter__row"});
-	const nameEl = nameRow.createEl("input", {attr: {type: "text", placeholder: "Name"}});
-	toolButton(nameRow, "Add", () => addName(plugin, nameEl.value));
+	const nameEl = box.createEl("input", {
+		cls: "fiveetools-table__select",
+		attr: {type: "text", placeholder: "Name, then Enter"},
+	});
 	nameEl.addEventListener("keydown", (evt) => {
 		if (evt.key !== "Enter") return;
 		evt.preventDefault();
 		addName(plugin, nameEl.value);
 		nameEl.value = "";
+		nameEl.focus();
 	});
 }
 
 function paintSourceList (host, plugin) {
 	host.empty();
-	host.createEl("h3", {text: "Creatures"});
+	const head = host.createDiv({cls: "fiveetools-table__roster-head"});
+	head.createEl("h3", {text: "Creatures"});
+	toolButton(head, "Clear", () => clearSourceList(plugin));
 	const session = ensureTableSession(plugin);
 	const groups = listKindGroups(session.combatants).filter(group => group.initScore == null);
 	if (!listKindGroups(session.combatants).length) {
@@ -310,6 +369,16 @@ function paintSourceList (host, plugin) {
 	}
 	const stack = host.createDiv({cls: "fiveetools-init-stack"});
 	for (const group of groups) mountChip(stack, plugin, group);
+}
+
+function clearSourceList (plugin) {
+	const session = ensureTableSession(plugin);
+	const waiting = new Set(
+		listKindGroups(session.combatants).filter(group => group.initScore == null).map(group => group.key),
+	);
+	if (!waiting.size) return;
+	session.combatants = session.combatants.filter(combatant => !waiting.has(kindKey(combatant)));
+	refreshTable(plugin);
 }
 
 function paintDmRoster (host, plugin) {
@@ -441,6 +510,7 @@ async function addCreature (plugin, doc, count) {
 		const next = await addCombatants(session, doc, count);
 		session.combatants = next.combatants;
 		session.selectedId = next.selectedId;
+		await rememberCreatureImage(plugin, doc);
 		refreshTable(plugin);
 	} catch (err) {
 		new Notice(err?.message || "Could not add that creature.");
@@ -460,6 +530,7 @@ async function addEncounter (plugin, id) {
 			try {
 				const next = await addCombatants(session, combatant.doc, 1);
 				session.combatants = next.combatants;
+				await rememberCreatureImage(plugin, combatant.doc);
 			} catch (_) { /* skip a creature that will not load */ }
 		} else if (combatant?.label) {
 			pushNamed(session, combatant.label, combatant);
@@ -506,6 +577,7 @@ function addCharacter (plugin, record) {
 		tempHp: 0,
 		condition: "",
 		initScore: null,
+		image: avatarFrom(plugin, record.body),
 	});
 	sortRoster(session);
 	refreshTable(plugin);
