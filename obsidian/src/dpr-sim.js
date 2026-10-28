@@ -1,3 +1,4 @@
+import {planTurn} from "./dpr-ai.js";
 import {expectedDamage, spellAtSlot, takeHighestSlot} from "./dpr-calc.js";
 import {rollDice} from "./dice-roll.js";
 import {xpFromCr} from "./encounter-difficulty.js";
@@ -112,9 +113,13 @@ export function combineReports (reports) {
 	const list = reports || [];
 	const stat = (pick) => {
 		const values = list.map(pick).filter(n => Number.isFinite(n));
-		if (!values.length) return {avg: 0, min: 0, max: 0};
-		const sum = values.reduce((total, n) => total + n, 0);
-		return {avg: sum / values.length, min: Math.min(...values), max: Math.max(...values)};
+		if (!values.length) return {mean: 0, median: 0, sd: 0};
+		const mean = values.reduce((total, n) => total + n, 0) / values.length;
+		const sorted = [...values].sort((a, b) => a - b);
+		const mid = Math.floor(sorted.length / 2);
+		const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+		const sd = Math.sqrt(values.reduce((total, n) => total + (n - mean) ** 2, 0) / values.length);
+		return {mean, median, sd};
 	};
 	const names = [...new Set(list.flatMap(report => report.actors.map(actor => actor.name)))];
 	return {
@@ -143,10 +148,12 @@ function actorsFrom (list, side) {
 		initMod: Number(actor.initMod) || 0,
 		saveBonus: Number(actor.saveBonus) || 0,
 		image: actor.image || "",
-		options: actor.options || [],
+		options: (actor.options || []).map(copyOption),
 		extraSwings: Math.max(1, Number(actor.extraSwings) || 1),
 		characterLevel: Number(actor.characterLevel) || 1,
 		pool: (actor.pool || []).map(slot => ({level: slot.level, pact: !!slot.pact})),
+		classes: actor.classes || "",
+		bonusDisengage: (actor.options || []).some(option => option.utility === "disengage" && (option.activation === "bonus" || option.slot === "bonus")),
 		cr: actor.cr || "",
 		x: 0,
 		y: 0,
@@ -159,6 +166,15 @@ function actorsFrom (list, side) {
 		healed: 0,
 		hits: 0,
 	}));
+}
+
+function copyOption (option) {
+	return {
+		...option,
+		scale: option?.scale ? {...option.scale} : option?.scale,
+		cantrip: option?.cantrip ? option.cantrip.map(row => ({...row})) : option?.cantrip,
+		repeats: option?.repeats ? option.repeats.map(swing => ({...swing})) : option?.repeats,
+	};
 }
 
 function place (group, col, actors) {
@@ -183,15 +199,25 @@ function takeTurn (fight, actor) {
 		log(fight, actor, `${actor.name} is ${actor.conditions.has("paralyzed") ? "paralyzed" : "stunned"} and skips the turn.`);
 		return;
 	}
-	const action = bestOption(actor, fight.actors, "action");
-	const bonusBlocked = action?.option && isLeveled(action.option);
-	const bonus = bestOption(actor, fight.actors, "bonus", bonusBlocked);
-	if (!action && !bonus) {
-		log(fight, actor, `${actor.name} has nothing in reach.`);
+	actor.dodging = false;
+	const plan = planTurn(actor, fight.actors);
+	const disengaged = plan.disengage === "action" || plan.disengage === "bonus";
+	if (plan.disengage === "bonus") log(fight, actor, `${actor.name} takes Disengage as a bonus action.`);
+	if (plan.disengage === "action") log(fight, actor, `${actor.name} takes the Disengage action.`);
+	if (plan.dash) log(fight, actor, `${actor.name} takes the Dash action.`);
+	moveActor(fight, actor, plan.cell, disengaged);
+	if (actor.hp <= 0 || actor.dead) return;
+	if (plan.shortfall) {
+		log(fight, actor, `${actor.name} is still ${plan.shortfall.feet} ft short of ${plan.shortfall.attack} against ${plan.shortfall.target}.`);
+	}
+	if (plan.dodge) {
+		actor.dodging = true;
+		log(fight, actor, `${actor.name} takes the Dodge action.`);
 		return;
 	}
-	if (action) resolveChoice(fight, actor, action);
-	if (bonus) resolveChoice(fight, actor, bonus);
+	if (plan.action) resolveChoice(fight, actor, plan.action);
+	if (actor.hp <= 0 || actor.dead) return;
+	if (plan.bonus) resolveChoice(fight, actor, plan.bonus);
 }
 
 function bestOption (actor, actors, slot, blockLeveled) {
@@ -248,12 +274,38 @@ function optionScore (option, actor, target, range) {
 	return score;
 }
 
-function resolveChoice (fight, actor, choice) {
+function moveActor (fight, actor, cell, disengaged) {
+	const dest = cell || {x: actor.x, y: actor.y};
 	const from = {x: actor.x, y: actor.y};
-	actor.x = choice.cell.x;
-	actor.y = choice.cell.y;
+	let guard = 0;
+	while ((actor.x !== dest.x || actor.y !== dest.y) && guard < 20) {
+		const next = {
+			x: actor.x + Math.sign(dest.x - actor.x),
+			y: actor.y + Math.sign(dest.y - actor.y),
+		};
+		if (!disengaged) opportunity(fight, actor, next);
+		if (actor.hp <= 0 || actor.dead) return;
+		actor.x = next.x;
+		actor.y = next.y;
+		guard++;
+	}
 	const moved = feetBetween(from, actor);
 	if (moved > 0) log(fight, actor, `${actor.name} moves ${moved} ft.`);
+}
+
+function opportunity (fight, actor, next) {
+	const enemies = fight.actors.filter(it => it.side !== actor.side && it.hp > 0 && feetBetween(actor, it) <= 5 && feetBetween(next, it) > 5);
+	for (const enemy of enemies) {
+		const melee = (enemy.options || []).find(option => option.kind === "attack" && option.melee !== false && !option.spell && (option.rangeFeet || 5) <= 10 && !option.repeats);
+		const swing = melee || (enemy.options || []).find(option => option.repeats)?.repeats?.find(option => option.melee !== false);
+		if (!swing) continue;
+		log(fight, enemy, `${enemy.name} makes an opportunity attack against ${actor.name}.`);
+		applyCast(fight, enemy, swing, actor, {feet: 5, melee: true, aoe: 0}, [actor]);
+		if (actor.hp <= 0 || actor.dead) return;
+	}
+}
+
+function resolveChoice (fight, actor, choice) {
 	let cast = choice.option;
 	if (isLeveled(cast)) {
 		const slot = takeHighestSlot(actor.pool, cast.level);
@@ -443,6 +495,7 @@ function attackMode (actor, target, melee) {
 	if (actor.conditions.has("poisoned") || actor.conditions.has("prone") || actor.conditions.has("restrained")) lean--;
 	if (target.conditions.has("restrained") || target.conditions.has("paralyzed") || target.conditions.has("stunned")) lean++;
 	if (target.conditions.has("prone")) lean += melee ? 1 : -1;
+	if (target.dodging) lean--;
 	if (lean > 0) return "advantage";
 	if (lean < 0) return "disadvantage";
 	return "normal";

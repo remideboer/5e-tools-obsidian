@@ -280,17 +280,18 @@ function paintSetup (host, state, paint, onCharacter, onThreat) {
 function paintChecks (host, state, paint) {
 	const sim = host.querySelector(".fiveetools-dpr__sim");
 	host.empty();
-	const checks = host.createDiv();
+	const checks = host.createDiv({cls: "fiveetools-dpr__party"});
 	for (const record of partyRecords(state)) {
 		const id = characterId(record);
 		const sheet = state.sheets[id];
 		if (!sheet) continue;
+		const column = checks.createDiv({cls: "fiveetools-dpr__party-col"});
 		const swings = sheet.swings > 1 ? ` · ${sheet.swings} swings` : "";
-		checks.createEl("h3", {text: `${characterName(record)} · AC ${acOf(record) ?? "—"} · HP ${hpOf(record) || "—"}${swings}`});
+		column.createEl("h3", {text: `${characterName(record)} · AC ${acOf(record) ?? "—"} · HP ${hpOf(record) || "—"}${swings}`});
 		const picks = memberPicks(state, id);
-		paintGroup(checks, "Attacks", sheet.attacks, picks.attacks, paint);
-		paintGroup(checks, "Spells", sheet.spells, picks.spells, paint);
-		paintGroup(checks, "Healing", sheet.heals, picks.heals, paint);
+		paintGroup(column, "Attacks", sheet.attacks, picks.attacks, paint);
+		paintGroup(column, "Spells", sheet.spells, picks.spells, paint);
+		paintGroup(column, "Healing", sheet.heals, picks.heals, paint);
 	}
 	host.createDiv({cls: "fiveetools-dpr__results"});
 	if (sim) host.append(sim);
@@ -793,6 +794,12 @@ function paintSim (host, state, plugin) {
 	const row = host.createDiv({cls: "fiveetools-dpr__row fiveetools-dpr__sim-controls"});
 	const count = row.createEl("input", {attr: {type: "number", min: "1", max: "20", value: String(state.simCount || 1)}});
 	count.addEventListener("change", () => { state.simCount = clamp(count.value, 1, 20, 1); });
+	const pace = row.createEl("select", {attr: {title: "Pause between automatic turns"}});
+	for (const ms of [400, 800, 1200, 2000, 3000]) {
+		pace.createEl("option", {text: `${ms / 1000} s`, attr: {value: String(ms)}});
+	}
+	pace.value = String(simPace(state));
+	pace.addEventListener("change", () => { state.simPace = Number(pace.value) || 800; });
 	const refresh = () => paintSim(host, state, plugin);
 	simButton(row, "Reset", () => { resetFight(state, plugin); refresh(); });
 	simButton(row, "Step turn", () => { stopSimTimer(plugin); beginFight(state, plugin); stepTurn(state.fight); refresh(); });
@@ -847,8 +854,13 @@ function startAuto (host, state, plugin) {
 			stopSimTimer(plugin);
 		}
 		paintSim(host, state, plugin);
-	}, 800);
+	}, simPace(state));
 	paintSim(host, state, plugin);
+}
+
+function simPace (state) {
+	const pace = Number(state?.simPace);
+	return [400, 800, 1200, 2000, 3000].includes(pace) ? pace : 800;
 }
 
 function stopSimTimer (plugin) {
@@ -878,6 +890,7 @@ function simSides (state, plugin) {
 			extraSwings: sheet.swings || 1,
 			characterLevel: Number(record.fields?.level) || 1,
 			pool: slotPool(record.snapshot?.slots),
+			classes: record.fields?.classes || "",
 			saveBonus: saveMod(record),
 		};
 	});
@@ -919,8 +932,8 @@ function simEnemies (state) {
 }
 
 function enemyOptions (attacks) {
-	const action = (attacks || []).filter(attack => attack.activation !== "bonus");
-	const bonus = (attacks || []).filter(attack => attack.activation === "bonus");
+	const action = (attacks || []).filter(attack => attack.activation !== "bonus" && !attack.separate && attack.kind !== "utility");
+	const extras = (attacks || []).filter(attack => attack.separate || attack.kind === "utility" || attack.activation === "bonus");
 	const options = [];
 	if (action.length) {
 		options.push({
@@ -930,17 +943,20 @@ function enemyOptions (attacks) {
 			activation: "action",
 		});
 	}
-	for (const item of bonus) options.push({...item, activation: "bonus"});
+	for (const item of extras) options.push(item);
 	return options;
 }
 
 function paintBoard (host, fight) {
 	const stage = host.createDiv({cls: "fiveetools-dpr__stage"});
-	const board = stage.createDiv({cls: "fiveetools-dpr__board"});
 	if (!fight) {
-		board.createEl("p", {cls: "fiveetools-view__meta", text: "Step or run to place tokens."});
+		stage.createEl("p", {cls: "fiveetools-view__meta", text: "Step or run to place tokens."});
 		return;
 	}
+	const map = stage.createDiv({cls: "fiveetools-dpr__map"});
+	const latest = fight.log.length ? fight.log[fight.log.length - 1].text : "";
+	if (latest) map.createDiv({cls: "fiveetools-dpr__action", text: latest});
+	const board = map.createDiv({cls: "fiveetools-dpr__board"});
 	const next = fight.over ? null : fight.actors.find(actor => actor.id === fight.order[fight.cursor]);
 	board.style.gridTemplateColumns = `repeat(${fight.cols}, 1fr)`;
 	for (let y = 0; y < fight.rows; y++) {
@@ -1051,7 +1067,7 @@ function statTile (host, label, value) {
 
 function rangeText (stat) {
 	if (!stat) return "—";
-	return `${formatNum(stat.avg)} (${formatNum(stat.min)}–${formatNum(stat.max)})`;
+	return `mean ${formatNum(stat.mean)} · SD ${formatNum(stat.sd)} · median ${formatNum(stat.median)}`;
 }
 
 function simButton (row, text, onClick) {

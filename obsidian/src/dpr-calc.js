@@ -169,8 +169,7 @@ export function creatureRound (ent) {
 	const actions = Array.isArray(ent?.action) ? ent.action : [];
 	const attacks = [];
 	for (const action of actions) {
-		const parsed = attackFromAction(action);
-		if (parsed) attacks.push(parsed);
+		attacks.push(...attackForms(action));
 	}
 	const multi = actions.find(action => /multiattack/i.test(action?.name || ""));
 	if (!multi) return attacks.slice(0, 1);
@@ -181,10 +180,11 @@ export function creatureRound (ent) {
 	while ((match = re.exec(text))) {
 		const count = COUNT_WORD[(match[1] || "one").toLowerCase()] || 1;
 		const name = match[2].trim().toLowerCase();
-		const attack = attacks.find(it => {
-			const label = it.name.toLowerCase();
+		const matches = attacks.filter(it => {
+			const label = it.name.toLowerCase().replace(/\s+\((melee|ranged)\)$/, "");
 			return label === name || name.includes(label) || label.includes(name);
 		});
+		const attack = matches.find(it => it.melee !== false) || matches[0];
 		if (!attack) continue;
 		for (let i = 0; i < count; i++) picked.push(attack);
 	}
@@ -198,9 +198,52 @@ export function creatureRound (ent) {
 /** Multiattack as the action, plus one damaging bonus action if the creature has one. */
 export function creatureTurn (ent) {
 	const swings = creatureRound(ent);
-	const bonus = (Array.isArray(ent?.bonus) ? ent.bonus : []).map(attackFromAction).find(Boolean);
 	const actionSwings = swings.map(swing => ({...swing, activation: "action"}));
-	return bonus ? [...actionSwings, {...bonus, activation: "bonus"}] : actionSwings;
+	const ranged = [];
+	for (const action of ent?.action || []) {
+		for (const form of attackForms(action)) {
+			if (form.melee === false) ranged.push({...form, activation: "action", separate: true});
+		}
+	}
+	const bonus = (Array.isArray(ent?.bonus) ? ent.bonus : []).map(attackFromAction).find(Boolean);
+	const utility = [...(ent?.action || []), ...(ent?.bonus || [])]
+		.map(action => utilityOption(action, (ent?.bonus || []).includes(action) ? "bonus" : "action"))
+		.filter(Boolean);
+	return [
+		...actionSwings,
+		...ranged,
+		...(bonus ? [{...bonus, activation: "bonus"}] : []),
+		...utility,
+	];
+}
+
+function attackForms (action) {
+	const base = attackFromAction(action);
+	if (!base) return [];
+	const text = flattenEntries(action?.entries);
+	const reach = text.match(/reach\s+(\d+)/i);
+	const ranged = text.match(/range\s+(\d+)/i);
+	if (reach && ranged && Number(ranged[1]) !== Number(reach[1])) {
+		return [
+			{...base, name: `${base.name} (melee)`, rangeFeet: Number(reach[1]), melee: true},
+			{...base, name: `${base.name} (ranged)`, rangeFeet: Number(ranged[1]), melee: false},
+		];
+	}
+	return [base];
+}
+
+function utilityOption (action, activation) {
+	const name = String(action?.name || "");
+	const text = flattenEntries(action?.entries);
+	if (!/disengage|nimble escape/i.test(`${name} ${text}`)) return null;
+	return {
+		name: "Disengage",
+		kind: "utility",
+		utility: "disengage",
+		activation,
+		spell: false,
+		blurb: text.slice(0, 160),
+	};
 }
 
 export function economySlot (activation) {
