@@ -5,6 +5,45 @@
 
 const COUNT_WORD = {one: 1, two: 2, three: 3, four: 4, five: 5, six: 6};
 
+export function damageFactor (type, defenses) {
+	const name = String(type || "").trim().toLowerCase();
+	if (!name || !defenses) return 1;
+	const has = (key) => (defenses[key] || []).some(item => String(item).toLowerCase() === name);
+	if (has("immune")) return 0;
+	const resist = has("resist");
+	const vulnerable = has("vulnerable");
+	if (resist && vulnerable) return 1;
+	if (resist) return 0.5;
+	if (vulnerable) return 2;
+	return 1;
+}
+
+export function normalizeDefenses (source) {
+	const defenses = {immune: [], resist: [], vulnerable: []};
+	if (Array.isArray(source)) {
+		for (const line of source) {
+			const match = String(line).match(/^(Resistance|Immunity|Vulnerability)\s+(.+)$/i);
+			if (!match) continue;
+			const key = /^imm/i.test(match[1]) ? "immune" : /^vul/i.test(match[1]) ? "vulnerable" : "resist";
+			defenses[key].push(match[2].trim().toLowerCase());
+		}
+		return defenses;
+	}
+	defenses.immune = defenseNames(source?.immune, "immune");
+	defenses.resist = defenseNames(source?.resist, "resist");
+	defenses.vulnerable = defenseNames(source?.vulnerable, "vulnerable");
+	return defenses;
+}
+
+function defenseNames (list, key) {
+	const out = [];
+	for (const item of list || []) {
+		if (typeof item === "string") out.push(item.toLowerCase());
+		else if (item && Array.isArray(item[key])) out.push(...item[key].map(name => String(name).toLowerCase()));
+	}
+	return out;
+}
+
 /** DMG monster statistics by CR. `save` is attack bonus minus proficiency. */
 const CR_TABLE = [
 	{cr: "0", ac: 13, hp: 4, attack: 3, dpr: 1, pb: 2},
@@ -590,6 +629,7 @@ function attackFromAction (action) {
 		flat: shape?.flat ?? parts.flat,
 		rangeFeet: reach ? Number(reach[1]) : (ranged ? Number(ranged[1]) : (hit ? 5 : 60)),
 		melee: !!reach || !ranged,
+		damage: (text.match(/\b(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\b/i) || [])[1]?.toLowerCase() || "",
 		blurb: text.slice(0, 240),
 	};
 }

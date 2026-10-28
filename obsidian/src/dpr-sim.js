@@ -1,5 +1,5 @@
 import {planTurn} from "./dpr-ai.js";
-import {expectedDamage, spellAtSlot, takeHighestSlot} from "./dpr-calc.js";
+import {damageFactor, expectedDamage, spellAtSlot, takeHighestSlot} from "./dpr-calc.js";
 import {rollDice} from "./dice-roll.js";
 import {xpFromCr} from "./encounter-difficulty.js";
 
@@ -155,6 +155,12 @@ function actorsFrom (list, side) {
 		classes: actor.classes || "",
 		bonusDisengage: (actor.options || []).some(option => option.utility === "disengage" && (option.activation === "bonus" || option.slot === "bonus")),
 		cr: actor.cr || "",
+		int: Number.isFinite(Number(actor.int)) ? Number(actor.int) : null,
+		defenses: {
+			immune: [...(actor.defenses?.immune || [])],
+			resist: [...(actor.defenses?.resist || [])],
+			vulnerable: [...(actor.defenses?.vulnerable || [])],
+		},
 		x: 0,
 		y: 0,
 		conditions: new Set(),
@@ -174,6 +180,7 @@ function copyOption (option) {
 		scale: option?.scale ? {...option.scale} : option?.scale,
 		cantrip: option?.cantrip ? option.cantrip.map(row => ({...row})) : option?.cantrip,
 		repeats: option?.repeats ? option.repeats.map(swing => ({...swing})) : option?.repeats,
+		beastOptions: option?.beastOptions ? option.beastOptions.map(swing => ({...swing, repeats: swing.repeats?.map(part => ({...part}))})) : option?.beastOptions,
 	};
 }
 
@@ -215,9 +222,11 @@ function takeTurn (fight, actor) {
 		log(fight, actor, `${actor.name} takes the Dodge action.`);
 		return;
 	}
+	if (plan.bonus?.option?.utility === "wildshape") resolveChoice(fight, actor, plan.bonus);
+	if (actor.hp <= 0 || actor.dead) return;
 	if (plan.action) resolveChoice(fight, actor, plan.action);
 	if (actor.hp <= 0 || actor.dead) return;
-	if (plan.bonus) resolveChoice(fight, actor, plan.bonus);
+	if (plan.bonus?.option?.utility !== "wildshape" && plan.bonus) resolveChoice(fight, actor, plan.bonus);
 }
 
 function bestOption (actor, actors, slot, blockLeveled) {
@@ -307,6 +316,14 @@ function opportunity (fight, actor, next) {
 
 function resolveChoice (fight, actor, choice) {
 	let cast = choice.option;
+	if (cast?.utility === "wildshape") {
+		actor.shaped = true;
+		const beast = (cast.beastOptions || []).map(copyOption);
+		const spells = actor.characterLevel >= 18 ? (actor.options || []).filter(option => option.spell) : [];
+		actor.options = [...spells, ...beast];
+		log(fight, actor, `${actor.name} uses ${cast.name} and becomes ${cast.beastName}.`);
+		return;
+	}
 	if (isLeveled(cast)) {
 		const slot = takeHighestSlot(actor.pool, cast.level);
 		if (!slot) return;
@@ -321,7 +338,7 @@ function resolveChoice (fight, actor, choice) {
 		for (const swing of list) {
 			const target = swing.kind === "heal"
 				? choice.targets.find(it => !isGone(it) && it.hp < it.max)
-				: choice.targets.find(it => it.hp > 0);
+				: choice.targets.find(it => !it.dead && (it.hp > 0 || it.dying || it.stable));
 			if (!target) break;
 			applyCast(fight, actor, swing, target, range, choice.targets);
 		}
@@ -342,45 +359,72 @@ function applyCast (fight, actor, cast, target, range, area) {
 	}
 	if (cast.kind === "save" || cast.kind === "auto") {
 		const victims = range.aoe ? area.filter(it => feetBetween(target, it) <= range.aoe) : [target];
-		const amount = rollAmount(cast, false);
 		for (const victim of victims) {
+			const rolled = adjustedAmount(cast, victim, false);
 			if (cast.kind === "auto") {
-				hurt(fight, actor, victim, amount, false);
-				log(fight, actor, `${actor.name} hits ${victim.name} with ${cast.name} for ${amount}.`);
+				hurt(fight, actor, victim, rolled.amount, false);
+				log(fight, actor, `${actor.name} hits ${victim.name} with ${cast.name} for ${rolled.amount}${rolled.note}.`);
 				continue;
 			}
 			const save = rollD20(victim.saveBonus, "normal");
 			const failed = save.nat === 1 || (save.nat !== 20 && save.total < (cast.dc || 10));
-			const dealt = failed ? amount : Math.floor(amount / 2);
+			const dealt = failed ? rolled.amount : Math.floor(rolled.amount / 2);
 			hurt(fight, actor, victim, dealt, false);
 			const named = failed ? applyCondition(victim, cast) : "";
-			log(fight, actor, `${actor.name} casts ${cast.name}. ${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${save.total}) and takes ${dealt}${named}.`);
+			log(fight, actor, `${actor.name} casts ${cast.name}. ${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${save.total}) and takes ${dealt}${rolled.note}${named}.`);
 		}
 		return;
 	}
 	const attack = rollD20(cast.bonus || 0, mode);
-	const autoCrit = range.melee && (target.conditions.has("paralyzed") || target.conditions.has("stunned"));
+	const close = feetBetween(actor, target) <= 5;
+	const unconscious = target.hp <= 0 && !target.dead && (target.dying || target.stable);
+	const autoCrit = (range.melee && (target.conditions.has("paralyzed") || target.conditions.has("stunned")))
+		|| (unconscious && close);
 	const crit = attack.nat === 20 || (autoCrit && attack.nat !== 1 && attack.total >= target.ac);
 	const hit = attack.nat !== 1 && (attack.nat === 20 || attack.total >= target.ac);
 	if (!hit) {
 		log(fight, actor, `${actor.name} misses ${target.name} with ${cast.name} (${attack.total} vs AC ${target.ac}).`);
 		return;
 	}
-	const amount = rollAmount(cast, crit);
-	hurt(fight, actor, target, amount, crit);
+	const rolled = adjustedAmount(cast, target, crit);
+	hurt(fight, actor, target, rolled.amount, crit);
 	actor.hits += 1;
-	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${amount}${crit ? " (critical)" : ""}.`);
+	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${rolled.amount}${crit ? " (critical)" : ""}${rolled.note}.`);
+}
+
+function adjustedAmount (cast, target, crit) {
+	const factor = damageFactor(cast.damage, target.defenses);
+	return {
+		amount: Math.floor(rollAmount(cast, crit) * factor),
+		note: factor === 0 ? " (immune)" : factor === 0.5 ? " (resisted)" : factor === 2 ? " (vulnerable)" : "",
+	};
 }
 
 function hurt (fight, actor, target, amount, crit) {
-	if (target.side === "party" && target.hp <= 0 && !target.dead) {
+	if (target.hp <= 0 && !target.dead && (target.dying || target.stable)) {
 		actor.dealt += amount;
-		addDeathFail(fight, target, crit ? 2 : 1);
+		if (amount > 0 && amount >= target.max) {
+			log(fight, target, `${target.name} takes ${amount} damage at 0 hit points and dies.`);
+			markDead(fight, target);
+			return;
+		}
+		const wasStable = !!target.stable;
+		target.stable = false;
+		target.dying = true;
+		if (wasStable || !target.saves) target.saves = {success: 0, fail: 0};
+		addDeathFail(fight, target, crit ? 2 : 1, wasStable);
 		return;
 	}
-	target.hp = Math.max(0, target.hp - amount);
+	const before = target.hp;
+	target.hp = Math.max(0, before - amount);
 	actor.dealt += amount;
 	if (target.hp > 0) return;
+	const overflow = amount - before;
+	if (target.side === "party" && overflow >= target.max && target.max > 0) {
+		log(fight, target, `${target.name} takes ${amount} damage and dies.`);
+		markDead(fight, target);
+		return;
+	}
 	if (target.side === "enemy") markDead(fight, target);
 	else knockOut(fight, target);
 }
@@ -407,9 +451,11 @@ function markDead (fight, target) {
 	log(fight, target, `${target.name} dies.`);
 }
 
-function addDeathFail (fight, target, count) {
+function addDeathFail (fight, target, count, wasStable) {
 	target.saves.fail += count;
-	log(fight, target, `${target.name} takes damage while dying (${count === 2 ? "two failures" : "a failure"}).`);
+	const blows = count === 2 ? "two death save failures" : "a death save failure";
+	const lead = wasStable ? `${target.name} is no longer stable and takes` : `${target.name} takes damage while dying,`;
+	log(fight, target, `${lead} ${blows}.`);
 	if (target.saves.fail >= 3) markDead(fight, target);
 }
 
@@ -432,6 +478,7 @@ function rollDeathSave (fight, actor) {
 	if (actor.saves.success >= 3) {
 		actor.dying = false;
 		actor.stable = true;
+		actor.saves = {success: 0, fail: 0};
 		log(fight, actor, `${actor.name} is stable at 0 hit points.`);
 	}
 	if (actor.saves.fail >= 3) markDead(fight, actor);
@@ -495,6 +542,9 @@ function attackMode (actor, target, melee) {
 	if (actor.conditions.has("poisoned") || actor.conditions.has("prone") || actor.conditions.has("restrained")) lean--;
 	if (target.conditions.has("restrained") || target.conditions.has("paralyzed") || target.conditions.has("stunned")) lean++;
 	if (target.conditions.has("prone")) lean += melee ? 1 : -1;
+	if (target.hp <= 0 && !target.dead && (target.dying || target.stable)) {
+		if (melee) lean++;
+	}
 	if (target.dodging) lean--;
 	if (lean > 0) return "advantage";
 	if (lean < 0) return "disadvantage";

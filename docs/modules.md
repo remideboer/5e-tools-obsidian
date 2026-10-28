@@ -83,7 +83,8 @@ flowchart TB
 | Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
 | Characters | `character-view.js`, `character-store.js`, `ddb-import.js` (public D&D Beyond cards in `{notesFolder}/_characters/{id}.md`; campaigns link with `character: id`) |
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js`, `encounter-random.js` (Random encounter; roster kind groups + shared initiative / roll-all / reset order) |
-| DPR | `dpr-view.js`, `dpr-calc.js`, `dpr-sim.js`, `dpr-ai.js` (expected damage; dice fight; class tactics, Disengage, and movement) |
+| DPR | `dpr-view.js`, `dpr-calc.js` (expected damage charts; spell and attack checkboxes) |
+| Simulation | `sim-view.js`, `dpr-sim.js`, `dpr-ai.js` (dice fight; party and encounter controls; class tactics, Disengage, movement, Wild Shape, and damage adjustments) |
 | DM screen | `dm-screen-view.js`, `dm-screen-store.js` (pins, homebrew, campaign notes, encounter card, quick refs, roll tables; `{notesFolder}/_dmscreen/board.json`) |
 | Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js`; Tools → Dice roller via `dice-roller-view.js` + `dice-icons.js` (polyhedral tap-to-roll, adv/disadv) |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |

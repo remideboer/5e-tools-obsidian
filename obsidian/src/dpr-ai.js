@@ -1,4 +1,4 @@
-import {expectedDamage} from "./dpr-calc.js";
+import {damageFactor, expectedDamage, spellAtSlot} from "./dpr-calc.js";
 
 const COLS = 10;
 const ROWS = 8;
@@ -10,7 +10,8 @@ const ROWS = 8;
  */
 export function planTurn (actor, actors) {
 	const role = roleOf(actor);
-	const foes = (actors || []).filter(it => it.side !== actor.side && it.hp > 0 && !it.dead);
+	const foes = (actors || []).filter(it => it.side !== actor.side && !it.dead && (it.hp > 0 || it.dying || it.stable));
+	const standing = foes.filter(it => it.hp > 0);
 	const friends = (actors || []).filter(it => it.side === actor.side && it !== actor && !it.dead && it.hp < it.max);
 	const speed = Math.max(1, Math.floor((actor.speed || 30) / 5));
 	const attacks = (actor.options || []).filter(option => option.kind !== "utility");
@@ -22,7 +23,8 @@ export function planTurn (actor, actors) {
 		dash = !!choice && feetBetween(actor, choice.cell) > speed * 5;
 	}
 	if (!choice && foes.length) {
-		const goal = nearest(actor, foes);
+		const pool = standing.length ? standing : foes;
+		const goal = focusGoals(actor, pool, actors)[0] || nearest(actor, pool);
 		const cell = walk(actor, goal, actors, speed * 2).at(-1);
 		const attack = attacks[0];
 		const reach = rangeOf(attack || {}).feet || 5;
@@ -41,10 +43,22 @@ export function planTurn (actor, actors) {
 		};
 	}
 	const cell = choice?.cell || {x: actor.x, y: actor.y};
+	const shape = considerWildShape(actor, choice, actors, foes);
+	if (shape) {
+		return {
+			cell: shape.cell,
+			dash: false,
+			dodge: false,
+			disengage: null,
+			action: shape.action,
+			bonus: shape.bonus,
+			shortfall: null,
+		};
+	}
 	const disengage = disengageMode(actor, cell, foes, role);
 	const action = disengage === "action" ? null : choice;
 	const bonus = disengage === "bonus" ? null : bestBonus(actor, attacks, actors, foes, friends, cell, role, action);
-	const engaged = foes.some(foe => feetBetween(actor, foe) <= 5);
+	const engaged = standing.some(foe => feetBetween(actor, foe) <= 5);
 	return {
 		cell,
 		dash,
@@ -70,6 +84,25 @@ export function roleOf (actor) {
 	return "striker";
 }
 
+function considerWildShape (actor, choice, actors, foes) {
+	if (actor.shaped) return null;
+	const shape = (actor.options || []).find(option => option.utility === "wildshape" && option.beastOptions?.length);
+	if (!shape || !foes.length) return null;
+	const steps = Math.max(1, Math.floor((actor.speed || 30) / 5));
+	let best = null;
+	for (const option of shape.beastOptions) {
+		if (option.kind === "utility") continue;
+		const found = bestCell(actor, {...option, activation: "action", slot: "action"}, actors, foes, [], steps, "striker");
+		if (found && (!best || found.score > best.score)) best = found;
+	}
+	if (!best || best.score <= (choice?.score || 0)) return null;
+	return {
+		cell: best.cell,
+		action: best,
+		bonus: {score: best.score, cell: best.cell, option: shape, targets: best.targets},
+	};
+}
+
 function bestAttack (actor, attacks, actors, foes, friends, steps, role) {
 	let best = null;
 	for (const option of attacks) {
@@ -89,37 +122,117 @@ function bestBonus (actor, attacks, actors, foes, friends, cell, role, action) {
 		if (blocked && isLeveled(option)) continue;
 		if (isLeveled(option) && !(actor.pool || []).some(slot => slot.level >= option.level)) continue;
 		const range = rangeOf(option);
-		const goals = option.kind === "heal" ? friends : foes;
-		for (const goal of goals) {
-			if (feetBetween(cell, goal) > range.feet) continue;
-			let score = swingScore(option, actor, goal, range) + positionBias(role, cell, foes);
-			if (role === "priest" && option.kind === "heal" && goal.hp <= goal.max / 2) score += 8;
-			if (!best || score > best.score) best = {score, cell, option, targets: targetsFor(cell, goal, range, foes)};
+		const groups = fightGoals(option, foes, friends);
+		let picked = null;
+		for (const goals of groups) {
+			for (const goal of (option.kind === "heal" ? goals : focusGoals(actor, goals, actors))) {
+				if (feetBetween(cell, goal) > range.feet) continue;
+				let score = swingScore(option, actor, goal, range) + positionBias(role, cell, foes);
+				score += aimBias(actor, goal);
+				if (role === "priest" && option.kind === "heal" && goal.hp <= goal.max / 2) score += 8;
+				if (!picked || score > picked.score) picked = {score, cell, option, targets: targetsFor(cell, goal, range, option.kind === "heal" ? friends : foes)};
+			}
+			if (picked && option.kind !== "heal") break;
 		}
+		if (picked && (!best || picked.score > best.score)) best = picked;
 	}
 	return best;
 }
 
 function bestCell (actor, option, actors, foes, friends, steps, role) {
-	const goals = option.kind === "heal" ? friends : foes;
-	if (!goals.length) return null;
 	const range = rangeOf(option);
+	const groups = fightGoals(option, foes, friends);
 	let best = null;
-	for (const goal of goals) {
-		const toward = walk(actor, goal, actors, steps);
-		const away = role === "striker" ? [] : walkAway(actor, foes, actors, steps);
-		for (const cell of [...toward, ...away]) {
-			if (feetBetween(cell, goal) > range.feet) continue;
-			const targets = targetsFor(cell, goal, range, option.kind === "heal" ? friends : foes);
-			if (!targets.length) continue;
-			let score = 0;
-			for (const target of targets) score += swingScore(option, actor, target, range);
-			score += positionBias(role, cell, foes);
-			if (role === "priest" && option.kind === "heal" && goal.hp <= goal.max / 2) score += 8;
-			if (!best || score > best.score) best = {score, cell, option, targets};
+	for (const goals of groups) {
+		if (!goals.length) continue;
+		for (const goal of (option.kind === "heal" ? goals : focusGoals(actor, goals, actors))) {
+			const toward = walk(actor, goal, actors, steps);
+			const away = role === "striker" ? [] : walkAway(actor, foes.filter(it => it.hp > 0), actors, steps);
+			for (const cell of [...toward, ...away]) {
+				if (feetBetween(cell, goal) > range.feet) continue;
+				const area = option.kind === "heal" ? friends : foes;
+				const targets = targetsFor(cell, goal, range, area);
+				if (!targets.length) continue;
+				let score = 0;
+				for (const target of targets) score += swingScore(option, actor, target, range);
+				score += positionBias(role, cell, foes);
+				score += aimBias(actor, goal);
+				if (role === "priest" && option.kind === "heal" && goal.hp <= goal.max / 2) score += 8;
+				if (!best || score > best.score) best = {score, cell, option, targets};
+			}
 		}
+		if (best && option.kind !== "heal") return best;
 	}
 	return best;
+}
+
+function fightGoals (option, foes, friends) {
+	if (option?.kind === "heal") return [friends];
+	const standing = (foes || []).filter(it => it.hp > 0);
+	if (standing.length) return [standing];
+	return [(foes || []).filter(it => it.hp <= 0)];
+}
+
+function intellect (actor) {
+	const score = Number(actor?.int);
+	if (!Number.isFinite(score)) return 0;
+	return Math.min(1, Math.max(0, (score - 6) / 8));
+}
+
+function outgoingDamage (actor) {
+	let best = 0;
+	for (const option of actor?.options || []) {
+		if (option.kind === "heal" || option.kind === "utility") continue;
+		const swings = option.repeats?.length ? option.repeats : [option];
+		const times = !option.spell && option.activation !== "bonus" && !option.repeats ? (actor.extraSwings || 1) : 1;
+		let total = 0;
+		for (let n = 0; n < times; n++) {
+			for (const swing of swings) total += (Number(swing.dice) || 0) + (Number(swing.flat) || 0);
+		}
+		if (total > best) best = total;
+	}
+	return best;
+}
+
+function aimBias (actor, goal) {
+	const smart = intellect(actor);
+	const near = Math.max(0, 120 - feetBetween(actor, goal));
+	return (1 - smart) * near * 0.5 + smart * outgoingDamage(goal) * 3;
+}
+
+function focusGoals (actor, goals, actors) {
+	const list = (goals || []).filter(Boolean);
+	if (!list.length) return [];
+	const boss = bossOf(actor, actors);
+	if (boss) {
+		const marked = [...list].sort((a, b) => outgoingDamage(b) - outgoingDamage(a) || feetBetween(actor, a) - feetBetween(actor, b))[0];
+		return marked ? [marked] : [];
+	}
+	const ranked = [...list].sort((a, b) => aimBias(actor, b) - aimBias(actor, a) || feetBetween(actor, a) - feetBetween(actor, b));
+	const smart = intellect(actor);
+	if (smart <= 0.2 || smart >= 0.8) return [ranked[0]];
+	return ranked;
+}
+
+function bossOf (actor, actors) {
+	let boss = null;
+	for (const ally of actors || []) {
+		if (ally === actor || ally.side !== actor.side || ally.hp <= 0 || ally.dead) continue;
+		const score = Number(ally.int);
+		if (!Number.isFinite(score) || score < 12) continue;
+		if (!boss || score > Number(boss.int)) boss = ally;
+	}
+	if (!boss) return null;
+	const mine = Number(actor.int);
+	if (Number.isFinite(mine) && mine >= Number(boss.int)) return null;
+	return boss;
+}
+
+function castAtPool (swing, actor) {
+	if (!swing?.spell) return swing;
+	if (swing.cantrip?.length || !(swing.level > 0)) return spellAtSlot(swing, 0, actor.characterLevel);
+	const slot = (actor.pool || []).filter(item => item.level >= swing.level).sort((a, b) => b.level - a.level)[0];
+	return slot ? spellAtSlot(swing, slot.level, actor.characterLevel) : swing;
 }
 
 function swingScore (option, actor, target, range) {
@@ -128,12 +241,13 @@ function swingScore (option, actor, target, range) {
 	let score = 0;
 	for (let n = 0; n < times; n++) {
 		for (const swing of list) {
-			if (swing.kind === "heal") score += (swing.dice || 0) + (swing.flat || 0);
-			else score += expectedDamage(swing, {
+			const cast = castAtPool(swing, actor);
+			if (cast.kind === "heal") score += (cast.dice || 0) + (cast.flat || 0);
+			else score += expectedDamage(cast, {
 				ac: target.ac,
 				mode: "normal",
 				saveBonus: target.saveBonus,
-			});
+			}) * damageFactor(cast.damage, target.defenses);
 		}
 	}
 	if (range.melee && target.hp > 0) score += 0;
@@ -179,13 +293,18 @@ function march (actor, goal, actors, steps, direction) {
 		}
 		const nx = clamp(x + dx, 0, COLS - 1);
 		const ny = clamp(y + dy, 0, ROWS - 1);
-		const blocked = (spot) => (actors || []).some(it => it.hp > 0 && it !== actor && it.x === spot.x && it.y === spot.y);
+		const blocked = (spot) => (actors || []).some(it => it !== actor && !it.dead && (it.hp > 0 || it.dying || it.stable) && it.x === spot.x && it.y === spot.y);
 		let next = {x: nx, y: ny};
-		if (blocked(next)) {
-			const side = [{x: clamp(x + dx, 0, COLS - 1), y}, {x, y: clamp(y + dy, 0, ROWS - 1)}]
-				.find(spot => (spot.x !== x || spot.y !== y) && !blocked(spot));
-			if (!side) break;
-			next = side;
+		if (blocked(next) || (next.x === x && next.y === y)) {
+			const options = [
+				{x: clamp(x + 1, 0, COLS - 1), y},
+				{x: clamp(x - 1, 0, COLS - 1), y},
+				{x, y: clamp(y + 1, 0, ROWS - 1)},
+				{x, y: clamp(y - 1, 0, ROWS - 1)},
+			].filter(spot => (spot.x !== x || spot.y !== y) && !blocked(spot));
+			options.sort((a, b) => (feetBetween(a, goal) - feetBetween(b, goal)) * direction);
+			if (!options.length) break;
+			next = options[0];
 		}
 		if (next.x === x && next.y === y) break;
 		x = next.x;
@@ -201,7 +320,7 @@ function nearest (actor, goals) {
 
 function targetsFor (cell, goal, range, foes) {
 	if (feetBetween(cell, goal) > range.feet) return [];
-	if (range.aoe) return foes.filter(it => it.hp > 0 && feetBetween(goal, it) <= range.aoe);
+	if (range.aoe) return foes.filter(it => (it.hp > 0 || it.dying || it.stable) && feetBetween(goal, it) <= range.aoe);
 	return [goal];
 }
 
