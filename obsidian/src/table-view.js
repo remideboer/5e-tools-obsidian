@@ -586,7 +586,12 @@ export async function showOnTable (plugin, src) {
 export function fillTableMenu (plugin, menu, src, mouseEvent) {
 	if (src) {
 		menu.addItem((item) => {
-			item.setTitle("Show on table").onClick(() => { void showOnTable(plugin, src).then(() => castTableWindow(plugin, {mouseEvent})); });
+			item.setTitle("Show on table").onClick(() => {
+				void showOnTable(plugin, src).then(() => {
+					const open = plugin.app?.workspace?.getLeavesOfType?.(VIEW_TYPE_FIVEETOOLS_TABLE)?.length;
+					if (!open) castTableWindow(plugin, {mouseEvent});
+				});
+			});
 		});
 	}
 	menu.addItem((item) => {
