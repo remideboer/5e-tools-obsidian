@@ -1,5 +1,7 @@
 import {DIE_FACES, dieLabel, paintDieIcon} from "./dice-icons.js";
 import {formatRollNotice, presentRoll, rollPacked} from "./dice-roll.js";
+import {ensureTableSession} from "./table-session.js";
+import {castTableWindow} from "./table-view.js";
 
 const HISTORY_MAX = 40;
 
@@ -155,6 +157,26 @@ export function renderDiceRoller (listEl, readerEl, {
 			advBox.checked = false;
 		}
 		emit();
+	});
+
+	const table = ensureTableSession(plugin);
+	const priv = flags.createEl("button", {
+		text: table.privateRolls ? "Private rolls on" : "Private rolls",
+		cls: `fiveetools-btn${table.privateRolls ? " is-selected" : ""}`,
+		attr: {type: "button", title: "Keep this roll on this screen. The Table window does not show it."},
+	});
+	priv.addEventListener("click", () => {
+		table.privateRolls = !table.privateRolls;
+		priv.setText(table.privateRolls ? "Private rolls on" : "Private rolls");
+		priv.classList.toggle("is-selected", table.privateRolls);
+	});
+	const openTable = flags.createEl("button", {
+		text: "Open table",
+		cls: "fiveetools-btn",
+		attr: {type: "button", title: "Open the Table window on a screen"},
+	});
+	openTable.addEventListener("click", (evt) => {
+		castTableWindow(plugin, {anchorEl: openTable, mouseEvent: evt});
 	});
 
 	const grid = listEl.createDiv({cls: "fiveetools-dice-roller__grid"});

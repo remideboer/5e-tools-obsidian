@@ -461,7 +461,7 @@ export async function openTableWindow (plugin, {display = null} = {}) {
 	}
 }
 
-function castTableWindow (plugin, {anchorEl, mouseEvent} = {}) {
+export function castTableWindow (plugin, {anchorEl, mouseEvent} = {}) {
 	const displays = listDisplays();
 	const primary = primaryDisplay();
 	const finish = (display) => { void openTableWindow(plugin, {display}); };
