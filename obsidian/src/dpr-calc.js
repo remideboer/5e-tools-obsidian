@@ -164,18 +164,13 @@ export function roundsToClear (enemyHp, dpr) {
 	return Math.ceil(hp / damage);
 }
 
-/** One round of attacks from a 5etools creature, honoring Multiattack when it names them. */
+/** One action of attacks from a 5etools creature. Multiattack is still one action. */
 export function creatureRound (ent) {
 	const actions = Array.isArray(ent?.action) ? ent.action : [];
 	const attacks = [];
 	for (const action of actions) {
-		if (/multiattack/i.test(action?.name || "")) continue;
-		const text = flattenEntries(action?.entries);
-		const hit = text.match(/\{@hit\s+(-?\d+)/i) || text.match(/([+-]\d+)\s+to hit/i);
-		const tagged = text.match(/\{@damage\s+([^}]+)\}/i);
-		const parts = averageFromText(tagged ? tagged[1] : text);
-		if (!hit || !parts) continue;
-		attacks.push({name: String(action?.name || "Attack"), bonus: Number(hit[1]), ...parts});
+		const parsed = attackFromAction(action);
+		if (parsed) attacks.push(parsed);
 	}
 	const multi = actions.find(action => /multiattack/i.test(action?.name || ""));
 	if (!multi) return attacks.slice(0, 1);
@@ -200,6 +195,319 @@ export function creatureRound (ent) {
 	return Array.from({length: count}, () => attacks[0]);
 }
 
+/** Multiattack as the action, plus one damaging bonus action if the creature has one. */
+export function creatureTurn (ent) {
+	const swings = creatureRound(ent);
+	const bonus = (Array.isArray(ent?.bonus) ? ent.bonus : []).map(attackFromAction).find(Boolean);
+	return bonus ? [...swings, bonus] : swings;
+}
+
+export function economySlot (activation) {
+	const text = String(activation || "").toLowerCase();
+	if (/\bbonus\b/.test(text)) return "bonus";
+	if (/\breaction\b/.test(text)) return "reaction";
+	if (/\b(minute|hour|passive|special)\b/.test(text) || /no action/.test(text)) return "free";
+	return "action";
+}
+
+/** How many weapon swings the Attack action includes. Extra Attack is still one action. */
+export function extraAttackSwings (features, classLabel) {
+	const feature = (features || []).find(it => /extra attack/i.test(it?.name || ""));
+	if (!feature) return 1;
+	const text = `${feature.name} ${feature.snippet || ""}`.toLowerCase();
+	let count = 2;
+	if (/\bfour\b/.test(text)) count = 4;
+	else if (/\bthree\b/.test(text)) count = 3;
+	else if (/\b(twice|two)\b/.test(text)) count = 2;
+	const fighter = String(classLabel || "").match(/fighter\s+(\d+)/i);
+	const level = fighter ? Number(fighter[1]) : 0;
+	if (level >= 20) return Math.max(count, 4);
+	if (level >= 11) return Math.max(count, 3);
+	return count;
+}
+
+/**
+ * One turn: one action, one bonus action, one reaction.
+ * Checked weapon attacks share the Attack action and fill `swings` (Extra Attack).
+ * A checked heal takes the bonus action ahead of a bonus attack.
+ * A leveled bonus spell leaves room for a cantrip or the Attack action, not another leveled spell.
+ */
+export function resolveTurn (sources, swings = 1) {
+	const bySlot = {action: [], bonus: [], reaction: [], free: []};
+	for (const source of sources || []) {
+		const slot = bySlot[source?.slot] ? source.slot : "action";
+		bySlot[slot].push(source);
+	}
+	bySlot.bonus.sort((a, b) => (a.kind === "heal" ? 0 : 1) - (b.kind === "heal" ? 0 : 1));
+	const used = [];
+	const skipped = [];
+	if (bySlot.bonus[0]) used.push(bySlot.bonus[0]);
+	skipped.push(...bySlot.bonus.slice(1));
+	if (bySlot.reaction[0]) used.push(bySlot.reaction[0]);
+	skipped.push(...bySlot.reaction.slice(1));
+	used.push(...bySlot.free);
+
+	const bonusSpell = bySlot.bonus[0] && bySlot.bonus[0].kind !== "attack" && bySlot.bonus[0].level > 0;
+	const attacks = bySlot.action.filter(source => source.kind === "attack" && !source.spell);
+	let others = bySlot.action.filter(source => !(source.kind === "attack" && !source.spell));
+	if (bonusSpell) {
+		const leveled = others.filter(source => source.level > 0);
+		skipped.push(...leveled);
+		others = others.filter(source => !(source.level > 0));
+	}
+	if (attacks.length) {
+		const count = Math.max(1, Number(swings) || 1);
+		for (let i = 0; i < count; i++) used.push(attacks[i % attacks.length]);
+		if (attacks.length > count) skipped.push(...attacks.slice(count));
+		skipped.push(...others);
+	} else if (others[0]) {
+		used.push(others[0]);
+		skipped.push(...others.slice(1));
+	}
+	return {used, skipped};
+}
+
+/** Rebuild a typical monster swing so a different AC changes the expected damage. */
+export function attackFromCr (profile) {
+	const odds = attackOdds(profile.attack, profile.ac, "normal");
+	const weight = odds.normal + odds.crit * 2;
+	const dice = weight > 0 ? profile.dpr / weight : profile.dpr;
+	return {kind: "attack", bonus: profile.attack, dice, flat: 0, name: `CR ${profile.cr}`};
+}
+
+/**
+ * Each creature keeps its own HP and AC. A downed character stops attacking.
+ * Attacks focus the living target with the lowest HP. Healing lands on the
+ * most wounded ally and stops at that ally's own maximum.
+ */
+export function simulateFight ({party = [], enemies = [], limit = 12, mode = "normal", saveBonus = 0, useHeals = true} = {}) {
+	const pcs = party.map(member => ({
+		name: member.name,
+		ac: member.ac,
+		max: Math.max(0, Number(member.max) || 0),
+		hp: Math.max(0, Number(member.max) || 0),
+		checked: member.checked || [],
+		extraSwings: member.extraSwings || member.swings || 1,
+		characterLevel: member.characterLevel || 1,
+		pool: (member.pool || []).map(slot => ({level: slot.level, pact: !!slot.pact})),
+		casts: [],
+	}));
+	const foes = enemies.map(enemy => ({
+		name: enemy.name,
+		ac: enemy.ac,
+		max: Math.max(0, Number(enemy.max) || 0),
+		hp: Math.max(0, Number(enemy.max) || 0),
+		swings: enemy.swings || [],
+	}));
+	const series = pcs.map(pc => [pc.hp]);
+	let rounds = null;
+	let clearRound = null;
+	const steps = Math.max(1, limit);
+	for (let round = 1; round <= steps; round++) {
+		const heals = [];
+		for (const pc of living(pcs)) {
+			const casts = roundCasts(pc, useHeals);
+			pc.casts.push(casts);
+			for (const swing of casts) {
+				if (swing.kind === "heal") {
+					heals.push(swing);
+					continue;
+				}
+				const foe = lowest(living(foes));
+				if (!foe) break;
+				foe.hp -= expectedDamage(swing, {ac: foe.ac, mode, saveBonus});
+				if (foe.hp < 0) foe.hp = 0;
+			}
+		}
+		if (!clearRound && foes.length && !living(foes).length) clearRound = round;
+		for (const foe of living(foes)) {
+			for (const swing of foe.swings) {
+				const pc = lowest(living(pcs));
+				if (!pc) break;
+				pc.hp -= expectedDamage(swing, {ac: pc.ac, mode: "normal", saveBonus: 0});
+				if (pc.hp < 0) pc.hp = 0;
+			}
+		}
+		if (useHeals) {
+			for (const swing of heals) {
+				const target = [...pcs].filter(it => it.hp < it.max).sort((a, b) => a.hp - b.hp)[0];
+				if (!target) continue;
+				target.hp = Math.min(target.max, target.hp + (Number(swing.dice) || 0) + (Number(swing.flat) || 0));
+			}
+		}
+		for (let i = 0; i < pcs.length; i++) series[i].push(pcs[i].hp);
+		if (!rounds && pcs.length && !living(pcs).length) rounds = round;
+		if (rounds && clearRound) break;
+	}
+	return {
+		rounds,
+		clearRound,
+		people: pcs.map((pc, i) => ({
+			name: pc.name,
+			ac: pc.ac,
+			max: pc.max,
+			casts: pc.casts,
+			series: padSeries(series[i], steps),
+		})),
+	};
+}
+
+/**
+ * Dice for one cast. Cantrips scale with character level. A higher slot adds
+ * the book's per-step dice above `scale.from`. No scale text keeps the base dice.
+ */
+export function spellAtSlot (spell, slotLevel, characterLevel) {
+	if (spell?.cantrip?.length) {
+		const level = Math.max(1, Number(characterLevel) || 1);
+		let pick = spell.cantrip[0];
+		for (const row of spell.cantrip) {
+			if (row.level <= level) pick = row;
+		}
+		return {...spell, dice: pick.dice, flat: pick.flat, castLevel: 0};
+	}
+	const slot = Number(slotLevel) || Number(spell?.level) || 0;
+	let dice = Number(spell?.dice) || 0;
+	let flat = Number(spell?.flat) || 0;
+	const scale = spell?.scale;
+	if (scale && slot > scale.from) {
+		const steps = Math.floor((slot - scale.from) / (scale.every || 1));
+		dice += steps * (Number(scale.dice) || 0);
+		flat += steps * (Number(scale.flat) || 0);
+	}
+	return {...spell, dice, flat, castLevel: slot};
+}
+
+/** `{@scaledice 1d8|1-9|1d8}` adds the last dice once per step above the first number. */
+export function scaleFromText (text) {
+	const match = String(text || "").match(/\{@(?:scaledamage|scaledice)\s+([^}]+)\}/i);
+	if (!match) return null;
+	const parts = match[1].split("|");
+	const add = averageFromText(parts[2] || "");
+	if (!add) return null;
+	const progression = String(parts[1] || "");
+	const span = progression.match(/(\d+)\s*-\s*(\d+)/);
+	let from = span ? Number(span[1]) : 0;
+	let every = 1;
+	if (!span) {
+		const nums = progression.split(/[^\d]+/).map(Number).filter(n => n > 0);
+		if (!nums.length) return null;
+		const sorted = [...new Set(nums)].sort((a, b) => a - b);
+		from = sorted[0];
+		if (sorted.length > 1) {
+			const step = sorted[1] - sorted[0];
+			if (sorted.every((n, i) => i === 0 || n - sorted[i - 1] === step)) every = step;
+		}
+	}
+	return {from, every, dice: add.dice, flat: add.flat, label: String(parts[2] || "").replace(/\s+/g, "")};
+}
+
+export function cantripRows (scaling) {
+	if (!scaling || typeof scaling !== "object") return [];
+	return Object.entries(scaling)
+		.map(([level, dice]) => {
+			const parts = averageFromText(dice);
+			return parts ? {level: Number(level), dice: parts.dice, flat: parts.flat, label: String(dice).replace(/\s+/g, "")} : null;
+		})
+		.filter(row => row && row.level > 0)
+		.sort((a, b) => a.level - b.level);
+}
+
+/** One turn after spending the highest slot that can still cast each leveled spell. */
+export function roundCasts (pc, useHeals = true) {
+	const checked = (pc?.checked || []).filter(source => useHeals || source?.kind !== "heal");
+	const pool = pc?.pool || [];
+	const leveled = checked.filter(source => isLeveled(source) && hasSlot(pool, source.level));
+	const cantrips = checked.filter(isCantrip);
+	const weapons = checked.filter(isWeapon);
+	const bonusLeveled = bestLeveled(leveled.filter(source => source.slot === "bonus"), pool);
+	const actionLeveled = bestLeveled(leveled.filter(source => source.slot !== "bonus" && source.slot !== "reaction"), pool);
+	const offered = [];
+	if (bonusLeveled) offered.push(bonusLeveled);
+	else {
+		const bonusCantrip = cantrips.find(source => source.slot === "bonus");
+		if (bonusCantrip) offered.push(bonusCantrip);
+		else offered.push(...checked.filter(source => !source.spell && source.slot === "bonus"));
+	}
+	if (bonusLeveled) {
+		offered.push(...weapons);
+		if (!weapons.length) offered.push(...cantrips.filter(source => source.slot !== "bonus"));
+	} else if (actionLeveled) {
+		offered.push(actionLeveled);
+	} else {
+		offered.push(...weapons);
+		if (!weapons.length) offered.push(...cantrips.filter(source => source.slot !== "bonus"));
+		offered.push(...checked.filter(source => !source.spell && source.kind !== "attack" && source.slot !== "bonus"));
+	}
+	offered.push(...checked.filter(source => source.slot === "reaction"));
+	const turn = resolveTurn(offered, pc?.extraSwings || 1);
+	return turn.used.map(source => spendCast(source, pc)).filter(Boolean);
+}
+
+function spendCast (source, pc) {
+	if (isLeveled(source)) {
+		const slot = takeHighestSlot(pc.pool, source.level);
+		if (!slot) return null;
+		return spellAtSlot(source, slot.level, pc.characterLevel);
+	}
+	if (isCantrip(source)) return spellAtSlot(source, 0, pc.characterLevel);
+	return source;
+}
+
+function bestLeveled (sources, pool) {
+	if (!sources.length) return null;
+	return [...sources].sort((a, b) => bestSlotLevel(pool, b.level) - bestSlotLevel(pool, a.level) || b.level - a.level)[0];
+}
+
+function bestSlotLevel (pool, minLevel) {
+	let best = 0;
+	for (const slot of pool || []) {
+		if (slot.level >= minLevel && slot.level > best) best = slot.level;
+	}
+	return best;
+}
+
+function hasSlot (pool, minLevel) {
+	return (pool || []).some(slot => slot.level >= minLevel);
+}
+
+export function takeHighestSlot (pool, minLevel) {
+	let index = -1;
+	let best = -1;
+	let bestPact = true;
+	for (let i = 0; i < pool.length; i++) {
+		const slot = pool[i];
+		if (slot.level < minLevel) continue;
+		if (slot.level > best || (slot.level === best && bestPact && !slot.pact)) {
+			best = slot.level;
+			bestPact = !!slot.pact;
+			index = i;
+		}
+	}
+	if (index < 0) return null;
+	return pool.splice(index, 1)[0];
+}
+
+function isWeapon (source) {
+	return source?.kind === "attack" && !source.spell;
+}
+
+function isCantrip (source) {
+	return !!(source?.spell && !(source.level > 0));
+}
+
+function isLeveled (source) {
+	return !!(source?.spell && source.level > 0);
+}
+
+export function spellExtras (ent) {
+	return {
+		base: firstSpellDice(ent),
+		scale: scaleFromText(flattenEntries(ent?.entriesHigherLevel)),
+		cantrip: cantripRows(ent?.scalingLevelDice?.scaling),
+		text: `${spellText(ent)} ${flattenEntries(ent?.entriesHigherLevel)}`.trim(),
+	};
+}
+
 export function firstSpellDice (ent) {
 	const entries = ent?.entries;
 	const text = Array.isArray(entries) && entries.length ? flattenEntries(entries[0]) : flattenEntries(entries);
@@ -210,6 +518,30 @@ export function firstSpellDice (ent) {
 export function spellText (ent) {
 	const entries = ent?.entries;
 	return Array.isArray(entries) && entries.length ? flattenEntries(entries[0]) : flattenEntries(entries);
+}
+
+function attackFromAction (action) {
+	if (/multiattack/i.test(action?.name || "")) return null;
+	const text = flattenEntries(action?.entries);
+	const hit = text.match(/\{@hit\s+(-?\d+)/i) || text.match(/([+-]\d+)\s+to hit/i);
+	const tagged = text.match(/\{@damage\s+([^}]+)\}/i);
+	const parts = averageFromText(tagged ? tagged[1] : text);
+	if (!parts || (!hit && !tagged)) return null;
+	return {
+		name: String(action?.name || "Attack"),
+		bonus: hit ? Number(hit[1]) : 0,
+		kind: hit ? "attack" : "auto",
+		...parts,
+	};
+}
+
+function living (list) {
+	return list.filter(it => it.hp > 0);
+}
+
+function lowest (list) {
+	if (!list.length) return null;
+	return [...list].sort((a, b) => a.hp - b.hp)[0];
 }
 
 function padSeries (series, limit) {

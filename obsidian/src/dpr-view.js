@@ -1,16 +1,19 @@
 import {characterName, listCharacters} from "./character-store.js";
 import {
+	attackFromCr,
 	averageFromText,
 	crOptions,
 	crProfile,
-	creatureRound,
+	creatureTurn,
 	dprByAc,
+	economySlot,
 	expectedDamage,
-	firstSpellDice,
+	extraAttackSwings,
 	formatNum,
-	hpOverRounds,
-	roundsToClear,
-	spellText,
+	roundCasts,
+	simulateFight,
+	spellAtSlot,
+	spellExtras,
 } from "./dpr-calc.js";
 import {loadEntity} from "./entity-loader.js";
 import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
@@ -27,9 +30,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 	const state = {
 		characterId: String(session.characterId || ""),
 		partyIds: new Set(session.partyIds || []),
-		attackIds: new Set(session.attackIds || []),
-		spellIds: new Set(session.spellIds || []),
-		healIds: new Set(session.healIds || []),
+		picks: picksFromSession(session),
 		mode: session.mode === "advantage" || session.mode === "disadvantage" ? session.mode : "normal",
 		ac: clamp(session.ac, 5, 30, 15),
 		threat: session.threat === "encounter" ? "encounter" : "cr",
@@ -38,7 +39,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 		encounterId: String(session.encounterId || ""),
 		encounterGen: 0,
 		characters: [],
-		sources: {attacks: [], spells: [], heals: []},
+		sheets: {},
 		creatures: [],
 		token: 0,
 	};
@@ -46,7 +47,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 	listEl.createEl("h3", {text: "DPR"});
 	listEl.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Expected damage for the attacks and spells you check. A natural 20 crits. Saves deal half on a success.",
+		text: "Each character has one action, one bonus action, and one reaction. Extra Attack and Multiattack stay inside that action. A natural 20 crits. Saves deal half on a success.",
 	});
 	const setupEl = listEl.createDiv();
 	const resultsEl = readerEl || listEl.createDiv();
@@ -56,9 +57,11 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 		onSessionChange?.({
 			characterId: state.characterId,
 			partyIds: [...state.partyIds],
-			attackIds: [...state.attackIds],
-			spellIds: [...state.spellIds],
-			healIds: [...state.healIds],
+			picks: Object.fromEntries(Object.entries(state.picks).map(([id, picks]) => [id, {
+				attacks: [...picks.attacks],
+				spells: [...picks.spells],
+				heals: [...picks.heals],
+			}])),
 			mode: state.mode,
 			ac: state.ac,
 			threat: state.threat,
@@ -103,15 +106,19 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 
 	async function loadSources () {
 		const token = ++state.token;
-		const record = state.characters.find(it => characterId(it) === state.characterId);
 		resultsEl.empty();
 		resultsEl.createEl("p", {cls: "fiveetools-view__meta", text: "Reading spells…"});
-		const sources = await sourcesFor(plugin, record);
-		if (token !== state.token) return;
-		state.sources = sources;
-		keepIds(state.attackIds, sources.attacks);
-		keepIds(state.spellIds, sources.spells);
-		keepIds(state.healIds, sources.heals);
+		const sheets = {};
+		for (const record of partyRecords(state)) {
+			const id = characterId(record);
+			sheets[id] = await sourcesFor(plugin, record);
+			if (token !== state.token) return;
+			const picks = memberPicks(state, id);
+			keepIds(picks.attacks, sheets[id].attacks);
+			keepIds(picks.spells, sheets[id].spells);
+			keepIds(picks.heals, sheets[id].heals);
+		}
+		state.sheets = sheets;
 		const gen = ++state.encounterGen;
 		await loadEncounter();
 		if (gen !== state.encounterGen) return;
@@ -136,7 +143,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 			let attacks = [];
 			try {
 				const ent = combatant.ent || (combatant.doc ? (await loadEntity(combatant.doc))?.ent : null);
-				attacks = creatureRound(ent);
+				attacks = creatureTurn(ent);
 			} catch (_) { /* fall back to the CR table */ }
 			creatures.push({
 				name: combatant.label || "Creature",
@@ -162,9 +169,6 @@ function paintSetup (host, state, paint, onCharacter, onThreat) {
 	characterEl.value = state.characterId;
 	characterEl.addEventListener("change", () => {
 		state.characterId = characterEl.value;
-		state.attackIds.clear();
-		state.spellIds.clear();
-		state.healIds.clear();
 		onCharacter();
 	});
 
@@ -183,7 +187,7 @@ function paintSetup (host, state, paint, onCharacter, onThreat) {
 			box.addEventListener("change", () => {
 				if (box.checked) state.partyIds.add(id);
 				else state.partyIds.delete(id);
-				paint();
+				onCharacter();
 			});
 			label.createSpan({text: `${characterName(record)} · HP ${hpOf(record) || "—"}`});
 		}
@@ -260,9 +264,17 @@ function paintSetup (host, state, paint, onCharacter, onThreat) {
 function paintChecks (host, state, paint) {
 	host.empty();
 	const checks = host.createDiv();
-	paintGroup(checks, "Attacks", state.sources.attacks, state.attackIds, paint);
-	paintGroup(checks, "Spells", state.sources.spells, state.spellIds, paint);
-	paintGroup(checks, "Healing", state.sources.heals, state.healIds, paint);
+	for (const record of partyRecords(state)) {
+		const id = characterId(record);
+		const sheet = state.sheets[id];
+		if (!sheet) continue;
+		const swings = sheet.swings > 1 ? ` · ${sheet.swings} swings` : "";
+		checks.createEl("h3", {text: `${characterName(record)} · AC ${acOf(record) ?? "—"} · HP ${hpOf(record) || "—"}${swings}`});
+		const picks = memberPicks(state, id);
+		paintGroup(checks, "Attacks", sheet.attacks, picks.attacks, paint);
+		paintGroup(checks, "Spells", sheet.spells, picks.spells, paint);
+		paintGroup(checks, "Healing", sheet.heals, picks.heals, paint);
+	}
 	host.createDiv({cls: "fiveetools-dpr__results"});
 }
 
@@ -291,46 +303,50 @@ function paintResults (host, state) {
 		results = host.createDiv({cls: "fiveetools-dpr__results"});
 	}
 	results.empty();
-	const damage = [
-		...state.sources.attacks.filter(row => state.attackIds.has(row.id)),
-		...state.sources.spells.filter(row => state.spellIds.has(row.id)),
-	];
-	const heals = state.sources.heals.filter(row => state.healIds.has(row.id));
-	const party = partyOf(state);
-	const threat = threatOf(state, party.ac);
-	const ctx = {ac: state.ac, mode: state.mode, saveBonus: threat.save};
+	const members = partyRecords(state).map(record => memberTurn(state, record));
+	const enemies = enemiesOf(state);
+	const saveBonus = enemySaveBonus(state);
+	const opening = members.map(member => roundCasts(cloneCaster(member), true));
+	const damage = opening.flat().filter(row => row.kind !== "heal");
+	const ctx = {ac: state.ac, mode: state.mode, saveBonus};
 	const dpr = damage.reduce((sum, row) => sum + expectedDamage(row, ctx), 0);
-	const healing = heals.reduce((sum, row) => sum + (row.dice + row.flat), 0);
-	const bare = hpOverRounds(party.hp, threat.incoming, 0);
-	const helped = hpOverRounds(party.hp, threat.incoming, healing);
-	const clear = roundsToClear(threat.hp, dpr);
+	const plain = simulateFight({party: members, enemies, mode: state.mode, saveBonus, useHeals: false});
+	const helped = simulateFight({party: members, enemies, mode: state.mode, saveBonus, useHeals: true});
 
 	results.createEl("h3", {text: "This round"});
 	if (!damage.length) {
-		results.createEl("p", {cls: "fiveetools-view__meta", text: "Check the attacks and spells used this round."});
+		results.createEl("p", {cls: "fiveetools-view__meta", text: "Check the attacks and spells each character uses. Only one action and one bonus action fit."});
 	}
-	for (const row of damage) {
-		results.createEl("p", {text: `${row.name} · ${formatNum(expectedDamage(row, ctx))}`});
+	members.forEach((member, index) => {
+		const bits = castSequence(opening[index]);
+		results.createEl("p", {text: `${member.name} (AC ${formatNum(member.ac)}): ${bits || "no action checked"}`});
+	});
+	results.createEl("p", {text: `Party DPR ${formatNum(dpr)} against AC ${state.ac}${openingLabel(damage)}`});
+	results.createEl("p", {cls: "fiveetools-view__meta", text: "Each attack uses that target's AC. A character at 0 HP stops attacking. Healing goes to the most wounded ally, and stops at their own maximum."});
+	if (!enemies.length) {
+		results.createEl("p", {text: "Choose a saved encounter, or switch to a challenge rating."});
+	} else {
+		for (let i = 0; i < members.length; i++) {
+			const name = members[i].name;
+			const sequence = castSequence((helped.people[i]?.casts || []).flat());
+			results.createEl("p", {text: `${name}: ${sequence || "no casts"}`});
+			results.createEl("p", {text: `${name} lasts ${roundsText(dropRound(plain.people[i]?.series))} without healing, and ${roundsText(dropRound(helped.people[i]?.series))} with healing.`});
+		}
+		const clear = helped.clearRound;
+		results.createEl("p", {text: clear == null ? "The enemies are still up after 12 rounds." : `The enemies drop on round ${clear}.`});
 	}
-	results.createEl("p", {text: `DPR ${formatNum(dpr)} at AC ${state.ac}`});
-	results.createEl("p", {text: `Healing ${formatNum(healing)} into ${formatNum(party.hp)} party HP`});
-	results.createEl("p", {text: `${threat.label}: ${formatNum(threat.incoming)} incoming, ${formatNum(threat.hp)} HP`});
-	if (threat.ac) {
-		const theirAc = state.threat === "encounter" ? `Their AC averages ${formatNum(threat.ac)}` : `Typical AC ${formatNum(threat.ac)}`;
-		results.createEl("p", {cls: "fiveetools-view__meta", text: `${theirAc}. Party AC averages ${formatNum(party.ac)}.`});
-	}
-	results.createEl("p", {text: `The party lasts ${roundsText(bare.rounds)} without healing, and ${roundsText(helped.rounds)} with the heals checked.`});
-	results.createEl("p", {text: clear == null ? "Check some damage to see when the fight ends." : `At this DPR the fight ends in ${clear} rounds.`});
 
-	paintChart(results, "DPR by AC", "AC", dprByAc(damage, {mode: state.mode, saveBonus: threat.save}).map(point => ({
+	paintChart(results, "DPR by AC", "AC", dprByAc(damage, {mode: state.mode, saveBonus}).map(point => ({
 		x: point.ac,
 		y: point.dpr,
-	})), [{name: "DPR", cls: "fiveetools-dpr__line--dpr"}]);
-	const chartLines = [
-		{name: "Without healing", cls: "fiveetools-dpr__line--hurt", points: seriesPoints(bare.series)},
-	];
-	if (healing > 0) chartLines.push({name: "With healing", cls: "fiveetools-dpr__line--heal", points: seriesPoints(helped.series)});
-	paintChart(results, "Party HP", "Round", null, chartLines);
+	})), [{name: openingLabel(damage).replace(/^, /, "") || "DPR", cls: "fiveetools-dpr__line--dpr"}]);
+	const lineCls = ["fiveetools-dpr__line--dpr", "fiveetools-dpr__line--hurt", "fiveetools-dpr__line--heal", "fiveetools-dpr__line--other"];
+	const chartLines = helped.people.map((person, i) => ({
+		name: person.name,
+		cls: lineCls[i % lineCls.length],
+		points: seriesPoints(person.series),
+	}));
+	paintChart(results, "Hit points", "Round", null, chartLines);
 }
 
 function paintChart (host, title, xLabel, points, lines) {
@@ -344,97 +360,184 @@ function paintChart (host, title, xLabel, points, lines) {
 	const xMin = Math.min(...xs);
 	const xMax = Math.max(...xs);
 	const yMax = Math.max(1, ...ys);
+	const yStep = tickStep(yMax, 4);
+	const yTop = Math.max(yStep, Math.ceil((yMax - 1e-9) / yStep) * yStep);
 	const w = 420;
-	const h = 180;
-	const left = 36;
-	const top = 10;
-	const right = 8;
-	const bottom = 22;
+	const h = 200;
+	const left = 44;
+	const top = 12;
+	const right = 12;
+	const bottom = 28;
 	const svg = document.createElementNS(SVG, "svg");
 	svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
 	svg.setAttribute("class", "fiveetools-dpr__chart");
 	const xOf = (x) => left + ((x - xMin) / (xMax - xMin || 1)) * (w - left - right);
-	const yOf = (y) => top + (1 - y / yMax) * (h - top - bottom);
-	svg.append(svgLine(left, top, left, h - bottom, "fiveetools-dpr__axis"));
-	svg.append(svgLine(left, h - bottom, w - right, h - bottom, "fiveetools-dpr__axis"));
+	const yOf = (y) => top + (1 - y / yTop) * (h - top - bottom);
+	const plotRight = w - right;
+	const plotBottom = h - bottom;
+	for (let y = 0; y <= yTop + yStep * 0.001; y += yStep) {
+		const py = yOf(y);
+		svg.append(svgLine(left, py, plotRight, py, y === 0 ? "fiveetools-dpr__axis" : "fiveetools-dpr__grid"));
+		svg.append(svgText(left - 4, py + 3, formatNum(y), "end"));
+	}
+	for (const x of xTicks(xMin, xMax)) {
+		const px = xOf(x);
+		if (x !== xMin) svg.append(svgLine(px, top, px, plotBottom, "fiveetools-dpr__grid"));
+		svg.append(svgText(px, h - 8, formatNum(x), "middle"));
+	}
+	svg.append(svgLine(left, top, left, plotBottom, "fiveetools-dpr__axis"));
 	for (const line of drawn) {
 		const poly = document.createElementNS(SVG, "polyline");
 		poly.setAttribute("points", line.points.map(point => `${xOf(point.x)},${yOf(point.y)}`).join(" "));
+		poly.setAttribute("fill", "none");
 		poly.setAttribute("class", line.cls);
 		svg.append(poly);
 	}
-	svg.append(svgText(2, 14, formatNum(yMax)));
-	svg.append(svgText(left, h - 6, `${xLabel} ${xMin}–${xMax}`));
 	host.append(svg);
-	host.createEl("p", {cls: "fiveetools-view__meta", text: drawn.map(line => line.name).join(" · ")});
+	host.createEl("p", {cls: "fiveetools-view__meta", text: `${xLabel} · ${drawn.map(line => line.name).join(" · ")}`});
 }
 
 function seriesPoints (series) {
 	return series.map((y, x) => ({x, y}));
 }
 
-function threatOf (state, partyAc) {
-	if (state.threat === "encounter") {
-		if (!state.encounterId) return {label: "No encounter", incoming: 0, hp: 0, save: 0, ac: null};
-		let incoming = 0;
-		let hp = 0;
-		let acSum = 0;
-		let acCount = 0;
-		let saveSum = 0;
-		let saveCount = 0;
-		for (const creature of state.creatures) {
-			hp += creature.hp;
-			if (creature.ac > 0) {
-				acSum += creature.ac;
-				acCount++;
-			}
-			const profile = crProfile(creature.cr);
-			if (profile) {
-				saveSum += profile.save;
-				saveCount++;
-			}
-			if (creature.attacks.length) {
-				incoming += creature.attacks.reduce((sum, attack) => sum + expectedDamage({
-					kind: "attack",
-					bonus: attack.bonus,
-					dice: attack.dice,
-					flat: attack.flat,
-				}, {ac: partyAc}), 0);
-			} else if (profile) incoming += profile.dpr;
-		}
-		const saved = getSavedEncounter(state.encounterId);
-		return {
-			label: saved?.name || "Encounter",
-			incoming,
-			hp,
-			save: saveCount ? saveSum / saveCount : 0,
-			ac: acCount ? acSum / acCount : null,
-		};
-	}
-	const profile = crProfile(state.cr) || crProfile("1");
-	const count = state.monsters;
-	return {
-		label: `CR ${profile.cr} × ${count}`,
-		incoming: profile.dpr * count,
-		hp: profile.hp * count,
-		save: profile.save,
-		ac: profile.ac,
-	};
-}
-
-function partyOf (state) {
-	const members = state.characters.filter(record => {
+function partyRecords (state) {
+	return state.characters.filter(record => {
 		const id = characterId(record);
 		return id === state.characterId || state.partyIds.has(id);
 	});
-	const hp = members.reduce((sum, record) => sum + hpOf(record), 0);
-	const acs = members.map(acOf).filter(n => n != null);
-	const ac = acs.length ? acs.reduce((sum, n) => sum + n, 0) / acs.length : 15;
-	return {hp, ac};
+}
+
+function memberTurn (state, record) {
+	const id = characterId(record);
+	const sheet = state.sheets[id] || {attacks: [], spells: [], heals: [], swings: 1};
+	const picks = memberPicks(state, id);
+	const checked = [
+		...sheet.attacks.filter(row => picks.attacks.has(row.id)),
+		...sheet.spells.filter(row => picks.spells.has(row.id)),
+		...sheet.heals.filter(row => picks.heals.has(row.id)),
+	];
+	return {
+		name: characterName(record),
+		ac: acOf(record) || 10,
+		max: hpOf(record),
+		checked,
+		extraSwings: sheet.swings || 1,
+		characterLevel: Number(record?.fields?.level) || 1,
+		pool: slotPool(record?.snapshot?.slots),
+	};
+}
+
+function cloneCaster (member) {
+	return {...member, pool: (member.pool || []).map(slot => ({...slot}))};
+}
+
+function slotPool (slots) {
+	const pool = [];
+	for (const slot of slots || []) {
+		const count = Math.max(0, (Number(slot.max) || 0) - (Number(slot.spent) || 0));
+		for (let i = 0; i < count; i++) pool.push({level: Number(slot.level) || 0, pact: !!slot.pact});
+	}
+	return pool;
+}
+
+function enemiesOf (state) {
+	if (state.threat === "encounter") {
+		if (!state.creatures.length) return [];
+		return state.creatures.map(creature => {
+			const profile = crProfile(creature.cr);
+			const swings = creature.attacks?.length
+				? creature.attacks.map(attack => ({kind: attack.kind || "attack", bonus: attack.bonus, dice: attack.dice, flat: attack.flat, name: attack.name}))
+				: (profile ? [attackFromCr(profile)] : []);
+			return {name: creature.name, ac: creature.ac || profile?.ac || 10, max: creature.hp || profile?.hp || 1, swings};
+		});
+	}
+	const profile = crProfile(state.cr) || crProfile("1");
+	const swing = attackFromCr(profile);
+	return Array.from({length: state.monsters}, (_, index) => ({
+		name: `CR ${profile.cr} ${index + 1}`,
+		ac: profile.ac,
+		max: profile.hp,
+		swings: [swing],
+	}));
+}
+
+function enemySaveBonus (state) {
+	if (state.threat === "encounter" && state.creatures.length) {
+		const bonuses = state.creatures.map(creature => crProfile(creature.cr)?.save).filter(n => n != null);
+		if (bonuses.length) return bonuses.reduce((sum, n) => sum + n, 0) / bonuses.length;
+	}
+	return crProfile(state.cr)?.save || 0;
+}
+
+function castSequence (casts) {
+	const labels = [];
+	for (const swing of casts || []) labels.push(castLabel(swing));
+	const parts = [];
+	for (const label of labels) {
+		const last = parts[parts.length - 1];
+		if (last && last.label === label) last.count++;
+		else parts.push({label, count: 1});
+	}
+	return parts.map(part => part.count > 1 ? `${part.label} ×${part.count}` : part.label).join(", ");
+}
+
+function castLabel (swing) {
+	if (swing?.castLevel > 0) return `${swing.name} ${ordinal(swing.castLevel)}`;
+	return swing?.name || "";
+}
+
+function openingLabel (swings) {
+	const labels = [...new Set((swings || []).map(castLabel).filter(Boolean))];
+	return labels.length ? `, ${labels.join(", ")}` : "";
+}
+
+function ordinal (level) {
+	const n = Number(level) || 0;
+	const suffix = n % 10 === 1 && n % 100 !== 11 ? "st"
+		: n % 10 === 2 && n % 100 !== 12 ? "nd"
+			: n % 10 === 3 && n % 100 !== 13 ? "rd"
+				: "th";
+	return `${n}${suffix}`;
+}
+
+function dropRound (series) {
+	if (!series) return null;
+	for (let i = 1; i < series.length; i++) {
+		if (series[i] <= 0) return i;
+	}
+	return null;
+}
+
+function picksFromSession (session) {
+	const picks = {};
+	for (const [id, value] of Object.entries(session?.picks || {})) {
+		picks[id] = {
+			attacks: new Set(value?.attacks || []),
+			spells: new Set(value?.spells || []),
+			heals: new Set(value?.heals || []),
+		};
+	}
+	const focus = String(session?.characterId || "");
+	if (focus && !picks[focus]) {
+		picks[focus] = {
+			attacks: new Set(session?.attackIds || []),
+			spells: new Set(session?.spellIds || []),
+			heals: new Set(session?.healIds || []),
+		};
+	}
+	return picks;
+}
+
+function memberPicks (state, id) {
+	if (!state.picks[id]) {
+		state.picks[id] = {attacks: new Set(), spells: new Set(), heals: new Set()};
+	}
+	return state.picks[id];
 }
 
 async function sourcesFor (plugin, record) {
-	const empty = {attacks: [], spells: [], heals: []};
+	const empty = {attacks: [], spells: [], heals: [], swings: 1};
 	const snapshot = record?.snapshot;
 	if (!snapshot) return empty;
 	await ensureSearchIndex(plugin);
@@ -444,13 +547,14 @@ async function sourcesFor (plugin, record) {
 	const spells = [];
 	const heals = [];
 	const refs = (snapshot.refs || []).filter(ref => ref.kind === "spell");
-	const loaded = await Promise.all(refs.map(async (spell) => spellSource(spell, casting, edition)));
+	const characterLevel = Number(record?.fields?.level) || 1;
+	const loaded = await Promise.all(refs.map(async (spell) => spellSource(spell, casting, edition, characterLevel)));
 	for (const source of loaded) {
 		if (!source) continue;
 		if (source.kind === "heal") heals.push(source);
 		else spells.push(source);
 	}
-	return {attacks, spells, heals};
+	return {attacks, spells, heals, swings: extraAttackSwings(snapshot.features, record?.fields?.classes)};
 }
 
 function actionSource (action, casting) {
@@ -467,6 +571,7 @@ function actionSource (action, casting) {
 		id: `action:${action.name}`,
 		name: action.name,
 		activation: action.activation || "",
+		slot: economySlot(action.activation),
 		kind,
 		bonus: bonus ?? 0,
 		dc,
@@ -475,33 +580,55 @@ function actionSource (action, casting) {
 	};
 }
 
-async function spellSource (spell, casting, edition) {
-	let text = String(spell?.snippet || "");
-	let parts = averageFromText(text);
-	if (!parts) {
-		const doc = findEditionDoc(spell?.name || spell?.label, {categoriesExact: ["spell"], edition});
-		if (doc) {
-			try {
-				const loaded = await loadEntity(doc);
-				text = spellText(loaded?.ent) || text;
-				parts = firstSpellDice(loaded?.ent);
-			} catch (_) { /* the spell stays off the list */ }
-		}
+async function spellSource (spell, casting, edition, characterLevel) {
+	let ent = null;
+	const doc = findEditionDoc(spell?.name || spell?.label, {categoriesExact: ["spell"], edition});
+	if (doc) {
+		try {
+			ent = (await loadEntity(doc))?.ent || null;
+		} catch (_) { /* the card snippet still describes the spell */ }
 	}
-	if (!parts) return null;
+	const extras = spellExtras(ent);
+	const text = `${spell?.snippet || ""} ${extras.text || ""}`.trim();
+	const fromBook = extras.base;
+	const fromSnippet = averageFromText(spell?.snippet);
+	let parts = fromBook || fromSnippet;
+	if (fromBook && fromSnippet?.flat) parts = {...fromBook, flat: fromSnippet.flat, average: fromBook.dice + fromSnippet.flat};
+	if (!parts && !extras.cantrip.length) return null;
+	parts = parts || {dice: 0, flat: 0, average: 0};
 	const line = casting.find(it => String(it.className || "").toLowerCase() === String(spell.list || "").toLowerCase()) || casting[0];
 	const name = spell.label || spell.name || "Spell";
 	const heal = isHealing(name, text);
-	return {
+	const level = Number.isFinite(Number(spell.level)) ? Number(spell.level) : (extras.cantrip.length ? 0 : null);
+	const row = {
 		id: `spell:${spell.name || name}`,
 		name,
+		spell: true,
 		activation: spell.castingTime || "",
+		slot: economySlot(spell.castingTime),
+		level,
+		scale: extras.scale,
+		cantrip: extras.cantrip,
 		kind: heal ? "heal" : (spell.attack ? "attack" : (spell.save ? "save" : "auto")),
 		bonus: Number(line?.attack) || 0,
 		dc: parseDc(spell.save) ?? (Number(line?.dc) || 0),
-		notation: diceLabel(parts, spell.snippet || text),
-		...parts,
+		dice: parts.dice,
+		flat: parts.flat,
 	};
+	const shown = spellAtSlot(row, level > 0 ? level : 0, characterLevel);
+	const baseText = firstDiceText(extras.text) || firstDiceText(spell?.snippet) || diceLabel(parts, spell?.snippet);
+	const cantripLabel = (shown.cantrip || []).filter(it => it.level <= characterLevel).pop()?.label;
+	return {
+		...row,
+		dice: shown.dice,
+		flat: shown.flat,
+		notation: cantripLabel || (extras.scale ? `${baseText} +${extras.scale.label}/slot` : baseText),
+	};
+}
+
+function firstDiceText (text) {
+	const match = String(text || "").match(/\{@(?:dice|damage)\s+([^}]+)\}/i);
+	return match ? match[1].replace(/\s+/g, "") : "";
 }
 
 function diceLabel (parts, raw) {
@@ -591,11 +718,32 @@ function svgLine (x1, y1, x2, y2, cls) {
 	return line;
 }
 
-function svgText (x, y, text) {
+function svgText (x, y, text, anchor) {
 	const node = document.createElementNS(SVG, "text");
 	node.setAttribute("x", String(x));
 	node.setAttribute("y", String(y));
 	node.setAttribute("class", "fiveetools-dpr__tick");
+	if (anchor) node.setAttribute("text-anchor", anchor);
 	node.textContent = text;
 	return node;
+}
+
+function tickStep (span, count) {
+	const rough = Math.max(span, 1) / Math.max(1, count);
+	const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+	const scaled = rough / pow;
+	const nice = scaled >= 7.5 ? 10 : scaled >= 3 ? 5 : scaled >= 1.5 ? 2 : 1;
+	return nice * pow;
+}
+
+function xTicks (min, max) {
+	const span = max - min || 1;
+	const candidates = [1, 2, 5, 10, 20];
+	const step = candidates.find(cand => span / cand <= 8 && span % cand === 0)
+		|| candidates.find(cand => span / cand <= 8)
+		|| 5;
+	const out = [];
+	for (let value = min; value <= max + 1e-6; value += step) out.push(Math.round(value));
+	if (out[out.length - 1] !== max) out.push(max);
+	return out;
 }

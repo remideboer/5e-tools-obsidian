@@ -2057,14 +2057,17 @@ a.fiveetools-inline-link {
 	stroke: var(--background-modifier-border);
 }
 
+.fiveetools-dpr__grid {
+	stroke: var(--background-modifier-border);
+	stroke-opacity: 0.45;
+}
+
 .fiveetools-dpr__tick {
 	fill: var(--text-muted);
 	font-size: 10px;
 }
 
-.fiveetools-dpr__line--dpr,
-.fiveetools-dpr__line--hurt,
-.fiveetools-dpr__line--heal {
+.fiveetools-dpr__chart polyline {
 	fill: none;
 	stroke-width: 2;
 }
@@ -2072,6 +2075,7 @@ a.fiveetools-inline-link {
 .fiveetools-dpr__line--dpr { stroke: var(--text-accent); }
 .fiveetools-dpr__line--hurt { stroke: var(--text-error, var(--color-red)); }
 .fiveetools-dpr__line--heal { stroke: var(--text-success, var(--color-green)); }
+.fiveetools-dpr__line--other { stroke: var(--text-warning, var(--color-yellow)); }
 
 .fiveetools-encounter h3 {
 	margin: 8px 0 4px;
