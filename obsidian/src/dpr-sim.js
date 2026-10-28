@@ -86,12 +86,16 @@ export function summarize (fight) {
 	const actors = fight?.actors || [];
 	const damage = actors.reduce((sum, actor) => sum + actor.dealt, 0);
 	const healing = actors.reduce((sum, actor) => sum + actor.healed, 0);
+	const party = actors.filter(actor => actor.side === "party");
+	const standing = party.filter(actor => !actor.dead && actor.hp > 0);
 	return {
 		rounds: fight?.rounds || fight?.round || 0,
 		damage,
 		healing,
 		xp: partyXp(fight),
 		share: partyShare(fight),
+		winner: winnerOf(actors),
+		standing: standing.length,
 		alive: actors.filter(actor => !isGone(actor)).map(actor => actor.name),
 		dead: actors.filter(isGone).map(actor => actor.name),
 		actors: actors.map(actor => ({
@@ -105,8 +109,34 @@ export function summarize (fight) {
 			dead: isGone(actor),
 			dying: !!actor.dying,
 			stable: !!actor.stable,
+			downs: actor.downs || 0,
+			deathRolls: actor.deathRolls || 0,
+			tally: actor.tally || {},
 		})),
 	};
+}
+
+function winnerOf (actors) {
+	const up = (side) => actors.some(actor => actor.side === side && !actor.dead && actor.hp > 0);
+	const party = up("party");
+	const enemy = up("enemy");
+	if (party && !enemy) return "party";
+	if (enemy && !party) return "enemy";
+	return "draw";
+}
+
+function noteUse (actor, name, {kind = "attack", hit = false, miss = false, damage = 0, healing = 0} = {}) {
+	const label = String(name || "").trim();
+	if (!actor || !label) return;
+	if (!actor.tally) actor.tally = {};
+	const row = actor.tally[label] || {kind, uses: 0, hits: 0, misses: 0, damage: 0, healing: 0};
+	row.kind = kind;
+	row.uses += 1;
+	if (hit) row.hits += 1;
+	if (miss) row.misses += 1;
+	row.damage += Number(damage) || 0;
+	row.healing += Number(healing) || 0;
+	actor.tally[label] = row;
 }
 
 export function combineReports (reports) {
@@ -122,18 +152,63 @@ export function combineReports (reports) {
 		return {mean, median, sd};
 	};
 	const names = [...new Set(list.flatMap(report => report.actors.map(actor => actor.name)))];
+	const wins = {party: 0, enemy: 0, draw: 0};
+	const left = {};
+	for (const report of list) {
+		wins[report.winner] = (wins[report.winner] || 0) + 1;
+		if (report.winner === "party") left[report.standing] = (left[report.standing] || 0) + 1;
+	}
+	const partyWins = list.filter(report => report.winner === "party");
+	const standingValues = partyWins.map(report => report.standing || 0);
 	return {
 		runs: list.length,
+		wins,
+		winRate: list.length ? wins.party / list.length : 0,
+		standing: {
+			mean: standingValues.length ? standingValues.reduce((total, n) => total + n, 0) / standingValues.length : 0,
+			counts: left,
+		},
 		rounds: stat(report => report.rounds),
 		damage: stat(report => report.damage),
 		healing: stat(report => report.healing),
 		xp: stat(report => report.xp),
-		actors: names.map(name => ({
-			name,
-			damage: stat(report => report.actors.find(actor => actor.name === name)?.damage || 0),
-			healing: stat(report => report.actors.find(actor => actor.name === name)?.healing || 0),
-		})),
+		actors: names.map(name => {
+			const rows = list.map(report => report.actors.find(actor => actor.name === name)).filter(Boolean);
+			const runs = list.length || 1;
+			return {
+				name,
+				side: rows[0]?.side || "party",
+				damage: stat(report => report.actors.find(actor => actor.name === name)?.damage || 0),
+				healing: stat(report => report.actors.find(actor => actor.name === name)?.healing || 0),
+				deaths: rows.filter(row => row.dead).length,
+				downs: rows.reduce((total, row) => total + (row.downs || 0), 0),
+				deathRolls: rows.reduce((total, row) => total + (row.deathRolls || 0), 0),
+				meanDowns: rows.reduce((total, row) => total + (row.downs || 0), 0) / runs,
+				meanRolls: rows.reduce((total, row) => total + (row.deathRolls || 0), 0) / runs,
+			};
+		}),
+		actions: actionRecord(list),
 	};
+}
+
+function actionRecord (list) {
+	const sides = {party: {}, enemy: {}};
+	for (const report of list) {
+		for (const actor of report.actors || []) {
+			const bucket = actor.side === "party" ? sides.party : sides.enemy;
+			for (const [name, row] of Object.entries(actor.tally || {})) {
+				const item = bucket[name] || {name, kind: row.kind || "attack", uses: 0, hits: 0, misses: 0, damage: 0, healing: 0};
+				item.uses += row.uses || 0;
+				item.hits += row.hits || 0;
+				item.misses += row.misses || 0;
+				item.damage += row.damage || 0;
+				item.healing += row.healing || 0;
+				bucket[name] = item;
+			}
+		}
+	}
+	const rank = (bucket) => Object.values(bucket).sort((a, b) => (b.damage + b.healing) - (a.damage + a.healing));
+	return {party: rank(sides.party), enemy: rank(sides.enemy)};
 }
 
 function actorsFrom (list, side) {
@@ -176,6 +251,9 @@ function actorsFrom (list, side) {
 		dying: false,
 		stable: false,
 		saves: {success: 0, fail: 0},
+		downs: 0,
+		deathRolls: 0,
+		tally: {},
 		dealt: 0,
 		healed: 0,
 		hits: 0,
@@ -387,11 +465,12 @@ function resolveChoice (fight, actor, choice) {
 	const times = !cast.spell && cast.activation !== "bonus" && !cast.repeats ? actor.extraSwings : 1;
 	for (let n = 0; n < times; n++) {
 		for (const swing of list) {
+			const goals = choice.targets || [];
 			const target = swing.kind === "heal"
-				? choice.targets.find(it => !isGone(it) && it.hp < it.max)
-				: choice.targets.find(it => !it.dead && (it.hp > 0 || it.dying || it.stable));
+				? goals.find(it => !isGone(it) && it.hp < it.max)
+				: goals.find(it => !it.dead && (it.hp > 0 || it.dying || it.stable));
 			if (!target) break;
-			applyCast(fight, actor, swing, target, range, choice.targets);
+			applyCast(fight, actor, swing, target, range, goals);
 		}
 	}
 }
@@ -405,26 +484,34 @@ function applyCast (fight, actor, cast, target, range, area) {
 		const before = ally.hp;
 		ally.hp = Math.min(ally.max, ally.hp + amount);
 		actor.healed += ally.hp - before;
+		noteUse(actor, cast.name, {kind: "heal", healing: ally.hp - before});
 		log(fight, actor, `${actor.name} heals ${ally.name} with ${cast.name} for ${amount} (${Math.round(ally.hp)}/${ally.max}).`);
 		wake(ally);
 		return;
 	}
 	if (cast.kind === "save" || cast.kind === "auto") {
 		const victims = range.aoe ? area.filter(it => feetBetween(target, it) <= range.aoe) : [target];
+		let dealtTotal = 0;
+		let connected = false;
 		for (const victim of victims) {
 			const rolled = adjustedAmount(cast, victim, false);
 			if (cast.kind === "auto") {
 				hurt(fight, actor, victim, rolled.amount, false, false, cast.damage);
+				dealtTotal += rolled.amount;
+				connected = true;
 				log(fight, actor, `${actor.name} hits ${victim.name} with ${cast.name} for ${rolled.amount}${rolled.note}.`);
 				continue;
 			}
 			const rolledSave = rollSave(fight, victim, cast.saveAbility, cast.dc || 10, {spell: !!cast.spell, matters: rolled.amount > 0 || !!conditionName(cast)});
 			const failed = rolledSave.failed;
 			const dealt = failed ? rolled.amount : Math.floor(rolled.amount / 2);
+			dealtTotal += dealt;
+			if (failed || dealt > 0) connected = true;
 			hurt(fight, actor, victim, dealt, false, false, cast.damage);
 			const named = failed ? applyCondition(victim, cast) : "";
 			log(fight, actor, `${actor.name} casts ${cast.name}. ${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${rolledSave.save.total}) and takes ${dealt}${rolled.note}${named}.`);
 		}
+		noteUse(actor, cast.name, {kind: "attack", hit: connected, miss: !connected, damage: dealtTotal});
 		return;
 	}
 	let swing = cast;
@@ -441,12 +528,14 @@ function applyCast (fight, actor, cast, target, range, area) {
 	const crit = attack.nat === 20 || (autoCrit && attack.nat !== 1 && attack.total >= target.ac);
 	const hit = attack.nat !== 1 && (attack.nat === 20 || attack.total >= target.ac);
 	if (!hit) {
+		noteUse(actor, cast.name, {kind: "attack", miss: true});
 		log(fight, actor, `${actor.name} misses ${target.name} with ${cast.name} (${attack.total} vs AC ${target.ac}).`);
 		return;
 	}
 	const rolled = adjustedAmount(swing, target, crit);
 	hurt(fight, actor, target, rolled.amount, crit, false, swing.damage);
 	actor.hits += 1;
+	noteUse(actor, cast.name, {kind: "attack", hit: true, damage: rolled.amount});
 	actor.landed = {target, melee: range.melee !== false, weapon: !cast.spell && cast.kind === "attack", crit};
 	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${rolled.amount}${crit ? " (critical)" : ""}${rolled.note}.`);
 	applyOnHit(fight, actor, swing, target, crit);
@@ -516,6 +605,7 @@ function knockOut (fight, target) {
 	target.stable = false;
 	target.dead = false;
 	target.saves = {success: 0, fail: 0};
+	target.downs = (target.downs || 0) + 1;
 	log(fight, target, `${target.name} falls unconscious and is dying.`);
 }
 
@@ -542,6 +632,7 @@ function addDeathFail (fight, target, count, wasStable) {
 }
 
 function rollDeathSave (fight, actor) {
+	actor.deathRolls = (actor.deathRolls || 0) + 1;
 	const roll = rollDice("1d20");
 	const nat = roll.total || 1;
 	if (nat === 20) {
@@ -924,6 +1015,7 @@ function castSmite (fight, actor, cast) {
 	const rolled = adjustedAmount(packet, landed.target, !!landed.crit);
 	hurt(fight, actor, landed.target, rolled.amount, !!landed.crit, false, "radiant");
 	actor.smiteUsed = true;
+	noteUse(actor, cast.name, {kind: "attack", hit: true, damage: rolled.amount});
 	log(fight, actor, `${actor.name} smites ${landed.target.name} for ${rolled.amount}${rolled.note}.`);
 	return true;
 }
@@ -973,15 +1065,18 @@ function turnUndead (fight, actor, choice) {
 
 function preserveLife (fight, actor, choice) {
 	let pool = 5 * Math.max(1, classLevel(actor.classes, "cleric"));
+	let restored = 0;
 	for (const ally of choice.targets || []) {
 		if (!(pool > 0) || ally.hp >= ally.max / 2) continue;
 		const amount = Math.min(pool, Math.floor(ally.max / 2) - ally.hp);
 		if (!(amount > 0)) continue;
 		ally.hp += amount;
 		pool -= amount;
+		restored += amount;
 		actor.healed += amount;
 		log(fight, actor, `${actor.name} restores ${amount} hit points to ${ally.name} (${Math.round(ally.hp)}/${ally.max}).`);
 	}
+	if (restored > 0) noteUse(actor, "Preserve Life", {kind: "heal", healing: restored});
 }
 
 function spark (fight, actor, choice) {
@@ -1009,6 +1104,7 @@ function layOnHands (fight, actor, choice) {
 		actor.layPool -= amount;
 		target.hp += amount;
 		actor.healed += amount;
+		noteUse(actor, "Lay on Hands", {kind: "heal", healing: amount});
 		wake(target);
 		log(fight, actor, `${actor.name} lays on hands and restores ${amount} hit points to ${target.name} (${Math.round(target.hp)}/${target.max}).`);
 	}
@@ -1025,6 +1121,7 @@ function shapeHeal (fight, actor) {
 	const before = actor.hp;
 	actor.hp = Math.min(actor.max, actor.hp + amount);
 	actor.healed += actor.hp - before;
+	noteUse(actor, "Combat Wild Shape", {kind: "heal", healing: actor.hp - before});
 	log(fight, actor, `${actor.name} spends a ${slot.level}${slot.level === 1 ? "st" : "nd"}-level slot and regains ${actor.hp - before} hit points.`);
 	return true;
 }
@@ -1070,6 +1167,7 @@ function applySneak (fight, actor, target, mode, range) {
 	if (mode !== "advantage" && !ally) return;
 	actor.sneakUsed = true;
 	const rolled = adjustedAmount({...sneak, damage: sneak.damage || ""}, target, false);
+	noteUse(actor, sneak.name || "Sneak Attack", {kind: "attack", hit: true, damage: rolled.amount});
 	hurt(fight, actor, target, rolled.amount, false, false, sneak.damage);
 	log(fight, actor, `${actor.name} deals ${rolled.amount} sneak attack damage to ${target.name}.`);
 }
@@ -1161,7 +1259,11 @@ function regenerate (fight, actor) {
 	if (actor.hp >= actor.max) return;
 	const before = actor.hp;
 	actor.hp = Math.min(actor.max, before + regen.amount);
-	if (actor.hp > before) log(fight, actor, `${actor.name} regenerates ${actor.hp - before} hit points (${Math.round(actor.hp)}/${actor.max}).`);
+	const gained = actor.hp - before;
+	if (gained > 0) {
+		noteUse(actor, "Regeneration", {kind: "heal", healing: gained});
+		log(fight, actor, `${actor.name} regenerates ${gained} hit points (${Math.round(actor.hp)}/${actor.max}).`);
+	}
 }
 
 function fortitude (fight, target, amount, crit, type) {

@@ -469,10 +469,12 @@ function cloneCaster (member) {
 	return {...member, pool: (member.pool || []).map(slot => ({...slot}))};
 }
 
-export function slotPool (slots) {
+export function slotPool (slots, full = false) {
 	const pool = [];
 	for (const slot of slots || []) {
-		const count = Math.max(0, (Number(slot.max) || 0) - (Number(slot.spent) || 0));
+		const count = full
+			? Math.max(0, Number(slot.max) || 0)
+			: Math.max(0, (Number(slot.max) || 0) - (Number(slot.spent) || 0));
 		for (let i = 0; i < count; i++) pool.push({level: Number(slot.level) || 0, pact: !!slot.pact});
 	}
 	return pool;

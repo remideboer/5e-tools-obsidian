@@ -488,6 +488,7 @@ function ensureSim (host, state) {
 	let sim = host.querySelector(".fiveetools-dpr__sim");
 	if (!sim) sim = host.createDiv({cls: "fiveetools-dpr__sim"});
 	sim.empty();
+	if (state.runLabel) sim.createEl("p", {cls: "fiveetools-view__meta", text: state.runLabel});
 	if (!partyRecords(state).length) {
 		sim.createEl("p", {cls: "fiveetools-view__meta", text: "Add a character to the party."});
 		return;
@@ -512,9 +513,9 @@ function paintSimControls (host, state, plugin, refresh) {
 	}
 	pace.value = String(simPace(state));
 	pace.addEventListener("change", () => { state.simPace = Number(pace.value) || 800; });
-	simButton(row, "Reset", () => { resetFight(state, plugin); refresh(); });
-	simButton(row, "Step turn", () => { stopSimTimer(plugin); beginFight(state, plugin); stepTurn(state.fight); refresh(); });
-	simButton(row, "Step round", () => { stopSimTimer(plugin); beginFight(state, plugin); stepRound(state.fight); refresh(); });
+	simButton(row, "Reset", () => { resetFight(state, plugin); refresh(); }, state.running);
+	simButton(row, "Step turn", () => { stopSimTimer(plugin); beginFight(state, plugin); stepTurn(state.fight); refresh(); }, state.running);
+	simButton(row, "Step round", () => { stopSimTimer(plugin); beginFight(state, plugin); stepRound(state.fight); refresh(); }, state.running);
 	const playing = !!plugin._dprSimTimer;
 	simIconButton(row, playing ? "pause" : "play", playing ? "Pause" : "Play", () => {
 		if (plugin._dprSimTimer) {
@@ -524,27 +525,40 @@ function paintSimControls (host, state, plugin, refresh) {
 		}
 		startAuto(state, plugin, refresh);
 	});
-	simButton(row, "Run", () => {
+	simButton(row, state.running ? "Running…" : "Run", () => { void runMany(1); }, state.running);
+	simButton(row, state.running ? "Running…" : "Run N", () => { void runMany(clamp(count.value, 1, 20, 1)); }, state.running);
+
+	async function runMany (n) {
+		if (state.running) return;
 		stopSimTimer(plugin);
-		state.fight = createFight(...simSides(state, plugin));
-		runFight(state.fight);
-		state.reports = [summarize(state.fight)];
-		refresh();
-	});
-	simButton(row, "Run N", () => {
-		stopSimTimer(plugin);
-		const n = clamp(count.value, 1, 20, 1);
+		state.running = true;
+		const total = clamp(n, 1, 20, 1);
 		const reports = [];
 		let last = null;
-		for (let i = 0; i < n; i++) {
-			last = createFight(...simSides(state, plugin));
-			runFight(last);
-			reports.push(summarize(last));
+		try {
+			for (let i = 0; i < total; i++) {
+				state.runLabel = total === 1 ? "Running the fight…" : `Running ${i + 1} of ${total}`;
+				refresh();
+				await waitFrame();
+				last = createFight(...simSides(state, plugin));
+				runFight(last);
+				reports.push(summarize(last));
+				state.fight = last;
+				state.reports = reports.slice();
+			}
+		} catch (err) {
+			console.error(err);
+			new Notice(err?.message || "The simulation stopped.");
+		} finally {
+			state.running = false;
+			state.runLabel = "";
+			refresh();
 		}
-		state.fight = last;
-		state.reports = reports;
-		refresh();
-	});
+	}
+}
+
+function waitFrame () {
+	return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 function resetFight (state, plugin) {
@@ -612,7 +626,7 @@ function simSides (state, plugin) {
 			options: [...(sheet.attacks || []), ...(sheet.spells || []), ...(sheet.heals || [])],
 			extraSwings: sheet.swings || 1,
 			characterLevel: Number(record.fields?.level) || 1,
-			pool: slotPool(record.snapshot?.slots),
+			pool: slotPool(record.snapshot?.slots, true),
 			classes: record.fields?.classes || "",
 			int: Number(record.snapshot?.abilities?.int) || 10,
 			defenses: normalizeDefenses(record.snapshot?.defenses),
@@ -818,13 +832,15 @@ function paintReport (host, reports, fight) {
 	if (!fight) return;
 	const many = (reports || []).length > 1;
 	const summary = many ? combineReports(reports) : summarize(fight);
-	card.createEl("h3", {text: many ? `${summary.runs} fights` : "Report"});
-	const stats = card.createDiv({cls: "fiveetools-dpr__stats"});
-	statTile(stats, "Rounds", many ? rangeText(summary.rounds) : String(summary.rounds || "—"));
-	statTile(stats, "Damage", many ? rangeText(summary.damage) : formatNum(summary.damage));
-	statTile(stats, "Healing", many ? rangeText(summary.healing) : formatNum(summary.healing));
-	statTile(stats, "XP", many ? rangeText(summary.xp) : (summary.xp ? `${summary.xp} (${summary.share} each)` : "0"));
+	if (!many && fight.over) paintScoreboard(card, summary);
+	else if (many) paintRecord(card, summary);
 	if (!many) {
+		card.createEl("h3", {text: "Report"});
+		const stats = card.createDiv({cls: "fiveetools-dpr__stats"});
+		statTile(stats, "Rounds", String(summary.rounds || "—"));
+		statTile(stats, "Damage", formatNum(summary.damage));
+		statTile(stats, "Healing", formatNum(summary.healing));
+		statTile(stats, "XP", summary.xp ? `${summary.xp} (${summary.share} each)` : "0");
 		const actors = summary.actors || [];
 		reportGroup(card, "Characters alive", actors.filter(actor => actor.side === "party" && !actor.dead));
 		reportGroup(card, "Characters dead", actors.filter(actor => actor.side === "party" && actor.dead));
@@ -832,10 +848,76 @@ function paintReport (host, reports, fight) {
 		reportGroup(card, "Creatures dead", actors.filter(actor => actor.side !== "party" && actor.dead));
 		return;
 	}
+	const stats = card.createDiv({cls: "fiveetools-dpr__stats"});
+	statTile(stats, "Rounds", rangeText(summary.rounds));
+	statTile(stats, "Damage", rangeText(summary.damage));
+	statTile(stats, "Healing", rangeText(summary.healing));
+	statTile(stats, "XP", rangeText(summary.xp));
 	for (const actor of summary.actors || []) {
 		const line = card.createDiv({cls: "fiveetools-dpr__actor"});
 		line.createSpan({cls: "fiveetools-dpr__actor-name", text: actor.name});
-		line.createSpan({text: `${rangeText(actor.damage)} damage · ${rangeText(actor.healing)} healing`});
+		const gone = actor.side === "party"
+			? `${actor.deaths} deaths · ${formatNum(actor.meanDowns)} downs/fight · ${formatNum(actor.meanRolls)} death saves/fight`
+			: "";
+		line.createSpan({text: `${rangeText(actor.damage)} damage · ${rangeText(actor.healing)} healing${gone ? ` · ${gone}` : ""}`});
+	}
+	paintActions(card, "Party actions", summary.actions?.party);
+	paintActions(card, "Creature actions", summary.actions?.enemy);
+}
+
+function paintScoreboard (host, summary) {
+	const winner = summary.winner || "draw";
+	const word = winner === "party" ? "Victory" : winner === "enemy" ? "Defeat" : "Draw";
+	const board = host.createDiv({cls: `fiveetools-dpr__scoreboard is-${winner}`});
+	board.createDiv({cls: "fiveetools-dpr__scoreboard-result", text: word});
+	const sides = board.createDiv({cls: "fiveetools-dpr__scoreboard-sides"});
+	sides.createSpan({text: "Party"});
+	sides.createSpan({cls: "fiveetools-dpr__scoreboard-vs", text: "vs"});
+	sides.createSpan({text: "Foes"});
+	board.createDiv({cls: "fiveetools-dpr__scoreboard-meta", text: `${summary.standing || 0} still standing`});
+}
+
+function paintRecord (host, summary) {
+	const runs = summary.runs || 0;
+	const wins = summary.wins || {};
+	const board = host.createDiv({cls: "fiveetools-dpr__scoreboard"});
+	board.createDiv({cls: "fiveetools-dpr__scoreboard-result", text: `${runs} fights`});
+	const line = board.createDiv({cls: "fiveetools-dpr__scoreboard-sides"});
+	line.createSpan({text: `Party ${wins.party || 0}`});
+	line.createSpan({cls: "fiveetools-dpr__scoreboard-vs", text: "·"});
+	line.createSpan({text: `Foes ${wins.enemy || 0}`});
+	line.createSpan({cls: "fiveetools-dpr__scoreboard-vs", text: "·"});
+	line.createSpan({text: `Draw ${wins.draw || 0}`});
+	const rate = Math.round((summary.winRate || 0) * 100);
+	const left = Object.entries(summary.standing?.counts || {})
+		.sort((a, b) => Number(a[0]) - Number(b[0]))
+		.map(([count, times]) => `${count} left ×${times}`)
+		.join(", ");
+	board.createDiv({
+		cls: "fiveetools-dpr__scoreboard-meta",
+		text: `Party win rate ${rate}%. When the party wins, ${formatNum(summary.standing?.mean || 0)} characters left${left ? ` (${left})` : ""}.`,
+	});
+}
+
+function paintActions (host, title, rows) {
+	host.createEl("h4", {text: title});
+	const attacks = (rows || []).filter(row => row.kind !== "heal" && row.damage > 0).sort((a, b) => b.damage - a.damage).slice(0, 8);
+	const heals = (rows || []).filter(row => row.kind === "heal" && row.healing > 0).sort((a, b) => b.healing - a.healing).slice(0, 8);
+	if (!attacks.length && !heals.length) {
+		host.createEl("p", {cls: "fiveetools-view__meta", text: "None"});
+		return;
+	}
+	for (const row of attacks) {
+		const swings = row.hits + row.misses;
+		const rate = swings ? Math.round(100 * row.hits / swings) : 0;
+		const line = host.createDiv({cls: "fiveetools-dpr__actor"});
+		line.createSpan({cls: "fiveetools-dpr__actor-name", text: row.name});
+		line.createSpan({text: `${formatNum(row.damage)} damage · ${row.uses} uses · ${rate}% hits · ${formatNum(row.damage / (row.uses || 1))} avg`});
+	}
+	for (const row of heals) {
+		const line = host.createDiv({cls: "fiveetools-dpr__actor"});
+		line.createSpan({cls: "fiveetools-dpr__actor-name", text: row.name});
+		line.createSpan({text: `${formatNum(row.healing)} healing · ${row.uses} uses · ${formatNum(row.healing / (row.uses || 1))} avg`});
 	}
 }
 
@@ -864,8 +946,9 @@ function rangeText (stat) {
 	return `mean ${formatNum(stat.mean)} · SD ${formatNum(stat.sd)} · median ${formatNum(stat.median)}`;
 }
 
-function simButton (row, text, onClick) {
-	const button = row.createEl("button", {text, cls: "fiveetools-btn"});
+function simButton (row, text, onClick, disabled) {
+	const button = row.createEl("button", {text, cls: "fiveetools-btn", attr: {type: "button"}});
+	if (disabled) button.disabled = true;
 	button.addEventListener("click", onClick);
 }
 
