@@ -96,6 +96,18 @@ export async function loadHomebrewFromVault (plugin) {
 	return getBrewJson();
 }
 
+export async function saveHomebrewImage (plugin, file) {
+	const vault = plugin?.app?.vault;
+	if (!vault || !file) throw new Error("Could not save that image.");
+	const ext = String(file.name || "").match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "png";
+	const stem = String(file.name || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "image";
+	const folder = `${brewVaultPath(plugin).replace(/\/[^/]+$/, "")}/img`;
+	await ensureFolder(plugin.app, folder);
+	const path = `${folder}/${stem}-${Date.now().toString(36)}.${ext}`;
+	await vault.createBinary(path, await file.arrayBuffer());
+	return path;
+}
+
 export async function saveHomebrewToVault (plugin) {
 	const vault = plugin?.app?.vault;
 	if (!vault) return getBrewJson();
@@ -242,13 +254,16 @@ export function emptyForm (typeId) {
 
 export function entityToForm (typeId, ent) {
 	if (!ent) return emptyForm(typeId);
+	let form;
 	switch (homebrewType(typeId).id) {
-		case "item": return itemToForm(ent);
-		case "monster": return monsterToForm(ent);
-		case "background": return backgroundToForm(ent);
-		case "race": return raceToForm(ent);
-		default: return spellToForm(ent);
+		case "item": form = itemToForm(ent); break;
+		case "monster": form = monsterToForm(ent); break;
+		case "background": form = backgroundToForm(ent); break;
+		case "race": form = raceToForm(ent); break;
+		default: form = spellToForm(ent);
 	}
+	form.image = String(ent._homebrewImage || "");
+	return form;
 }
 
 let nextNamedRowId = 1;
@@ -287,6 +302,8 @@ export function buildEntity (typeId, form) {
 		default: ent = buildSpell(form);
 	}
 	if (ent) ent.__prop = type.prop;
+	const image = String(form?.image || "").trim();
+	if (ent && image) ent._homebrewImage = image;
 	return ent;
 }
 

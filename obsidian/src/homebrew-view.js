@@ -11,6 +11,7 @@ import {
 	HOMEBREW_TYPES,
 	listBrewEntities,
 	normalizeMonsterForm,
+	saveHomebrewImage,
 	saveHomebrewToVault,
 	upsertEntity,
 } from "./homebrew-store.js";
@@ -181,8 +182,46 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		});
 	};
 
+	const addImageField = (parent) => {
+		const row = parent.createDiv({cls: "fiveetools-homebrew__image"});
+		row.createEl("div", {cls: "fiveetools-homebrew__label", text: "Image"});
+		const path = String(draft.image || "").trim();
+		if (path) {
+			let src = path;
+			try { src = plugin.app.vault.adapter.getResourcePath(path) || path; } catch (_) { /* keep the stored path */ }
+			row.createEl("img", {cls: "fiveetools-homebrew__thumb", attr: {src, alt: ""}});
+		}
+		const controls = row.createDiv({cls: "fiveetools-homebrew__row"});
+		const pick = controls.createEl("button", {text: path ? "Replace image" : "Add image", cls: "fiveetools-btn", attr: {type: "button"}});
+		const file = row.createEl("input", {attr: {type: "file", accept: "image/*"}});
+		file.style.display = "none";
+		pick.addEventListener("click", () => file.click());
+		file.addEventListener("change", async () => {
+			const chosen = file.files?.[0];
+			if (!chosen) return;
+			try {
+				draft.image = await saveHomebrewImage(plugin, chosen);
+				emit();
+				renderForm();
+				schedulePreview();
+			} catch (err) {
+				new Notice(err?.message || "Could not save that image.");
+			}
+		});
+		if (path) {
+			const clear = controls.createEl("button", {text: "Remove image", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button"}});
+			clear.addEventListener("click", () => {
+				draft.image = "";
+				emit();
+				renderForm();
+				schedulePreview();
+			});
+		}
+	};
+
 	const renderForm = () => {
 		formWrap.empty();
+		addImageField(formWrap);
 		if (homebrewType(typeId).id === "monster") {
 			renderCreatureForm(formWrap, draft, {
 				onChange: () => {

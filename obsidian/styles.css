@@ -3172,6 +3172,21 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	gap: 6px;
 }
 
+.fiveetools-homebrew__image {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.fiveetools-homebrew__thumb {
+	display: block;
+	max-width: 100%;
+	max-height: 160px;
+	object-fit: contain;
+	border-radius: 6px;
+	background: var(--background-primary);
+}
+
 .fiveetools-homebrew__grid {
 	display: grid;
 	grid-template-columns: 1fr 1fr;

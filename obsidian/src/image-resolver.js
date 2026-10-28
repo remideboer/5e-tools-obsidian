@@ -24,11 +24,15 @@ export async function resolveEntityImages (ent, {imageBaseUrl} = {}) {
 		seen.add(item.url);
 		resolved.push(item);
 	}
+	const local = homebrewPicture(ent);
+	if (local && !seen.has(local.url)) resolved.unshift(local);
 	return resolved;
 }
 
 /** Small bestiary/object/vehicle token, without fluff art. */
 export function resolveTokenImage (ent, {imageBaseUrl} = {}) {
+	const local = homebrewPicture(ent);
+	if (local) return local;
 	const Renderer = getRenderer();
 	return toRemoteUrl(getTokenUrl(ent, Renderer), imageBaseUrl);
 }
@@ -38,6 +42,17 @@ const TOKEN_DIRS = {
 	object: "objects/tokens",
 	vehicle: "vehicles/tokens",
 };
+
+function homebrewPicture (ent) {
+	const path = String(ent?._homebrewImage || "").trim();
+	if (!path) return null;
+	if (/^(https?:|app:|data:)/i.test(path)) return {kind: "url", url: path, rel: null};
+	try {
+		const url = globalThis.app?.vault?.adapter?.getResourcePath?.(path);
+		if (url) return {kind: "url", url, rel: null};
+	} catch (_) { /* the file may not be in this vault */ }
+	return null;
+}
 
 function getTokenUrl (ent, Renderer) {
 	const prop = ent?.__prop;
