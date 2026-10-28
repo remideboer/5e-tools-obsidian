@@ -10,7 +10,7 @@ The plugin is mostly **ESM functions**, not a class hierarchy. Views subclass Ob
 | `FiveEToolsLibraryView` | `library-view.js` | Main UI: nav, list, tools (map, loot, …) |
 | `FiveEToolsView` | `entity-view.js` | Entity preview leaf |
 | `FiveEToolsMapPlayerView` | `map-view.js` | Player popout; owns `frame` canvas |
-| `FiveEToolsTableView` | `table-view.js` | Table popout; image background, initiative overlay |
+| `FiveEToolsTableView` | `table-view.js` | Table popout; image background, initiative overlay the DM screen card can hide |
 | View type ids | `constants.js` | `fiveetools-library`, `fiveetools-preview`, `fiveetools-map-player`, `fiveetools-table` |
 
 ## Area map

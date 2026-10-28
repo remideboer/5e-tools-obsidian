@@ -87,7 +87,7 @@ export class FiveEToolsTableView extends ItemView {
 			img.src = src;
 			frame.appendChild(img);
 		}
-		if (placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document, this.plugin);
+		if (session.showRoster !== false && placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document, this.plugin);
 	}
 }
 

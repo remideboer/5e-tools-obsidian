@@ -9,6 +9,7 @@ export function ensureTableSession (plugin) {
 			imageBytes: null,
 			imageType: "",
 			privateRolls: false,
+			showRoster: true,
 		};
 	}
 	return plugin._tableSession;

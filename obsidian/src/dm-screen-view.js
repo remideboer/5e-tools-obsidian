@@ -15,7 +15,7 @@ import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
-import {ensureTableSession, onTableChange} from "./table-session.js";
+import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
 import {onInitiativeKey, placedChips, selectTableTurn, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
@@ -60,10 +60,6 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		const open = tableWindowOpen(plugin);
 		tableBtn.setText(open ? "Close table" : "Table");
 		tableBtn.toggleClass("is-selected", open);
-		listEl.querySelectorAll(".fiveetools-dmscreen__tabletoggle").forEach(el => {
-			el.setText(open ? "Close table" : "Table");
-			el.toggleClass("is-selected", open);
-		});
 	};
 	syncTableBtn();
 	plugin._syncDmTableBtn = syncTableBtn;
@@ -989,24 +985,23 @@ function paintInitiative (host, plugin) {
 		evt.stopPropagation();
 		clearTableRoster(plugin);
 	});
-	const open = tableWindowOpen(plugin);
+	const session = ensureTableSession(plugin);
+	const shown = session.showRoster !== false;
 	const toggle = actions.createEl("button", {
-		text: open ? "Close table" : "Table",
-		cls: `fiveetools-btn fiveetools-btn--ghost fiveetools-dmscreen__tabletoggle${open ? " is-selected" : ""}`,
-		attr: {type: "button", title: "Open or close the Table window"},
+		text: shown ? "Hide roster" : "Show roster",
+		cls: `fiveetools-btn fiveetools-btn--ghost${shown ? " is-selected" : ""}`,
+		attr: {type: "button", title: "Show or hide the initiative roster on the Table"},
 	});
 	toggle.addEventListener("click", (evt) => {
 		evt.stopPropagation();
-		if (tableWindowOpen(plugin)) closeTableWindow(plugin);
-		else castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
-		window.setTimeout(() => plugin._syncDmTableBtn?.(), 400);
+		session.showRoster = session.showRoster === false;
+		refreshTable(plugin);
 	});
-	const chips = placedChips(ensureTableSession(plugin));
+	const chips = placedChips(session);
 	if (!chips.length) {
 		host.createEl("p", {cls: "fiveetools-view__meta", text: "Drag creatures onto the Table ruler."});
 		return;
 	}
-	const session = ensureTableSession(plugin);
 	const done = Array.isArray(session.doneKeys) ? session.doneKeys : [];
 	const current = chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
 	for (const chip of chips) {
