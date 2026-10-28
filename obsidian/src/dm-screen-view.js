@@ -157,7 +157,49 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		}
 		state.columns.forEach((column, index) => {
 			const el = grid.createDiv({cls: "fiveetools-dmscreen__column"});
-			for (const panel of column.items) paintCard(el, panel);
+			const grip = el.createDiv({
+				cls: "fiveetools-dmscreen__colgrip",
+				attr: {title: "Drag to move this column", draggable: "true"},
+			});
+			grip.addEventListener("dragstart", (evt) => {
+				dragKind = "column";
+				dragId = column.id;
+				evt.dataTransfer?.setData("text/plain", column.id);
+				if (evt.dataTransfer) evt.dataTransfer.effectAllowed = "move";
+				evt.stopPropagation();
+			});
+			grip.addEventListener("dragend", endDrag);
+			for (const panel of column.items) paintCard(el, column, panel);
+			el.addEventListener("dragover", (evt) => {
+				if (dragKind === "column") {
+					if (dragId === column.id) {
+						clearMarks();
+						return;
+					}
+					evt.preventDefault();
+					const rect = el.getBoundingClientRect();
+					const after = evt.clientX > rect.left + rect.width / 2;
+					markDrop(el, after ? "is-drop-after" : "is-drop-before");
+					if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+					return;
+				}
+				if (dragKind !== "card") return;
+				evt.preventDefault();
+				markDrop(el, "is-drop-end");
+				if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+			});
+			el.addEventListener("drop", (evt) => {
+				if (!dragKind) return;
+				evt.preventDefault();
+				evt.stopPropagation();
+				const kind = dragKind;
+				const id = dragId;
+				const rect = el.getBoundingClientRect();
+				const after = evt.clientX > rect.left + rect.width / 2;
+				endDrag();
+				if (kind === "column") moveColumn(id, column.id, after);
+				else moveCard(id, column.id, null, false);
+			});
 			const actions = el.createDiv({cls: "fiveetools-dmscreen__colactions"});
 			const entryBtn = actions.createEl("button", {
 				text: "Entry",
@@ -193,8 +235,130 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			});
 			if (scrolls[index]) el.scrollTop = scrolls[index];
 		});
+		const lane = grid.createDiv({cls: "fiveetools-dmscreen__newcol", attr: {title: "Drop to make a new column"}});
+		lane.createSpan({text: "New column"});
+		lane.addEventListener("dragover", (evt) => {
+			if (dragKind !== "card") return;
+			evt.preventDefault();
+			evt.stopPropagation();
+			markDrop(lane, "is-drop-end");
+			if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+		});
+		lane.addEventListener("drop", (evt) => {
+			if (dragKind !== "card") return;
+			evt.preventDefault();
+			evt.stopPropagation();
+			const id = dragId;
+			endDrag();
+			moveCardToNewColumn(id);
+		});
 		grid.scrollLeft = gridScroll;
 	};
+
+	let dragKind = null;
+	let dragId = null;
+
+	const clearMarks = () => {
+		grid.querySelectorAll(".is-drop-before, .is-drop-after, .is-drop-end").forEach(node => {
+			node.classList.remove("is-drop-before", "is-drop-after", "is-drop-end");
+		});
+	};
+
+	const markDrop = (el, cls) => {
+		clearMarks();
+		el.classList.add(cls);
+	};
+
+	const endDrag = () => {
+		dragKind = null;
+		dragId = null;
+		clearMarks();
+		grid.querySelector(".fiveetools-dmscreen__newcol")?.classList.remove("is-open");
+	};
+
+	const openNewColumnLane = () => {
+		const lane = grid.querySelector(".fiveetools-dmscreen__newcol");
+		if (!lane) return;
+		lane.classList.add("is-open");
+		const extra = lane.getBoundingClientRect().right - grid.getBoundingClientRect().right;
+		if (extra > 0) grid.scrollLeft += extra + 8;
+	};
+
+	const moveColumn = (id, targetId, after) => {
+		const from = state.columns.findIndex(column => column.id === id);
+		const to = state.columns.findIndex(column => column.id === targetId);
+		if (from < 0 || to < 0) return;
+		let insert = after ? to + 1 : to;
+		if (from < insert) insert -= 1;
+		if (insert === from) return;
+		const [column] = state.columns.splice(from, 1);
+		state.columns.splice(insert, 0, column);
+		emit();
+		paint();
+	};
+
+	const moveCard = (panelId, targetColumnId, beforePanelId, after) => {
+		let fromColumn = null;
+		let fromIndex = -1;
+		for (const column of state.columns) {
+			const index = column.items.findIndex(panel => panel.id === panelId);
+			if (index < 0) continue;
+			fromColumn = column;
+			fromIndex = index;
+			break;
+		}
+		const toColumn = state.columns.find(column => column.id === targetColumnId);
+		if (!fromColumn || !toColumn) return;
+		let insert = toColumn.items.length;
+		if (beforePanelId) {
+			const at = toColumn.items.findIndex(panel => panel.id === beforePanelId);
+			insert = at < 0 ? toColumn.items.length : (after ? at + 1 : at);
+		}
+		if (fromColumn === toColumn && fromIndex < insert) insert -= 1;
+		if (fromColumn === toColumn && insert === fromIndex) return;
+		const [panel] = fromColumn.items.splice(fromIndex, 1);
+		toColumn.items.splice(insert, 0, panel);
+		state.columns = state.columns.filter(column => column.items.length);
+		emit();
+		paint();
+	};
+
+	const moveCardToNewColumn = (panelId) => {
+		let fromColumn = null;
+		let fromIndex = -1;
+		for (const column of state.columns) {
+			const index = column.items.findIndex(panel => panel.id === panelId);
+			if (index < 0) continue;
+			fromColumn = column;
+			fromIndex = index;
+			break;
+		}
+		if (!fromColumn) return;
+		const aloneAtEnd = fromColumn.items.length === 1 && state.columns[state.columns.length - 1] === fromColumn;
+		if (aloneAtEnd) return;
+		const [panel] = fromColumn.items.splice(fromIndex, 1);
+		state.columns = state.columns.filter(column => column.items.length);
+		state.columns.push({id: allocPanelId(), items: [panel]});
+		emit();
+		paint();
+	};
+
+	grid.addEventListener("dragover", (evt) => {
+		if (dragKind !== "card") return;
+		if (evt.target.closest(".fiveetools-dmscreen__column, .fiveetools-dmscreen__newcol")) return;
+		evt.preventDefault();
+		const lane = grid.querySelector(".fiveetools-dmscreen__newcol");
+		if (lane) markDrop(lane, "is-drop-end");
+		if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+	});
+	grid.addEventListener("drop", (evt) => {
+		if (dragKind !== "card") return;
+		if (evt.target.closest(".fiveetools-dmscreen__column, .fiveetools-dmscreen__newcol")) return;
+		evt.preventDefault();
+		const id = dragId;
+		endDrag();
+		moveCardToNewColumn(id);
+	});
 
 	plugin._dmScreenColumnObserver?.disconnect();
 	plugin._dmScreenColumnObserver = null;
@@ -349,9 +513,52 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 	searchInput.addEventListener("input", paintHits);
 
-	const paintCard = (parent, panel) => {
+	const paintCard = (parent, column, panel) => {
 		const card = parent.createDiv({cls: "fiveetools-dmscreen__card", attr: {"data-id": panel.id}});
 		const head = card.createDiv({cls: "fiveetools-dmscreen__head"});
+		head.addEventListener("pointerdown", (evt) => {
+			head.draggable = !evt.target.closest("button, input, textarea");
+		});
+		head.addEventListener("dragstart", (evt) => {
+			if (!head.draggable) {
+				evt.preventDefault();
+				return;
+			}
+			dragKind = "card";
+			dragId = panel.id;
+			openNewColumnLane();
+			evt.dataTransfer?.setData("text/plain", panel.id);
+			if (evt.dataTransfer) evt.dataTransfer.effectAllowed = "move";
+			evt.stopPropagation();
+		});
+		head.addEventListener("dragend", endDrag);
+		card.addEventListener("dragover", (evt) => {
+			if (dragKind !== "card") return;
+			evt.preventDefault();
+			evt.stopPropagation();
+			if (dragId === panel.id) {
+				clearMarks();
+				return;
+			}
+			const rect = card.getBoundingClientRect();
+			const after = evt.clientY > rect.top + rect.height / 2;
+			markDrop(card, after ? "is-drop-after" : "is-drop-before");
+			if (evt.dataTransfer) evt.dataTransfer.dropEffect = "move";
+		});
+		card.addEventListener("drop", (evt) => {
+			if (dragKind !== "card") return;
+			evt.preventDefault();
+			evt.stopPropagation();
+			if (dragId === panel.id) {
+				endDrag();
+				return;
+			}
+			const id = dragId;
+			const rect = card.getBoundingClientRect();
+			const after = evt.clientY > rect.top + rect.height / 2;
+			endDrag();
+			moveCard(id, column.id, panel.id, after);
+		});
 		if (panel.type === "encounter") {
 			const title = head.createEl("button", {
 				cls: "fiveetools-dmscreen__title fiveetools-dmscreen__titlebtn",

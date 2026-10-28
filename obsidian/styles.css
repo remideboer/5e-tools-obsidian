@@ -338,6 +338,60 @@ a.fiveetools-inline-link {
 	overflow-y: auto;
 }
 
+.fiveetools-dmscreen__colgrip {
+	flex: 0 0 auto;
+	height: 8px;
+	border-radius: 4px;
+	background: var(--background-modifier-border);
+	cursor: grab;
+	position: sticky;
+	top: 0;
+	z-index: 2;
+}
+
+.fiveetools-dmscreen__colgrip:active {
+	cursor: grabbing;
+}
+
+.fiveetools-dmscreen__column.is-drop-before {
+	box-shadow: inset 3px 0 0 var(--interactive-accent);
+}
+
+.fiveetools-dmscreen__column.is-drop-after {
+	box-shadow: inset -3px 0 0 var(--interactive-accent);
+}
+
+.fiveetools-dmscreen__column.is-drop-end {
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.fiveetools-dmscreen__newcol {
+	flex: 0 0 0;
+	width: 0;
+	min-height: 0;
+	overflow: hidden;
+	opacity: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 2px dashed var(--background-modifier-border);
+	border-radius: 8px;
+	color: var(--text-muted);
+	font-size: 0.85em;
+	text-align: center;
+}
+
+.fiveetools-dmscreen__newcol.is-open {
+	flex: 0 0 88px;
+	width: 88px;
+	opacity: 1;
+}
+
+.fiveetools-dmscreen__newcol.is-drop-end {
+	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+}
+
 .fiveetools-dmscreen__rollbtn {
 	margin-bottom: 6px;
 }
@@ -402,6 +456,19 @@ a.fiveetools-inline-link {
 	padding: 8px 10px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	background: var(--background-primary-alt, var(--background-primary));
+	cursor: grab;
+}
+
+.fiveetools-dmscreen__head:active {
+	cursor: grabbing;
+}
+
+.fiveetools-dmscreen__card.is-drop-before {
+	box-shadow: inset 0 3px 0 var(--interactive-accent);
+}
+
+.fiveetools-dmscreen__card.is-drop-after {
+	box-shadow: inset 0 -3px 0 var(--interactive-accent);
 }
 
 .fiveetools-dmscreen__title {
@@ -437,6 +504,7 @@ a.fiveetools-inline-link {
 	background: transparent;
 	color: var(--text-normal);
 	padding: 0;
+	cursor: text;
 }
 
 .fiveetools-dmscreen__remove {
