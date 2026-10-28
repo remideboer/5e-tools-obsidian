@@ -582,6 +582,7 @@ export class FiveEToolsLibraryView extends ItemView {
 						this.selectNav("encounter");
 					},
 					onOpenMap: () => this.selectNav("map"),
+					onOpenSim: () => this.selectNav("sim"),
 				});
 			} catch (e) {
 				this.listEl.empty();

@@ -37,6 +37,7 @@ export function renderCampaignManager (formEl, resultEl, {
 	onSessionChange,
 	onOpenComposer,
 	onOpenMap,
+	onOpenSim,
 } = {}) {
 	formEl.empty();
 	formEl.addClass("fiveetools-campaign");
@@ -255,9 +256,57 @@ export function renderCampaignManager (formEl, resultEl, {
 				}
 				void openPath(it.path);
 			});
+			if (sectionId === "encounters") {
+				const send = listEl.createEl("button", {
+					text: "Send to simulation",
+					cls: "fiveetools-btn fiveetools-btn--ghost fiveetools-campaign__send",
+					attr: {type: "button"},
+				});
+				send.addEventListener("click", () => { void sendEncounterToSim(it); });
+			}
 		}
 		listEl.scrollTop = scrollTop;
 		syncListSelection();
+	};
+
+	const sendEncounterToSim = async (entry) => {
+		const players = await listEntries(plugin, slug, "players");
+		const known = new Set((await listCharacters(plugin)).map(record => String(record.fields?.ddb_id || "").trim()).filter(Boolean));
+		const partyIds = [];
+		for (const player of players) {
+			const id = String(player.fields?.character || "").trim();
+			if (id && known.has(id) && !partyIds.includes(id)) partyIds.push(id);
+		}
+		const added = [];
+		let skipped = 0;
+		for (const combatant of entry.snapshot?.combatants || []) {
+			if (!combatant?.doc?.n) {
+				skipped += 1;
+				continue;
+			}
+			added.push({
+				id: String(combatant.id || `a${added.length + 1}`),
+				name: String(combatant.label || combatant.doc.n),
+				doc: {
+					n: combatant.doc.n,
+					u: combatant.doc.u || "",
+					s: combatant.doc.s || "",
+					c: combatant.doc.c,
+					cf: combatant.doc.cf,
+					sA: combatant.doc.sA,
+				},
+			});
+		}
+		plugin._simSession = {
+			...(plugin._simSession || {}),
+			partyIds,
+			threat: "creatures",
+			added,
+			encounterId: "",
+		};
+		if (!partyIds.length) new Notice("That campaign has no linked characters.");
+		if (skipped) new Notice(`Skipped ${skipped} ${skipped === 1 ? "creature" : "creatures"} with no stat block.`);
+		onOpenSim?.();
 	};
 
 	const editorHost = () => {
