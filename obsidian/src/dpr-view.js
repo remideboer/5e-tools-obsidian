@@ -588,6 +588,13 @@ export async function sourcesFor (plugin, record) {
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	const casting = snapshot.spellcasting || [];
 	const attacks = (snapshot.actions || []).map(action => actionSource(action, casting, snapshot.actions, record)).filter(Boolean);
+	const seen = new Set(attacks.map(row => row.id));
+	for (const feature of snapshot.features || []) {
+		const built = featureSource(feature, snapshot.actions, record);
+		if (!built?.id || seen.has(built.id)) continue;
+		seen.add(built.id);
+		attacks.push(built);
+	}
 	const notes = [...(snapshot.actions || []), ...(snapshot.features || [])];
 	if (notes.some(it => /disciple of life/i.test(it?.name || ""))) {
 		attacks.push({id: "feature:disciple", name: "Disciple of Life", kind: "utility", utility: "disciple", hidden: true, spell: false});
@@ -741,14 +748,14 @@ function featureSource (action, actions, record) {
 	if (/steady aim/i.test(name)) {
 		return {id: `action:${name}`, name, kind: "utility", utility: "steady", slot: "bonus", activation: "bonus", spell: false, hidden: true};
 	}
-	if (/^divine smite$/i.test(name)) {
+	if (/^divine smite\b/i.test(name) || /paladin.?s smite/i.test(name)) {
 		const cap = /maximum of\s+5d8|5d8/i.test(snippet) ? 5 : 0;
 		return {
-			id: `action:${name}`,
-			name,
+			id: "action:Divine Smite",
+			name: "Divine Smite",
 			kind: "rider",
 			rider: "smite",
-			bonusAction: false,
+			bonusAction: /paladin.?s smite/i.test(name) ? true : false,
 			hidden: true,
 			spell: true,
 			level: 1,
@@ -767,6 +774,10 @@ function featureSource (action, actions, record) {
 	}
 	if (/action surge/i.test(name)) {
 		return {id: `action:${name}`, name, kind: "utility", utility: "surge", uses: Number(action.uses) || (classLevel(record?.fields?.classes, "fighter") >= 17 ? 2 : 1), edition, spell: false, hidden: true};
+	}
+	if (/first strike/i.test(name)) {
+		const times = Number(String(snippet).match(/equal to\s+(\d+)/i)?.[1]) || 0;
+		return {id: `action:${name}`, name, kind: "rider", rider: "first-strike", uses: times, count: 2, faces: 6, dice: 7, flat: 0, hidden: true, spell: false};
 	}
 	if (/^rage\b/i.test(name)) {
 		const modern = edition === "one" || /short rest/i.test(snippet);
@@ -846,10 +857,13 @@ async function spellSource (spell, casting, edition, characterLevel) {
 	const fromSnippet = averageFromText(spell?.snippet);
 	let parts = fromBook || fromSnippet;
 	if (fromBook && fromSnippet?.flat) parts = {...fromBook, flat: fromSnippet.flat, average: fromBook.dice + fromSnippet.flat};
-	if (!parts && !extras.cantrip.length) return null;
+	if (!parts && !extras.cantrip.length && !/^divine smite\b/i.test(spell?.name || spell?.label || "")) return null;
+	const name = spell.label || spell.name || "Spell";
+	if (!parts && /^divine smite\b/i.test(name)) {
+		parts = {dice: 9, flat: 0, average: 9};
+	}
 	parts = parts || {dice: 0, flat: 0, average: 0};
 	const line = casting.find(it => String(it.className || "").toLowerCase() === String(spell.list || "").toLowerCase()) || casting[0];
-	const name = spell.label || spell.name || "Spell";
 	const heal = isHealing(name, text);
 	const level = Number.isFinite(Number(spell.level)) ? Number(spell.level) : (extras.cantrip.length ? 0 : null);
 	const shape = diceShape(firstDiceText(extras.text) || firstDiceText(spell?.snippet) || "");
@@ -867,16 +881,17 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		dc: parseDc(spell.save) ?? (Number(line?.dc) || 0),
 		dice: parts.dice,
 		flat: parts.flat,
-		count: shape?.count || 0,
-		faces: shape?.faces || 0,
+		count: shape?.count || (/^divine smite\b/i.test(name) ? 2 : 0),
+		faces: shape?.faces || (/^divine smite\b/i.test(name) ? 8 : 0),
 		baseDice: parts.dice,
 		baseFlat: parts.flat,
-		baseCount: shape?.count || 0,
-		baseFaces: shape?.faces || 0,
-		damage: String(ent?.damageInflict?.[0] || "").toLowerCase(),
+		baseCount: shape?.count || (/^divine smite\b/i.test(name) ? 2 : 0),
+		baseFaces: shape?.faces || (/^divine smite\b/i.test(name) ? 8 : 0),
+		damage: String(ent?.damageInflict?.[0] || (/^divine smite\b/i.test(name) ? "radiant" : "")).toLowerCase(),
 		range: spell.range || "",
 		blurb: text.slice(0, 240),
 		...(riderFields(name, text, ent)),
+		...(/^divine smite\b/i.test(name) && !extras.scale ? {scale: {from: 1, every: 1, dice: 4.5, flat: 0, count: 1, faces: 8}} : {}),
 	};
 	const shown = spellAtSlot(row, level > 0 ? level : 0, characterLevel);
 	const baseText = firstDiceText(extras.text) || firstDiceText(spell?.snippet) || diceLabel(parts, spell?.snippet);
@@ -892,7 +907,7 @@ async function spellSource (spell, casting, edition, characterLevel) {
 }
 
 function riderFields (name, text, ent) {
-	if (/^divine smite$/i.test(name)) {
+	if (/^divine smite\b/i.test(name)) {
 		return {kind: "rider", rider: "smite", bonusAction: true, hidden: true, cap: /5d8/i.test(text) ? 5 : 0};
 	}
 	if (/^(hex|hunter's mark)$/i.test(name)) {

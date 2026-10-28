@@ -438,7 +438,7 @@ function byUtility (actor, utility) {
 
 function byRider (actor, rider) {
 	const found = (actor?.options || []).filter(option => option.rider === rider);
-	return found.find(option => option.bonusAction) || found[0] || null;
+	return found.find(option => option.bonusAction === false) || found[0] || null;
 }
 
 function rescueUrgency (target) {
@@ -642,23 +642,46 @@ function finishPlan (actor, plan, actors, foes, attacks) {
 	}
 
 	const smite = byRider(actor, "smite");
-	const melee = action?.option && !action.option.spell && action.option.kind === "attack" && action.option.melee !== false;
-	if (smite && melee && !actor.smiteUsed && peekSlot(actor.pool, smite, {characterLevel: actor.characterLevel})) {
-		const target = action.targets?.[0];
-		const cast = castAtPool(smite, actor, target);
-		const gain = target ? expectedDamage({...cast, kind: "attack", bonus: action.option.bonus}, {ac: target.ac}) * damageFactor("radiant", target.defenses) : (cast.dice || 0);
-		if (smite.bonusAction !== false) {
-			if (!bonus || gain > bonus.score) bonus = {score: gain, cell, option: smite, targets: action.targets};
-		} else plan.freeSmite = true;
+	let melee = action?.option && !action.option.spell && action.option.kind === "attack" && action.option.melee !== false;
+	if (smite && !actor.smiteUsed && peekSlot(actor.pool, smite, {characterLevel: actor.characterLevel})) {
+		let strike = melee ? action : null;
+		if (!strike) {
+			const steps = Math.max(1, Math.floor((actor.speed || 30) / 5));
+			const found = bestAttack(actor, (attacks || []).filter(option => !option.spell && option.kind === "attack" && option.melee !== false), actors, foes, [], steps, "striker");
+			if (found?.option) strike = found;
+		}
+		const strikeMelee = strike?.option && !strike.option.spell && strike.option.kind === "attack" && strike.option.melee !== false;
+		if (strikeMelee) {
+			const target = strike.targets?.[0];
+			const chance = target ? hitChance(strike.option, target) : 0.65;
+			const dangerous = target && (outgoingDamage(target) >= 8 || (Number(target.max) || target.hp) >= 25);
+			const finish = target && target.hp > 0 && target.hp <= 9;
+			const dice = dangerous ? 22.5 : 9;
+			const gain = dice * chance;
+			const worth = melee || (strike.score + gain) > (action?.score || 0);
+			if (worth) {
+				if (!melee) {
+					action = strike;
+					cell = strike.cell;
+					melee = true;
+				}
+				if (smite.bonusAction !== false) {
+					const saving = isHealOption(bonus?.option) && (bonus?.targets || []).some(isDying);
+					if (!saving && (dangerous || finish)) bonus = {score: gain, cell, option: smite, targets: strike.targets};
+				} else plan.freeSmite = true;
+			}
+		}
 	}
 
 	const mark = (actor.options || []).find(option => option.rider === "mark");
 	const marked = (actors || []).find(it => it.id === actor.markId);
 	const nextFoe = (foes || []).find(it => it.hp > 0);
 	const markGain = ((mark?.dice || 0) + (mark?.flat || 0)) * 2;
-	if (mark && actor.markId && nextFoe && (!marked || marked.dead || marked.hp <= 0) && (!bonus || markGain > bonus.score)) {
+	const smiteTarget = bonus?.option?.rider === "smite" ? (bonus.targets?.[0] || nextFoe) : null;
+	const smiteHeld = !!smiteTarget && (outgoingDamage(smiteTarget) >= 8 || (Number(smiteTarget.max) || smiteTarget.hp) >= 25 || smiteTarget.hp <= 9);
+	if (!smiteHeld && mark && actor.markId && nextFoe && (!marked || marked.dead || marked.hp <= 0) && (!bonus || markGain > bonus.score)) {
 		bonus = {score: markGain, cell, option: {utility: "move-mark", name: mark.name, rider: "mark"}, targets: [nextFoe]};
-	} else if (mark && !actor.markId && nextFoe && peekSlot(actor.pool, mark, {characterLevel: actor.characterLevel}) && (!bonus || markGain > bonus.score)) {
+	} else if (!smiteHeld && mark && !actor.markId && nextFoe && peekSlot(actor.pool, mark, {characterLevel: actor.characterLevel}) && (!bonus || markGain > bonus.score)) {
 		bonus = {score: markGain, cell, option: {...mark, utility: "mark"}, targets: [nextFoe]};
 	}
 

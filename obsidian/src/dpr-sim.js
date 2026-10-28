@@ -409,12 +409,16 @@ function takeTurn (fight, actor) {
 	}
 	if (plan.vow) vowAgainst(fight, actor, plan.vow);
 	if (actor.hp <= 0 || actor.dead) return;
-	if (plan.action) resolveChoice(fight, actor, plan.action);
+	if (plan.action) {
+		actor.wantSmite = !!(plan.freeSmite || plan.bonus?.option?.rider === "smite");
+		resolveChoice(fight, actor, plan.action);
+	}
 	if (actor.hp <= 0 || actor.dead) return;
 	if (plan.freeSmite) resolveChoice(fight, actor, {option: (actor.options || []).find(option => option.rider === "smite"), targets: plan.action?.targets || []});
 	if (plan.bonus?.option?.rider === "smite" && !actor.bonusSpent) {
-		actor.bonusSpent = true;
+		const before = actor.smiteUsed;
 		resolveChoice(fight, actor, plan.bonus);
+		if (actor.smiteUsed && !before) actor.bonusSpent = true;
 	}
 	if (plan.surge && (actor.surgeUses || 0) > 0) {
 		actor.surgeUses -= 1;
@@ -653,10 +657,13 @@ function applyCast (fight, actor, cast, target, range, area) {
 	actor.hits += 1;
 	noteUse(actor, cast.name, {kind: "attack", hit: true, damage: rolled.amount});
 	actor.landed = {target, melee: range.melee !== false, weapon: !cast.spell && cast.kind === "attack", crit};
-	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${rolled.amount}${crit ? " (critical)" : ""}${rolled.note}.`);
+	let extra = "";
+	if (actor.landed.weapon && range.melee !== false) extra += openingSmite(fight, actor, target, crit);
+	extra += openingFirstStrike(fight, actor, cast, target);
 	applyOnHit(fight, actor, swing, target, crit);
 	if (!cast.spell && cast.kind === "attack") applySneak(fight, actor, target, mode, range);
 	applyMark(fight, actor, target, crit);
+	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${rolled.amount}${crit ? " (critical)" : ""}${rolled.note}${extra}.`);
 	if (actor.landed.weapon && range.melee !== false) tryStun(fight, actor, target);
 	if (!cast.spell && range.melee !== false) pounce(fight, actor, target);
 	if (!cast.spell && range.melee !== false && (target.hp <= 0 || target.dead)) rampage(fight, actor);
@@ -848,10 +855,11 @@ function attackMode (actor, target, melee, actors) {
 
 function optionRange (option) {
 	if (option.rangeFeet) return {feet: option.rangeFeet, melee: !!option.melee, aoe: option.aoe || 0};
-	const text = `${option.range || ""} ${option.blurb || ""}`;
-	const aoeMatch = text.match(/(\d+)\s*-?\s*foot[-\s]?(?:radius|sphere|emanation|cube)/i);
+	const text = String(option.range || "");
+	const blurb = String(option.blurb || "");
+	const aoeMatch = `${text} ${blurb}`.match(/(\d+)\s*-?\s*foot[-\s]?(?:radius|sphere|emanation|cube)/i);
 	const aoe = aoeMatch ? Number(aoeMatch[1]) : 0;
-	const reach = text.match(/reach\s+(\d+)/i);
+	const reach = text.match(/reach\s+(\d+)/i) || blurb.match(/reach\s+(\d+)/i);
 	if (reach) return {feet: Number(reach[1]), melee: true, aoe};
 	const slash = text.match(/(\d+)\s*\/\s*\d+/);
 	if (slash) return {feet: Number(slash[1]), melee: false, aoe};
@@ -860,7 +868,7 @@ function optionRange (option) {
 		const n = Number(feet[1]);
 		return {feet: n, melee: n <= 10 && !aoe, aoe};
 	}
-	if (option.kind === "attack" && !option.spell) return {feet: 5, melee: true, aoe: 0};
+	if (/melee/i.test(text) || (option.kind === "attack" && !option.spell)) return {feet: 5, melee: true, aoe: 0};
 	return {feet: 60, melee: false, aoe};
 }
 
@@ -950,9 +958,15 @@ function classResources (actor) {
 		duplicity: false,
 		vowId: "",
 		pb: Number(actor.pb) || 2,
+		firstStrikes: firstStrikeUses(actor),
 	};
 }
 
+function firstStrikeUses (actor) {
+	const strike = (actor.options || []).find(item => item.rider === "first-strike");
+	if (!strike) return 0;
+	return strike.uses > 0 ? strike.uses : (Number(actor.pb) || 2);
+}
 function rageUsesFor (level) {
 	if (level >= 17) return 6;
 	if (level >= 12) return 5;
@@ -998,6 +1012,7 @@ function openTurn (fight, actor) {
 }
 
 function closeTurn (fight, actor) {
+	actor.wantSmite = false;
 	for (const other of fight.actors) {
 		if (other.stunBy === actor.id && other.stunFresh) other.stunFresh = false;
 	}
@@ -1114,26 +1129,98 @@ function spendChannel (fight, actor, run) {
 
 function castSmite (fight, actor, cast) {
 	const landed = actor.landed;
-	if (!landed?.weapon || !landed.melee || !landed.target || actor.smiteUsed || landed.target.dead) return true;
-	const slot = spendSlot(actor.pool, cast, {characterLevel: actor.characterLevel});
-	if (!slot) return true;
+	if (!landed?.weapon || !landed.melee) return true;
+	const text = openingSmite(fight, actor, landed.target, !!landed.crit);
+	if (text) log(fight, actor, `${actor.name}${text}.`);
+	return true;
+}
+
+function openingSmite (fight, actor, target, crit) {
+	if (!target || actor.smiteUsed || !actor.wantSmite || target.dead || target.hp <= 0) return "";
+	const cast = (actor.options || []).find(option => option.rider === "smite" && option.bonusAction === false)
+		|| (actor.options || []).find(option => option.rider === "smite");
+	if (!cast) return "";
+	if (cast.bonusAction !== false && actor.bonusSpent) return "";
+	const picked = smiteSlot(fight, actor, cast, target, crit);
+	if (!picked) return "";
+	const slot = actor.pool.splice(picked.index, 1)[0];
 	actor.spent.push({level: slot.level, pact: !!slot.pact});
 	let scaled = spellAtSlot(cast, slot.level, actor.characterLevel);
 	let count = scaled.count || 2;
 	const cap = Number(cast.cap) || 0;
 	if (cap > 0) count = Math.min(count, cap);
-	if ((landed.target.type === "fiend" || landed.target.type === "undead") && (scaled.faces || 8)) {
+	const typed = target.type === "fiend" || target.type === "undead";
+	if (typed && (scaled.faces || 8)) {
 		count += 1;
 		if (cap > 0) count = Math.min(count, cap + 1);
 	}
 	const faces = scaled.faces || 8;
 	const packet = {...scaled, count, faces, dice: count * (faces + 1) / 2, flat: 0, damage: "radiant", kind: "auto", name: cast.name};
-	const rolled = adjustedAmount(packet, landed.target, !!landed.crit);
-	hurt(fight, actor, landed.target, rolled.amount, !!landed.crit, false, "radiant");
+	const rolled = adjustedAmount(packet, target, crit);
+	hurt(fight, actor, target, rolled.amount, crit, false, "radiant");
 	actor.smiteUsed = true;
+	if (cast.bonusAction !== false) actor.bonusSpent = true;
 	noteUse(actor, cast.name, {kind: "attack", hit: true, damage: rolled.amount});
-	log(fight, actor, `${actor.name} smites ${landed.target.name} for ${rolled.amount}${rolled.note}.`);
-	return true;
+	return ` and Divine Smite (${slot.level}${ordinal(slot.level)}-level slot) for ${rolled.amount}${rolled.note}`;
+}
+
+function openingFirstStrike (fight, actor, cast, target) {
+	if (cast.spell || cast.kind !== "attack" || target.acted || target.dead || !(actor.firstStrikes > 0)) return "";
+	const strike = (actor.options || []).find(option => option.rider === "first-strike");
+	actor.firstStrikes -= 1;
+	const rolled = adjustedAmount({...strike, damage: strike?.damage || "", count: 2, faces: 6, dice: 7, flat: 0}, target, false);
+	hurt(fight, actor, target, rolled.amount, false, false, "");
+	noteUse(actor, strike?.name || "First Strike", {kind: "attack", hit: true, damage: rolled.amount});
+	return ` and First Strike for ${rolled.amount}${rolled.note}`;
+}
+
+function smiteSlot (fight, actor, cast, target, crit) {
+	const capped = cast.bonusAction === false || Number(cast.cap) > 0;
+	const slots = (actor.pool || [])
+		.map((slot, index) => ({slot, index}))
+		.filter(it => it.slot.level >= 1 && (!capped || it.slot.level <= 4))
+		.sort((a, b) => a.slot.level - b.slot.level || (a.slot.pact ? 1 : 0) - (b.slot.pact ? 1 : 0));
+	if (!slots.length) return null;
+	const extra = target.type === "fiend" || target.type === "undead";
+	const remaining = Math.max(0, target.hp);
+	const dangerous = foeThreat(target) >= 8 || (Number(target.max) || target.hp) >= 25;
+	const lowest = smiteAverage(cast, slots[0].slot.level, crit, extra);
+	if (!dangerous && crit && remaining < lowest) return null;
+	for (const item of slots) {
+		if (smiteAverage(cast, item.slot.level, crit, extra) >= remaining) return item;
+	}
+	if (dangerous || crit) return slots[slots.length - 1];
+	return null;
+}
+
+function foeThreat (target) {
+	let best = 0;
+	for (const option of target?.options || []) {
+		if (option.kind === "heal" || option.kind === "utility" || option.rider) continue;
+		const swings = option.repeats?.length ? option.repeats : [option];
+		let total = 0;
+		for (const swing of swings) total += (Number(swing.dice) || 0) + (Number(swing.flat) || 0);
+		if (total > best) best = total;
+	}
+	return best;
+}
+
+function smiteAverage (cast, slotLevel, crit, extra) {
+	let count = 2 + Math.max(0, Number(slotLevel) - 1);
+	const cap = Number(cast.cap) || 0;
+	if (cap > 0) count = Math.min(count, cap);
+	if (extra) count += 1;
+	if (crit) count *= 2;
+	return count * 4.5;
+}
+
+function ordinal (level) {
+	const n = Number(level) || 0;
+	const suffix = n % 10 === 1 && n % 100 !== 11 ? "st"
+		: n % 10 === 2 && n % 100 !== 12 ? "nd"
+			: n % 10 === 3 && n % 100 !== 13 ? "rd"
+				: "th";
+	return suffix;
 }
 
 function castMark (fight, actor, choice) {
