@@ -16,7 +16,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange} from "./table-session.js";
-import {onInitiativeKey, placedChips} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -753,12 +753,14 @@ function paintInitiative (host, plugin) {
 		return;
 	}
 	const session = ensureTableSession(plugin);
+	const done = Array.isArray(session.doneKeys) ? session.doneKeys : [];
 	const current = chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
 	for (const chip of chips) {
-		host.createDiv({
-			cls: `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}`,
+		const row = host.createDiv({
+			cls: `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}${done.includes(chip.key) ? " is-done" : ""}`,
 			text: chip.label,
 		});
+		row.addEventListener("click", () => selectTableTurn(plugin, chip.key));
 	}
 }
 

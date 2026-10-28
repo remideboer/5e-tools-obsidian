@@ -143,9 +143,11 @@ function paintPlayerRoster (host, session, doc, plugin) {
 	title.textContent = "Initiative";
 	panel.appendChild(title);
 	const current = currentTurnKey(session);
+	const done = doneKeys(session);
 	for (const chip of placedChips(session)) {
 		const row = doc.createElement("div");
-		row.className = `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}`;
+		row.className = `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}${done.includes(chip.key) ? " is-done" : ""}`;
+		row.addEventListener("click", () => selectTableTurn(plugin, chip.key));
 		const src = chipImage(chip);
 		if (src) {
 			const img = doc.createElement("img");
@@ -360,7 +362,9 @@ function paintSourceList (host, plugin) {
 	host.empty();
 	const head = host.createDiv({cls: "fiveetools-table__roster-head"});
 	head.createEl("h3", {text: "Creatures"});
-	toolButton(head, "Clear", () => clearSourceList(plugin));
+	const actions = head.createDiv({cls: "fiveetools-table__roster-actions"});
+	toolButton(actions, "Reset", () => resetRuler(plugin));
+	toolButton(actions, "Clear", () => clearSourceList(plugin));
 	const session = ensureTableSession(plugin);
 	const groups = listKindGroups(session.combatants).filter(group => group.initScore == null);
 	if (!listKindGroups(session.combatants).length) {
@@ -371,13 +375,20 @@ function paintSourceList (host, plugin) {
 	for (const group of groups) mountChip(stack, plugin, group);
 }
 
+function resetRuler (plugin) {
+	const session = ensureTableSession(plugin);
+	for (const combatant of session.combatants) combatant.initScore = null;
+	session.turnKey = null;
+	session.doneKeys = [];
+	refreshTable(plugin);
+}
+
 function clearSourceList (plugin) {
 	const session = ensureTableSession(plugin);
-	const waiting = new Set(
-		listKindGroups(session.combatants).filter(group => group.initScore == null).map(group => group.key),
-	);
-	if (!waiting.size) return;
-	session.combatants = session.combatants.filter(combatant => !waiting.has(kindKey(combatant)));
+	session.combatants = [];
+	session.selectedId = null;
+	session.turnKey = null;
+	session.doneKeys = [];
 	refreshTable(plugin);
 }
 
@@ -476,14 +487,55 @@ function currentTurnKey (session) {
 	return chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
 }
 
+export function selectTableTurn (plugin, key) {
+	const session = ensureTableSession(plugin);
+	session.turnKey = key;
+	refreshTable(plugin);
+}
+
+function doneKeys (session) {
+	if (!Array.isArray(session.doneKeys)) session.doneKeys = [];
+	return session.doneKeys;
+}
+
+function markTurnDone (session) {
+	const chips = placedChips(session);
+	if (!chips.length) return;
+	const current = currentTurnKey(session);
+	const done = doneKeys(session);
+	if (current && !done.includes(current)) done.push(current);
+	const remaining = chips.filter(chip => !done.includes(chip.key));
+	if (!remaining.length) {
+		session.doneKeys = [];
+		session.turnKey = chips[0].key;
+		return;
+	}
+	const index = Math.max(0, chips.findIndex(chip => chip.key === current));
+	for (let step = 1; step <= chips.length; step++) {
+		const next = chips[(index + step) % chips.length];
+		if (!done.includes(next.key)) {
+			session.turnKey = next.key;
+			return;
+		}
+	}
+}
+
 export function onInitiativeKey (plugin, evt) {
 	const tag = evt.target?.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || evt.target?.isContentEditable) return;
-	if (evt.key !== "ArrowDown" && evt.key !== "ArrowUp") return;
+	if (evt.key !== "ArrowDown" && evt.key !== "ArrowUp" && evt.key !== "Enter") return;
+	if (evt.fiveetoolsInit) return;
 	const session = ensureTableSession(plugin);
 	const chips = placedChips(session);
 	if (!chips.length) return;
+	evt.fiveetoolsInit = true;
 	evt.preventDefault();
+	evt.stopPropagation();
+	if (evt.key === "Enter") {
+		markTurnDone(session);
+		refreshTable(plugin);
+		return;
+	}
 	const dir = evt.key === "ArrowDown" ? 1 : -1;
 	let index = chips.findIndex(chip => chip.key === currentTurnKey(session));
 	if (index < 0) index = 0;

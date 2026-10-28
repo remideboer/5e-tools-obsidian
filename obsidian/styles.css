@@ -2239,6 +2239,12 @@ a.fiveetools-inline-link {
 	gap: 8px;
 }
 
+.fiveetools-table__roster-actions {
+	display: flex;
+	gap: 4px;
+	flex: none;
+}
+
 .fiveetools-init-tray {
 	margin: 6px 0;
 }
@@ -2340,6 +2346,11 @@ a.fiveetools-inline-link {
 	border-radius: 6px;
 	font-size: 1.35em;
 	font-weight: 700;
+	cursor: pointer;
+}
+
+.fiveetools-init-list__row.is-done {
+	opacity: 0.45;
 }
 
 .fiveetools-init-list__token {
