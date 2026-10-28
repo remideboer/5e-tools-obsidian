@@ -767,6 +767,50 @@ a.fiveetools-inline-link {
 	width: 5em;
 }
 
+.fiveetools-character-card__coins,
+.fiveetools-character-card__gearadd,
+.fiveetools-character-card__gearline {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.fiveetools-character-card__gearline {
+	flex-wrap: nowrap;
+}
+
+.fiveetools-character-card__coin {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.fiveetools-character-card__gearadd-input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.fiveetools-character-card__gearname {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-character-card__gearflag {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	flex: 0 0 auto;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
 .fiveetools-character-card__panel {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;

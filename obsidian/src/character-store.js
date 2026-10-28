@@ -155,7 +155,43 @@ export function seedPlay (card) {
 		xp: card?.xp ?? null,
 		prepared,
 		hitDiceSpent,
+		coins: coinBag(card?.coins),
+		gear: gearFromRefs(card?.refs),
 	};
+}
+
+export function coinBag (coins) {
+	const bag = {};
+	for (const key of ["gp", "sp", "cp", "ep", "pp"]) bag[key] = Math.max(0, Math.floor(Number(coins?.[key]) || 0));
+	return bag;
+}
+
+export function gearFromRefs (refs) {
+	const items = [];
+	const seen = new Map();
+	for (const ref of refs || []) {
+		if (ref?.kind !== "item") continue;
+		const label = String(ref.label || ref.name || "").trim();
+		if (!label) continue;
+		const base = label.toLowerCase();
+		const n = (seen.get(base) || 0) + 1;
+		seen.set(base, n);
+		items.push({
+			id: n === 1 ? base : `${base}-${n}`,
+			name: ref.name || label,
+			label,
+			source: ref.source || "",
+			edition: ref.edition || "",
+			qty: Math.max(1, Number(ref.qty) || 1),
+			equipped: !!ref.equipped,
+			attuned: !!ref.attuned,
+			...(ref.rarity ? {rarity: ref.rarity} : {}),
+			...(Number(ref.weight) > 0 ? {weight: Number(ref.weight)} : {}),
+			...(Number(ref.charges) > 0 ? {charges: Number(ref.charges)} : {}),
+			...(ref.snippet ? {snippet: ref.snippet} : {}),
+		});
+	}
+	return items;
 }
 
 function mergeSlotSpent (next, previous) {
@@ -280,7 +316,7 @@ function characterMarkdown (card, avatarPath, refs) {
 	lines.push(...actionLines(card.actions));
 	lines.push(...spellLines(refsOf(refs, "spell"), card.play));
 	lines.push(...refSection("Feats", refsOf(refs, "feat")));
-	lines.push(...refSection("Gear", refsOf(refs, "item")));
+	lines.push(...refSection("Gear", gearLines(refs, card.play)));
 	lines.push(...traitLines(card.traits));
 	lines.push(...joinedLine("Senses", card.senses));
 	lines.push(...speedLines(card.speeds));
@@ -292,7 +328,7 @@ function characterMarkdown (card, avatarPath, refs) {
 	lines.push(...featureLines(card.features));
 	lines.push(...companionLines(card.companions));
 	lines.push(...storyLines(card.story));
-	lines.push("", "## Coins", "", formatCoins(card.coins), "");
+	lines.push("", "## Coins", "", formatCoins(card.play?.coins || card.coins), "");
 	return lines.join("\n");
 }
 
@@ -372,6 +408,11 @@ function storyLines (story) {
 	const lines = ["", "## Person and story", ""];
 	for (const [label, text] of rows) lines.push(`**${label}.** ${String(text).trim()}`, "");
 	return lines;
+}
+
+function gearLines (refs, play) {
+	const items = Array.isArray(play?.gear) ? play.gear : refsOf(refs, "item");
+	return items.slice().sort((a, b) => Number(!!b.equipped) - Number(!!a.equipped) || String(a.label || a.name).localeCompare(String(b.label || b.name)));
 }
 
 function refsOf (refs, kind) {

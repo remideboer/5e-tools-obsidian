@@ -1,5 +1,5 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
+import {characterName, coinBag, deleteCharacter, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
@@ -46,9 +46,7 @@ function paintLinkedCard (host, plugin, record) {
 			prefer: preferNames(refs),
 		});
 	}
-	const gear = refs.filter(ref => ref.kind === "item");
-	const coins = formatCoins(snapshot.coins);
-	if (gear.length || coins) paintGearColumn(makeColumn(columns, "Gear"), plugin, gear, coins);
+	paintGearColumn(makeColumn(columns, "Gear"), plugin, record);
 	if (hasFeatures(snapshot, refs)) paintFeatureColumn(makeColumn(columns, "Features"), plugin, record, edition);
 	paintStory(sheet, snapshot.story, snapshot.traits);
 	bindDiceRollers(host, plugin);
@@ -169,15 +167,143 @@ function paintSpellRow (parent, plugin, spell, edition, play) {
 	return row;
 }
 
-function paintGearColumn (col, plugin, gear, coins) {
-	if (gear.length) {
-		const list = col.createDiv({cls: "fiveetools-character-card__rows"});
-		for (const ref of gear) paintGearRow(list, plugin, ref);
+const COIN_FIELDS = [["gp", "GP"], ["sp", "SP"], ["cp", "CP"], ["ep", "EP"], ["pp", "PP"]];
+
+function paintGearColumn (col, plugin, record) {
+	const play = playState(record);
+	if (!play.coins) play.coins = coinBag(record.snapshot?.coins);
+	if (!Array.isArray(play.gear)) play.gear = gearFromRefs(record.snapshot?.refs);
+	paintCoinFields(col, plugin, record, play);
+	const add = col.createDiv({cls: "fiveetools-character-card__gearadd"});
+	const input = add.createEl("input", {
+		cls: "fiveetools-character-card__gearadd-input",
+		attr: {type: "text", placeholder: "Add item"},
+	});
+	const plus = add.createEl("button", {
+		text: "+",
+		cls: "fiveetools-encounter__hpbtn",
+		attr: {type: "button", title: "Add item"},
+	});
+	const list = col.createDiv({cls: "fiveetools-character-card__rows"});
+	const place = (row, item) => placeGearRow(list, row, item);
+	const addItem = () => {
+		const label = String(input.value || "").trim();
+		if (!label) return;
+		const item = {
+			id: `custom-${Date.now()}`,
+			name: label,
+			label,
+			edition: record.snapshot?.edition === "one" ? "one" : "classic",
+			qty: 1,
+			equipped: false,
+			attuned: false,
+		};
+		play.gear.push(item);
+		input.value = "";
+		place(paintInventoryRow(list, plugin, record, item, place), item);
+		persistPlay(plugin, record);
+	};
+	plus.addEventListener("click", addItem);
+	input.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		addItem();
+	});
+	for (const item of sortedGear(play.gear)) place(paintInventoryRow(list, plugin, record, item, place), item);
+}
+
+function paintCoinFields (col, plugin, record, play) {
+	const row = col.createDiv({cls: "fiveetools-character-card__coins"});
+	for (const [key, label] of COIN_FIELDS) {
+		const field = row.createEl("label", {cls: "fiveetools-character-card__coin"});
+		field.createSpan({text: label});
+		const input = field.createEl("input", {
+			cls: "fiveetools-encounter__hpinput",
+			attr: {type: "number", min: "0", value: String(play.coins[key] || 0), title: label},
+		});
+		input.addEventListener("change", () => {
+			play.coins[key] = Math.max(0, Math.floor(Number(input.value) || 0));
+			input.value = String(play.coins[key]);
+			persistPlay(plugin, record);
+		});
 	}
-	if (coins) {
-		col.createEl("h3", {text: "Coins"});
-		col.createEl("p", {text: coins});
+}
+
+function paintInventoryRow (parent, plugin, record, item, place) {
+	const row = parent.createDiv({cls: "fiveetools-character-card__twoline"});
+	const line = row.createDiv({cls: "fiveetools-character-card__gearline"});
+	const equip = gearFlag(line, "Equip", !!item.equipped);
+	const attune = gearFlag(line, "Attune", !!item.attuned);
+	const name = line.createDiv({cls: "fiveetools-character-card__gearname"});
+	const linked = linkRef({...item, kind: "item"}, [], item.edition);
+	paintRefButton(name, plugin, linked, item.label || item.name || "Item");
+	const extra = [];
+	if (Number(item.qty) > 1) extra.push(`×${item.qty}`);
+	if (item.rarity) extra.push(item.rarity);
+	if (extra.length) name.createSpan({cls: "fiveetools-character-card__source", text: ` · ${extra.join(" · ")}`});
+	const remove = line.createEl("button", {
+		text: "×",
+		cls: "fiveetools-encounter__hpbtn",
+		attr: {type: "button", title: "Remove item"},
+	});
+	const detail = [];
+	if (Number(item.weight) > 0) detail.push(`${item.weight} lb`);
+	if (Number(item.charges) > 0) detail.push(`${item.charges} charges`);
+	if (item.snippet) detail.push(item.snippet);
+	if (detail.length) {
+		row.createDiv({
+			cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source",
+			text: detail.join(" · "),
+		});
 	}
+	equip.addEventListener("change", () => {
+		item.equipped = equip.checked;
+		place(row, item);
+		persistPlay(plugin, record);
+	});
+	attune.addEventListener("change", () => {
+		item.attuned = attune.checked;
+		persistPlay(plugin, record);
+	});
+	remove.addEventListener("click", () => {
+		const play = playState(record);
+		play.gear = (play.gear || []).filter(it => it.id !== item.id);
+		row.remove();
+		persistPlay(plugin, record);
+	});
+	return row;
+}
+
+function gearFlag (parent, label, checked) {
+	const field = parent.createEl("label", {cls: "fiveetools-character-card__gearflag", attr: {title: label}});
+	const box = field.createEl("input", {attr: {type: "checkbox", title: label}});
+	box.checked = checked;
+	field.createSpan({text: label});
+	return box;
+}
+
+function sortedGear (items) {
+	return (items || []).slice().sort((a, b) => Number(!!b.equipped) - Number(!!a.equipped) || String(a.label || a.name).localeCompare(String(b.label || b.name)));
+}
+
+function placeGearRow (list, row, item) {
+	const name = String(item.label || item.name || "");
+	row.dataset.equipped = item.equipped ? "1" : "0";
+	row.dataset.name = name;
+	const others = [...list.children].filter(el => el !== row);
+	const equipped = others.filter(el => el.dataset.equipped === "1");
+	const rest = others.filter(el => el.dataset.equipped !== "1");
+	const bucket = item.equipped ? equipped : rest;
+	let before = null;
+	for (const el of bucket) {
+		if (name.localeCompare(el.dataset.name || "") < 0) {
+			before = el;
+			break;
+		}
+	}
+	if (!before && item.equipped) before = rest[0] || null;
+	if (before) list.insertBefore(row, before);
+	else list.append(row);
 }
 
 function paintGearRow (parent, plugin, ref) {
@@ -518,6 +644,8 @@ function playState (record) {
 		xp: null,
 		prepared,
 		hitDiceSpent,
+		coins: coinBag(snap.coins),
+		gear: gearFromRefs(snap.refs),
 	};
 	record.snapshot = snap;
 	return snap.play;
@@ -820,16 +948,6 @@ function modifierFromScore (score) {
 function signed (mod) {
 	const n = Number(mod) || 0;
 	return n >= 0 ? `+${n}` : String(n);
-}
-
-function formatCoins (coins) {
-	const order = [["pp", "pp"], ["gp", "gp"], ["ep", "ep"], ["sp", "sp"], ["cp", "cp"]];
-	const parts = [];
-	for (const [key, label] of order) {
-		const n = Number(coins?.[key]) || 0;
-		if (n) parts.push(`${n} ${label}`);
-	}
-	return parts.join(", ");
 }
 
 function avatarSrc (plugin, body) {
