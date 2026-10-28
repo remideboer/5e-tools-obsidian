@@ -62,6 +62,7 @@ export async function saveCharacter (plugin, card) {
 	await ensureSearchIndex(plugin);
 	const previous = await readCharacter(plugin, id);
 	const play = previous?.snapshot?.play || seedPlay(card);
+	if (Array.isArray(play.gear)) fillGearAttunable(play.gear, card.refs);
 	const slots = mergeSlotSpent(card.slots || [], previous?.snapshot?.slots);
 	const avatarPath = card.avatar ? await writeAvatar(plugin, id, card.avatar) : existingAvatarPath(plugin, id);
 	const filePath = characterFilePath(plugin, id);
@@ -185,6 +186,7 @@ export function gearFromRefs (refs) {
 			qty: Math.max(1, Number(ref.qty) || 1),
 			equipped: !!ref.equipped,
 			attuned: !!ref.attuned,
+			attunable: ref.attunable != null ? !!ref.attunable : !!ref.attuned,
 			...(ref.rarity ? {rarity: ref.rarity} : {}),
 			...(Number(ref.weight) > 0 ? {weight: Number(ref.weight)} : {}),
 			...(Number(ref.charges) > 0 ? {charges: Number(ref.charges)} : {}),
@@ -192,6 +194,25 @@ export function gearFromRefs (refs) {
 		});
 	}
 	return items;
+}
+
+export function fillGearAttunable (gear, refs) {
+	const byLabel = new Map();
+	for (const ref of refs || []) {
+		if (ref?.kind !== "item") continue;
+		const key = String(ref.label || ref.name || "").trim().toLowerCase();
+		if (key && !byLabel.has(key)) byLabel.set(key, ref);
+	}
+	for (const item of gear || []) {
+		const ref = byLabel.get(String(item.label || item.name || "").trim().toLowerCase());
+		if (ref?.attunable || item.attuned) {
+			item.attunable = true;
+			continue;
+		}
+		if (typeof item.attunable === "boolean") continue;
+		item.attunable = false;
+	}
+	return gear;
 }
 
 function mergeSlotSpent (next, previous) {
@@ -272,7 +293,7 @@ function resolveActions (actions, edition, prefer) {
 
 function refDetails (ref) {
 	const out = {};
-	for (const key of ["level", "school", "castingTime", "range", "duration", "components", "concentration", "ritual", "attack", "save", "prepared", "alwaysPrepared", "list", "attuned", "rarity", "weight", "charges", "snippet"]) {
+	for (const key of ["level", "school", "castingTime", "range", "duration", "components", "concentration", "ritual", "attack", "save", "prepared", "alwaysPrepared", "list", "attuned", "attunable", "rarity", "weight", "charges", "snippet"]) {
 		const value = ref?.[key];
 		if (value == null || value === "" || value === false) continue;
 		out[key] = value;

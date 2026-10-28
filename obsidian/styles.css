@@ -709,17 +709,13 @@ a.fiveetools-inline-link {
 	margin-top: 0;
 }
 
-.fiveetools-character-card__story {
-	flex: 0 0 auto;
-	max-height: 8.5rem;
-	overflow: auto;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px;
-	padding: 8px 10px;
+.fiveetools-character-card__note {
+	margin: 0.45em 0;
 }
 
-.fiveetools-character-card__story p {
-	margin: 0.25em 0;
+.fiveetools-character-card__note-body p {
+	margin: 0.2em 0;
+	white-space: pre-wrap;
 }
 
 .fiveetools-character-card__twoline {
@@ -767,7 +763,13 @@ a.fiveetools-inline-link {
 	width: 5em;
 }
 
-.fiveetools-character-card__coins,
+.fiveetools-character-card__coins {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 4px 6px;
+	min-width: 0;
+}
+
 .fiveetools-character-card__gearadd,
 .fiveetools-character-card__gearline {
 	display: flex;
@@ -775,6 +777,17 @@ a.fiveetools-inline-link {
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
+}
+
+.fiveetools-character-card__gearframe {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 4px 8px;
+	margin: 6px 0;
+}
+
+.fiveetools-character-card__gearframe.is-hidden {
+	display: none;
 }
 
 .fiveetools-character-card__gearline {

@@ -1,9 +1,10 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, coinBag, deleteCharacter, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
+import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
-import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
+import {loadEntity} from "./entity-loader.js";
+import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, indexHomebrewDocs, searchEntities, sourceAbbr} from "./search-index.js";
 import {paintPackedLibraryRow} from "./library-row.js";
 import {getSpellMeta} from "./spell-meta.js";
 
@@ -48,7 +49,7 @@ function paintLinkedCard (host, plugin, record) {
 	}
 	paintGearColumn(makeColumn(columns, "Gear"), plugin, record);
 	if (hasFeatures(snapshot, refs)) paintFeatureColumn(makeColumn(columns, "Features"), plugin, record, edition);
-	paintStory(sheet, snapshot.story, snapshot.traits);
+	paintStory(columns, snapshot.story, snapshot.traits);
 	bindDiceRollers(host, plugin);
 }
 
@@ -173,6 +174,8 @@ function paintGearColumn (col, plugin, record) {
 	const play = playState(record);
 	if (!play.coins) play.coins = coinBag(record.snapshot?.coins);
 	if (!Array.isArray(play.gear)) play.gear = gearFromRefs(record.snapshot?.refs);
+	fillGearAttunable(play.gear, record.snapshot?.refs);
+	indexHomebrewDocs();
 	paintCoinFields(col, plugin, record, play);
 	const add = col.createDiv({cls: "fiveetools-character-card__gearadd"});
 	const input = add.createEl("input", {
@@ -184,32 +187,89 @@ function paintGearColumn (col, plugin, record) {
 		cls: "fiveetools-encounter__hpbtn",
 		attr: {type: "button", title: "Add item"},
 	});
-	const list = col.createDiv({cls: "fiveetools-character-card__rows"});
-	const place = (row, item) => placeGearRow(list, row, item);
-	const addItem = () => {
-		const label = String(input.value || "").trim();
-		if (!label) return;
+	const hits = col.createDiv({cls: "fiveetools-creatureform__hits"});
+	const frame = col.createDiv({cls: "fiveetools-character-card__gearframe is-hidden"});
+	frame.createEl("h3", {text: "Attuned"});
+	const attuned = frame.createDiv({cls: "fiveetools-character-card__rows"});
+	const rest = col.createDiv({cls: "fiveetools-character-card__rows"});
+	const buckets = {frame, attuned, rest};
+	const place = (row, item) => placeGearRow(buckets, row, item);
+	place.sync = () => buckets.frame.classList.toggle("is-hidden", buckets.attuned.childElementCount === 0);
+	let hitsDocs = [];
+	const addCustom = (label) => {
 		const item = {
-			id: `custom-${Date.now()}`,
+			id: `custom-${Date.now()}-${play.gear.length}`,
 			name: label,
 			label,
 			edition: record.snapshot?.edition === "one" ? "one" : "classic",
 			qty: 1,
 			equipped: false,
 			attuned: false,
+			attunable: false,
 		};
 		play.gear.push(item);
 		input.value = "";
-		place(paintInventoryRow(list, plugin, record, item, place), item);
+		hits.empty();
+		hitsDocs = [];
+		place(paintInventoryRow(rest, plugin, record, item, place), item);
 		persistPlay(plugin, record);
 	};
+	const addFromDoc = async (doc) => {
+		const label = String(doc?.n || "").trim();
+		if (!label) return;
+		let attunable = false;
+		try {
+			const loaded = await loadEntity(doc);
+			attunable = !!(loaded?.ent?.reqAttune || loaded?.ent?.reqAttuneAlt);
+		} catch (_) { /* unmatched entity stays not attunable */ }
+		const item = {
+			id: `custom-${Date.now()}-${play.gear.length}`,
+			name: label,
+			label,
+			source: doc.s || "",
+			edition: record.snapshot?.edition === "one" ? "one" : "classic",
+			qty: 1,
+			equipped: false,
+			attuned: false,
+			attunable,
+		};
+		play.gear.push(item);
+		input.value = "";
+		hits.empty();
+		hitsDocs = [];
+		place(paintInventoryRow(rest, plugin, record, item, place), item);
+		persistPlay(plugin, record);
+	};
+	const addItem = () => {
+		const label = String(input.value || "").trim();
+		if (!label) return;
+		const exact = hitsDocs.filter(doc => String(doc.n || "").trim().toLowerCase() === label.toLowerCase());
+		if (exact.length === 1) {
+			void addFromDoc(exact[0]);
+			return;
+		}
+		addCustom(label);
+	};
+	const paintHits = () => {
+		hits.empty();
+		const term = String(input.value || "").trim();
+		hitsDocs = term.length < 2 ? [] : searchEntities(term, {categoriesExact: ["Item"], limit: 8});
+		for (const doc of hitsDocs) {
+			const row = hits.createDiv({cls: "fiveetools-creatureform__hit"});
+			const meta = row.createDiv({cls: "fiveetools-creatureform__hitmeta"});
+			meta.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
+			meta.createEl("div", {cls: "fiveetools-modal__sub", text: doc.sA || doc.s || ""});
+			row.addEventListener("click", () => { void addFromDoc(doc); });
+		}
+	};
 	plus.addEventListener("click", addItem);
+	input.addEventListener("input", paintHits);
 	input.addEventListener("keydown", (evt) => {
 		if (evt.key !== "Enter") return;
 		evt.preventDefault();
 		addItem();
 	});
-	for (const item of sortedGear(play.gear)) place(paintInventoryRow(list, plugin, record, item, place), item);
+	for (const item of sortedGear(play.gear)) place(paintInventoryRow(rest, plugin, record, item, place), item);
 }
 
 function paintCoinFields (col, plugin, record, play) {
@@ -233,7 +293,7 @@ function paintInventoryRow (parent, plugin, record, item, place) {
 	const row = parent.createDiv({cls: "fiveetools-character-card__twoline"});
 	const line = row.createDiv({cls: "fiveetools-character-card__gearline"});
 	const equip = gearFlag(line, "Equip", !!item.equipped);
-	const attune = gearFlag(line, "Attune", !!item.attuned);
+	const attune = item.attunable ? gearFlag(line, "Attune", !!item.attuned) : null;
 	const name = line.createDiv({cls: "fiveetools-character-card__gearname"});
 	const linked = linkRef({...item, kind: "item"}, [], item.edition);
 	paintRefButton(name, plugin, linked, item.label || item.name || "Item");
@@ -261,14 +321,16 @@ function paintInventoryRow (parent, plugin, record, item, place) {
 		place(row, item);
 		persistPlay(plugin, record);
 	});
-	attune.addEventListener("change", () => {
+	attune?.addEventListener("change", () => {
 		item.attuned = attune.checked;
+		place(row, item);
 		persistPlay(plugin, record);
 	});
 	remove.addEventListener("click", () => {
 		const play = playState(record);
 		play.gear = (play.gear || []).filter(it => it.id !== item.id);
 		row.remove();
+		place.sync?.();
 		persistPlay(plugin, record);
 	});
 	return row;
@@ -286,10 +348,11 @@ function sortedGear (items) {
 	return (items || []).slice().sort((a, b) => Number(!!b.equipped) - Number(!!a.equipped) || String(a.label || a.name).localeCompare(String(b.label || b.name)));
 }
 
-function placeGearRow (list, row, item) {
+function placeGearRow (buckets, row, item) {
 	const name = String(item.label || item.name || "");
 	row.dataset.equipped = item.equipped ? "1" : "0";
 	row.dataset.name = name;
+	const list = item.attuned && item.attunable ? buckets.attuned : buckets.rest;
 	const others = [...list.children].filter(el => el !== row);
 	const equipped = others.filter(el => el.dataset.equipped === "1");
 	const rest = others.filter(el => el.dataset.equipped !== "1");
@@ -304,6 +367,7 @@ function placeGearRow (list, row, item) {
 	if (!before && item.equipped) before = rest[0] || null;
 	if (before) list.insertBefore(row, before);
 	else list.append(row);
+	buckets.frame.classList.toggle("is-hidden", buckets.attuned.childElementCount === 0);
 }
 
 function paintGearRow (parent, plugin, ref) {
@@ -376,17 +440,19 @@ function paintFeatureRow (parent, plugin, feature, edition, prefer) {
 	}
 }
 
-function paintStory (sheet, story, traits) {
+function paintStory (columns, story, traits) {
 	const rows = storyRows(story);
 	if (!rows.length && !traits) return;
-	const box = sheet.createDiv({cls: "fiveetools-character-card__story"});
-	box.createEl("h3", {cls: "fiveetools-character-card__col-title", text: "Person and story"});
-	if (traits) paintTraits(box, traits);
-	if (!rows.length) return;
+	const col = makeColumn(columns, "Person and story");
+	if (traits) paintTraits(col, traits);
 	for (const [label, text] of rows) {
-		const line = box.createEl("p");
-		line.createEl("strong", {text: `${label}. `});
-		line.createSpan({text: String(text).trim()});
+		const block = col.createDiv({cls: "fiveetools-character-card__note"});
+		block.createEl("strong", {text: label});
+		const body = block.createDiv({cls: "fiveetools-character-card__note-body"});
+		for (const part of String(text).trim().split(/\n+/)) {
+			const line = part.trim();
+			if (line) body.createEl("p", {text: line});
+		}
 	}
 }
 

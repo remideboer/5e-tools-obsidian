@@ -346,6 +346,7 @@ function characterRefs (char, edition, extraFeats = []) {
 			edition: entryEdition(item.isLegacy, edition, {item: true}),
 			qty: item.qty,
 			equipped: item.equipped,
+			attunable: !!item.attunable,
 			...(item.attuned ? {attuned: true} : {}),
 			...(item.rarity ? {rarity: item.rarity} : {}),
 			...(item.weight ? {weight: item.weight} : {}),
@@ -419,6 +420,7 @@ function gearEntries (char) {
 			qty: Math.max(1, Number(item?.quantity) || 1),
 			equipped: !!item?.equipped,
 			isLegacy: def?.isLegacy,
+			attunable: itemCanAttune(item, def),
 			...(item?.isAttuned ? {attuned: true} : {}),
 			...(def?.rarity ? {rarity: String(def.rarity).trim()} : {}),
 			...(weight > 0 ? {weight} : {}),
@@ -439,6 +441,20 @@ function gearEntries (char) {
 		push(item, def, label);
 	}
 	return out;
+}
+
+function itemCanAttune (item, def) {
+	if (item?.isAttuned) return true;
+	if (def?.canAttune) return true;
+	if (def?.requiresAttunement) return true;
+	const blobs = [
+		def?.attunementDescription,
+		def?.attunement?.description,
+		typeof def?.attunement === "string" ? def.attunement : "",
+		def?.filterType,
+	];
+	for (const filter of Array.isArray(def?.filters) ? def.filters : []) blobs.push(filter?.name || filter);
+	return blobs.some(value => /attun/i.test(String(value || "")));
 }
 
 function spellDefs (char) {
@@ -1243,7 +1259,7 @@ function characterStory (char) {
 		allies: plainTrait(notes.allies),
 		organizations: plainTrait(notes.organizations),
 		enemies: plainTrait(notes.enemies),
-		otherNotes: plainTrait(notes.otherNotes),
+		otherNotes: [notes.otherNotes, notes.otherHoldings, notes.additionalNotes].map(plainTrait).filter(Boolean).join("\n\n"),
 		possessions: plainTrait(notes.personalPossessions),
 	};
 }
@@ -1284,7 +1300,12 @@ function plainTrait (value) {
 	const text = typeof value === "string"
 		? value
 		: String(value.text || value.value || value.definition?.name || "");
-	return text.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+	return text
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<\/(p|div|li|h[1-6]|tr|blockquote)>/gi, "\n")
+		.replace(/<[^>]+>/g, "")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
 }
 
 function modifier (score) {
