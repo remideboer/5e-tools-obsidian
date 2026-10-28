@@ -580,6 +580,11 @@ a.fiveetools-inline-link {
 	line-height: 1;
 }
 
+.fiveetools-library__listcol--dpr {
+	width: 320px;
+	min-width: 280px;
+}
+
 .fiveetools-library__listcol--encounter,
 .fiveetools-library__listcol--homebrew {
 	width: 560px;
@@ -2011,6 +2016,62 @@ a.fiveetools-inline-link {
 	min-height: 0;
 	height: 100%;
 }
+
+.fiveetools-dpr,
+.fiveetools-library__reader.fiveetools-dpr-reader {
+	overflow: auto;
+	padding: 8px 10px;
+}
+
+.fiveetools-dpr__row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 4px 0;
+}
+
+.fiveetools-dpr__row label {
+	width: 7em;
+	flex: none;
+}
+
+.fiveetools-dpr__row select,
+.fiveetools-dpr__row input {
+	flex: 1;
+	min-width: 0;
+}
+
+.fiveetools-dpr__check {
+	display: flex;
+	gap: 6px;
+	align-items: flex-start;
+	margin: 3px 0;
+}
+
+.fiveetools-dpr__chart {
+	width: 100%;
+	height: auto;
+}
+
+.fiveetools-dpr__axis {
+	stroke: var(--background-modifier-border);
+}
+
+.fiveetools-dpr__tick {
+	fill: var(--text-muted);
+	font-size: 10px;
+}
+
+.fiveetools-dpr__line--dpr,
+.fiveetools-dpr__line--hurt,
+.fiveetools-dpr__line--heal {
+	fill: none;
+	stroke-width: 2;
+}
+
+.fiveetools-dpr__line--dpr { stroke: var(--text-accent); }
+.fiveetools-dpr__line--hurt { stroke: var(--text-error, var(--color-red)); }
+.fiveetools-dpr__line--heal { stroke: var(--text-success, var(--color-green)); }
 
 .fiveetools-encounter h3 {
 	margin: 8px 0 4px;

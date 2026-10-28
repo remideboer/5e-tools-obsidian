@@ -16,6 +16,7 @@ import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
+import {renderDprTool} from "./dpr-view.js";
 import {renderDmScreen} from "./dm-screen-view.js";
 import {getDmScreenBoard} from "./dm-screen-store.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
@@ -365,6 +366,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		const globalTerm = String(this.globalQuery || "").trim();
 		const item = currentNavItem(this.navId);
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--dpr", !globalTerm && item?.tool === "dpr");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dmscreen", !globalTerm && item?.tool === "dmscreen");
 		this.contentEl?.classList.toggle("is-dmscreen", !globalTerm && item?.tool === "dmscreen");
@@ -373,6 +375,10 @@ export class FiveEToolsLibraryView extends ItemView {
 			teardownCampaignManager(this.plugin);
 			this.readerEl?.removeClass("fiveetools-campaign-reader");
 			this.readerEl?.removeClass("fiveetools-campaign-encounter");
+		}
+		if (item?.tool !== "dpr" && this.readerEl?.hasClass("fiveetools-dpr-reader")) {
+			this.readerEl.empty();
+			this.readerEl.removeClass("fiveetools-dpr-reader");
 		}
 		if ((item?.tool !== "characters" || globalTerm.length >= 2) && this.readerEl?.hasClass("fiveetools-characters-reader")) {
 			this.readerEl.empty();
@@ -448,6 +454,18 @@ export class FiveEToolsLibraryView extends ItemView {
 				board,
 				onBoardChange: (next) => { this.plugin._dmScreenBoard = next; },
 				onOpenEncounter: () => this.selectNav("encounter"),
+			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "dpr") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			renderDprTool(this.listEl, this.readerEl, {
+				plugin: this.plugin,
+				session: this.plugin._dprSession || {},
+				onSessionChange: (next) => { this.plugin._dprSession = next; },
 			});
 			this.docs = [];
 			return;
@@ -720,6 +738,7 @@ function clearListToolClasses (el) {
 		"fiveetools-dice-roller",
 		"fiveetools-rolltables",
 		"fiveetools-encounter",
+		"fiveetools-dpr",
 		"fiveetools-dmscreen",
 		"fiveetools-homebrew",
 		"fiveetools-campaign",

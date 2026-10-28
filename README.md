@@ -58,7 +58,7 @@ Plugin settings: notes folder (default `5etools`), image host (default `https://
 ### Implemented features
 
 - **Library and search.** Classes, backgrounds, feats, species, options, bestiary, traps, objects, cults, spells, items, conditions, rules, and adventures. A preview opens the matching book entry. Images load from the image host.
-- **Tools.** Dice roller (clickable notation, optional 3D and public rolls), loot generator, roll tables, encounter composer, DM screen, homebrew, campaigns, and battle maps with fog, tokens, and a player window.
+- **Tools.** Dice roller (clickable notation, optional 3D and public rolls), loot generator, roll tables, encounter composer, DPR (attacks, spells, and group healing against a CR or a saved encounter), DM screen, homebrew, campaigns, and battle maps with fog, tokens, and a player window.
 - **Characters.** Public D&D Beyond character cards: proficiency, skills, saves, initiative, spell slots, spells grouped by level, gear, and actions. Campaign notes can link a card. See [docs/adr/0007-ddb-characters.md](docs/adr/0007-ddb-characters.md).
 - **Notes.** Insert an entity as a note. Pasted HEIC/HEIF images convert to JPEG.
 

@@ -90,6 +90,7 @@ flowchart TB
 - **Characters** — Player → Characters imports a public D&D Beyond character through `settings.ddbProxyUrl` into `{notesFolder}/_characters/{id}.md`. Refresh fetches that id again and keeps local table edits in `snapshot.play` (HP, conditions, prepared spells, hit dice, coins, and gear). The raw payload is not stored.
 - **Roll tables** — paste import (markdown / TSV / numbered lists) into `{notesFolder}/tables/*.md` (Atlas-style `## Name` + table). Tools → Roll tables browses and rolls; shared result cards also render loot hits. Resolvable item names still open via `openPreview`. Die notations in results/preview (`1d20`, `2d6+3`, …) are clickable rollers via `dice-roll.js` (not auto-rolled).
 - **Dice** — optional 3D dice; public rolls can target the player window document.
+- **DPR** — Tools → DPR. Expected damage for checked attacks and spells on an imported character, drawn against target AC. Healing is one pool added to the chosen characters' max HP. A CR row or a saved encounter supplies incoming damage and enemy HP. Nothing is written to the vault.
 - **Homebrew** — vault brew files indexed into search.
 
 ## Build pipeline
