@@ -60,10 +60,21 @@ export async function saveCharacter (plugin, card) {
 	if (!vault) throw new Error("Vault is unavailable.");
 	await ensureFolder(plugin.app, charactersRoot(plugin));
 	await ensureSearchIndex(plugin);
+	const previous = await readCharacter(plugin, id);
+	const play = previous?.snapshot?.play || seedPlay(card);
+	const slots = mergeSlotSpent(card.slots || [], previous?.snapshot?.slots);
 	const avatarPath = card.avatar ? await writeAvatar(plugin, id, card.avatar) : existingAvatarPath(plugin, id);
 	const filePath = characterFilePath(plugin, id);
 	const refs = resolveRefs(card.refs || []);
 	const actions = resolveActions(card.actions || [], card.edition === "one" ? "one" : "classic", preferNames(card.refs));
+	const shown = {
+		...card,
+		actions,
+		slots,
+		hpCurrent: play.hpCurrent ?? card.hpCurrent,
+		hpMax: play.hpMax ?? card.hpMax,
+		tempHp: play.tempHp ?? card.tempHp,
+	};
 	const text = serializeCampaignMarkdown({
 		fields: {
 			ddb_id: id,
@@ -73,24 +84,88 @@ export async function saveCharacter (plugin, card) {
 			level: card.level ?? "",
 			background: card.background || "",
 			ac: card.ac ?? "",
-			hp_max: card.hpMax ?? "",
-			hp_current: card.hpCurrent ?? "",
+			hp_max: shown.hpMax ?? "",
+			hp_current: shown.hpCurrent ?? "",
 			speed: card.speed ?? "",
 		},
-		body: characterMarkdown({...card, actions}, avatarPath, refs),
+		body: characterMarkdown({...shown, play}, avatarPath, refs),
 		snapshot: {
 			edition: card.edition || "classic",
 			abilities: card.abilities || null,
 			rolls: card.rolls || null,
 			actions,
-			slots: card.slots || [],
+			slots,
 			traits: card.traits || null,
 			coins: card.coins || null,
 			refs,
+			senses: card.senses || [],
+			speeds: card.speeds || [],
+			defenses: card.defenses || [],
+			proficiencies: card.proficiencies || [],
+			spellcasting: card.spellcasting || [],
+			hitDice: card.hitDice || [],
+			choices: card.choices || [],
+			features: card.features || [],
+			companions: card.companions || [],
+			story: card.story || null,
+			xpAdjustment: card.xpAdjustment ?? null,
+			play,
 		},
 	});
 	await writeFile(plugin, filePath, text);
 	return readCharacter(plugin, id);
+}
+
+export async function saveCharacterPlay (plugin, ddbId, play) {
+	const record = await readCharacter(plugin, ddbId);
+	if (!record?.snapshot) return null;
+	record.snapshot.play = play;
+	if (play?.hpCurrent != null) record.fields.hp_current = play.hpCurrent;
+	if (play?.hpMax != null) record.fields.hp_max = play.hpMax;
+	await writeFile(plugin, record.path, serializeCampaignMarkdown({
+		fields: record.fields,
+		body: record.body,
+		snapshot: record.snapshot,
+	}));
+	return record;
+}
+
+export function seedPlay (card) {
+	const prepared = [];
+	for (const ref of card?.refs || []) {
+		if (ref?.kind !== "spell" || ref.alwaysPrepared || !ref.prepared) continue;
+		const name = String(ref.name || ref.label || "").trim();
+		if (name) prepared.push(name);
+	}
+	const hitDiceSpent = {};
+	for (const die of card?.hitDice || []) {
+		if (die?.className && Number(die.spent) > 0) hitDiceSpent[die.className] = Number(die.spent);
+	}
+	return {
+		hpCurrent: card?.hpCurrent ?? null,
+		hpMax: card?.hpMax ?? null,
+		tempHp: Number(card?.tempHp) || 0,
+		conditions: Array.isArray(card?.conditions) ? card.conditions.slice() : [],
+		deathSaves: {
+			success: Number(card?.deathSaves?.success) || 0,
+			fail: Number(card?.deathSaves?.fail) || 0,
+			stable: !!card?.deathSaves?.stable,
+		},
+		inspiration: !!card?.inspiration,
+		xp: card?.xp ?? null,
+		prepared,
+		hitDiceSpent,
+	};
+}
+
+function mergeSlotSpent (next, previous) {
+	if (!previous?.length) return next || [];
+	return (next || []).map(slot => {
+		const old = previous.find(it => it.level === slot.level && !!it.pact === !!slot.pact);
+		if (!old) return slot;
+		const spent = Math.max(0, Math.min(slot.max, Number(old.spent) || 0));
+		return {...slot, spent};
+	});
 }
 
 export async function saveCharacterSlots (plugin, ddbId, slots) {
@@ -140,7 +215,7 @@ function resolveRefs (refs) {
 			name: doc?.n || ref.name || "",
 			label: ref.label || ref.name || "",
 			source: doc?.s || "",
-			...(Number.isFinite(Number(ref.level)) ? {level: Number(ref.level)} : {}),
+			...refDetails(ref),
 			...(qty > 1 ? {qty} : {}),
 			...(ref.equipped ? {equipped: true} : {}),
 		};
@@ -157,6 +232,16 @@ function resolveActions (actions, edition, prefer) {
 			...(doc ? {kind: String(doc.cf || "").toLowerCase(), lookup: doc.n, source: doc.s} : {}),
 		};
 	}).filter(action => action.name);
+}
+
+function refDetails (ref) {
+	const out = {};
+	for (const key of ["level", "school", "castingTime", "range", "duration", "components", "concentration", "ritual", "attack", "save", "prepared", "alwaysPrepared", "list", "attuned", "rarity", "weight", "charges", "snippet"]) {
+		const value = ref?.[key];
+		if (value == null || value === "" || value === false) continue;
+		out[key] = value;
+	}
+	return out;
 }
 
 function preferNames (refs) {
@@ -193,24 +278,112 @@ function characterMarkdown (card, avatarPath, refs) {
 	lines.push(...slotLines(card.slots));
 	lines.push(...skillLines(card.rolls));
 	lines.push(...actionLines(card.actions));
-	lines.push(...spellLines(refsOf(refs, "spell")));
+	lines.push(...spellLines(refsOf(refs, "spell"), card.play));
 	lines.push(...refSection("Feats", refsOf(refs, "feat")));
 	lines.push(...refSection("Gear", refsOf(refs, "item")));
 	lines.push(...traitLines(card.traits));
+	lines.push(...joinedLine("Senses", card.senses));
+	lines.push(...speedLines(card.speeds));
+	lines.push(...joinedLine("Defenses", card.defenses));
+	lines.push(...joinedLine("Proficiencies", card.proficiencies));
+	lines.push(...spellcastingLines(card.spellcasting));
+	lines.push(...hitDiceLines(card.hitDice, card.play));
+	lines.push(...choiceLines(card.choices));
+	lines.push(...featureLines(card.features));
+	lines.push(...companionLines(card.companions));
+	lines.push(...storyLines(card.story));
 	lines.push("", "## Coins", "", formatCoins(card.coins), "");
 	return lines.join("\n");
+}
+
+function joinedLine (title, values) {
+	const text = (values || []).map(value => String(value || "").trim()).filter(Boolean).join(", ");
+	if (!text) return [];
+	return ["", `**${title}.** ${text}`, ""];
+}
+
+function speedLines (speeds) {
+	const text = (speeds || []).filter(speed => Number(speed?.value) > 0).map(speed => `${speed.label} ${speed.value}`).join(", ");
+	if (!text) return [];
+	return ["", `**Speeds.** ${text}`, ""];
+}
+
+function spellcastingLines (lines) {
+	if (!lines?.length) return [];
+	return ["", "**Spellcasting.** " + lines.map(line => `${line.className} ${signed(line.attack)} / DC ${line.dc}`).join(" · "), ""];
+}
+
+function hitDiceLines (dice, play) {
+	if (!dice?.length) return [];
+	const rows = dice.map(die => {
+		const spent = Number(play?.hitDiceSpent?.[die.className] ?? die.spent) || 0;
+		return `${die.className} d${die.die} ${spent}/${die.count}`;
+	});
+	return ["", "## Hit dice", "", ...rows.map(row => `- ${row}`)];
+}
+
+function choiceLines (choices) {
+	if (!choices?.length) return [];
+	return ["", "## Choices", "", ...choices.map(choice => `- ${choice}`)];
+}
+
+function featureLines (features) {
+	if (!features?.length) return [];
+	const lines = ["", "## Features", ""];
+	for (const feature of features) {
+		const snippet = feature.snippet ? ` — ${feature.snippet}` : "";
+		lines.push(`- ${feature.group ? `${feature.group}: ` : ""}${feature.name}${snippet}`);
+	}
+	return lines;
+}
+
+function companionLines (companions) {
+	if (!companions?.length) return [];
+	const lines = ["", "## Companions", ""];
+	for (const companion of companions) {
+		const bits = [companion.name, companion.line, companion.snippet].filter(Boolean);
+		lines.push(`- ${bits.join(" · ")}`);
+	}
+	return lines;
+}
+
+function storyLines (story) {
+	if (!story) return [];
+	const rows = [
+		["Gender", story.gender],
+		["Faith", story.faith],
+		["Age", story.age],
+		["Hair", story.hair],
+		["Eyes", story.eyes],
+		["Skin", story.skin],
+		["Height", story.height],
+		["Weight", story.weight],
+		["Alignment", story.alignment],
+		["Lifestyle", story.lifestyle],
+		["Appearance", story.appearance],
+		["Backstory", story.backstory],
+		["Allies", story.allies],
+		["Organizations", story.organizations],
+		["Enemies", story.enemies],
+		["Other notes", story.otherNotes],
+		["Personal possessions", story.possessions],
+	].filter(([, text]) => String(text || "").trim());
+	if (!rows.length) return [];
+	const lines = ["", "## Person and story", ""];
+	for (const [label, text] of rows) lines.push(`**${label}.** ${String(text).trim()}`, "");
+	return lines;
 }
 
 function refsOf (refs, kind) {
 	return (refs || []).filter(ref => ref.kind === kind);
 }
 
-function spellLines (spells) {
+function spellLines (spells, play) {
 	if (!spells?.length) return [];
 	const lines = ["", "## Spells", ""];
 	for (const [level, list] of groupSpells(spells)) {
 		lines.push(`### ${spellLevelLabel(level)}`, "");
-		for (const spell of list) lines.push(`- ${refText(spell)}`);
+		for (const spell of list) lines.push(`- ${spellText(spell, play)}`);
 		lines.push("");
 	}
 	return lines;
@@ -243,13 +416,28 @@ function refSection (title, refs) {
 	return ["", `## ${title}`, "", ...refs.map(ref => `- ${refText(ref)}`)];
 }
 
+function spellText (spell, play) {
+	const name = spell.name || spell.label;
+	const prepared = spell.alwaysPrepared || (play?.prepared || []).includes(name) ? "prepared" : "";
+	const meta = [prepared, spell.list, spell.school, spell.concentration ? "concentration" : "", spell.ritual ? "ritual" : ""].filter(Boolean);
+	const detail = [spell.castingTime, spell.range, spell.duration, spell.components, spell.attack, spell.save].filter(Boolean);
+	const bits = [refText(spell)];
+	if (meta.length) bits.push(meta.join(", "));
+	if (detail.length) bits.push(detail.join(" · "));
+	return bits.join(" — ");
+}
+
 function refText (ref) {
 	const label = ref.label || ref.name || "";
 	const qty = Number(ref.qty) > 1 ? ` ×${ref.qty}` : "";
 	const equipped = ref.equipped ? " (equipped)" : "";
+	const attuned = ref.attuned ? " (attuned)" : "";
+	const rarity = ref.rarity ? ` · ${ref.rarity}` : "";
+	const weight = Number(ref.weight) > 0 ? ` · ${ref.weight} lb` : "";
+	const charges = Number(ref.charges) > 0 ? ` · ${ref.charges} charges` : "";
 	const source = sourceAbbr(ref.source);
 	const book = source ? ` · ${source}` : "";
-	return `${label}${qty}${equipped}${book}`;
+	return `${label}${qty}${equipped}${attuned}${rarity}${weight}${charges}${book}`;
 }
 
 function traitLines (traits) {
@@ -328,7 +516,11 @@ function actionLines (actions) {
 		if (action.source) bits.push(sourceAbbr(action.source));
 		if (action.activation) bits.push(action.activation);
 		if (action.uses) bits.push(`${action.uses} uses`);
+		if (action.attack) bits.push(action.attack);
+		if (action.range) bits.push(action.range);
 		if (action.dice) bits.push(action.dice);
+		if (action.damage) bits.push(action.damage);
+		if (action.save) bits.push(action.save);
 		lines.push(`- ${bits.join(" · ")}`);
 	}
 	return lines;

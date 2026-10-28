@@ -1,5 +1,6 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterSlots} from "./character-store.js";
+import {characterName, deleteCharacter, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
+import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, sourceAbbr} from "./search-index.js";
@@ -32,57 +33,508 @@ function paintLinkedCard (host, plugin, record) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
 	const refs = snapshot.refs || [];
-	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
-	const top = sheet.createDiv({cls: "fiveetools-character-card__panel is-wide"});
-	const src = avatarSrc(plugin, record.body);
-	if (src) top.createEl("img", {attr: {src, alt: characterName(record)}});
-	top.createEl("h2", {text: characterName(record)});
-	const identity = top.createDiv({cls: "fiveetools-character-card__identity"});
-	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
 	const edition = snapshot.edition === "one" ? "one" : "classic";
+	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
+	paintSheetHeader(sheet, plugin, record, refs, edition);
+	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
+	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record);
+	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
+	paintSpellColumn(makeColumn(columns, "Spells"), plugin, record, edition);
+	if (snapshot.actions?.length) {
+		paintActions(makeColumn(columns, "Actions"), plugin, snapshot.actions, {
+			edition,
+			prefer: preferNames(refs),
+		});
+	}
+	const gear = refs.filter(ref => ref.kind === "item");
+	const coins = formatCoins(snapshot.coins);
+	if (gear.length || coins) paintGearColumn(makeColumn(columns, "Gear"), plugin, gear, coins);
+	if (hasFeatures(snapshot, refs)) paintFeatureColumn(makeColumn(columns, "Features"), plugin, record, edition);
+	paintStory(sheet, snapshot.story, snapshot.traits);
+	bindDiceRollers(host, plugin);
+}
+
+function makeColumn (parent, title) {
+	const col = parent.createDiv({cls: "fiveetools-character-card__col"});
+	col.createEl("h3", {cls: "fiveetools-character-card__col-title", text: title});
+	return col;
+}
+
+function paintSheetHeader (sheet, plugin, record, refs, edition) {
+	const fields = record.fields || {};
+	const header = sheet.createDiv({cls: "fiveetools-character-card__header"});
+	const src = avatarSrc(plugin, record.body);
+	if (src) header.createEl("img", {attr: {src, alt: characterName(record)}});
+	const text = header.createDiv({cls: "fiveetools-character-card__header-text"});
+	text.createEl("h2", {text: characterName(record)});
+	const identity = text.createDiv({cls: "fiveetools-character-card__identity"});
+	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
 	paintRefRow(identity, plugin, identityRefs, refs, edition);
 	const level = fields.level != null && fields.level !== "" ? `Level ${fields.level}` : "";
 	if (level) identity.createSpan({cls: "fiveetools-view__meta", text: identity.childNodes.length ? ` · ${level}` : level});
 	const background = refs.find(ref => ref.kind === "background");
 	if (background) {
-		const line = top.createDiv({cls: "fiveetools-character-card__identity"});
+		const line = text.createDiv({cls: "fiveetools-character-card__identity"});
 		line.createSpan({text: "Background: "});
 		paintRefRow(line, plugin, [background], refs, edition);
 	}
-	paintCombat(top, fields, snapshot.rolls);
-	paintAbilities(top, snapshot.abilities, snapshot.rolls);
-	paintSlots(top, plugin, record);
-	if (snapshot.rolls?.skills?.length) paintSkills(panel(sheet), snapshot.rolls);
-	const spells = refs.filter(ref => ref.kind === "spell");
-	if (spells.length) paintSpells(panel(sheet), plugin, spells, edition);
-	const gear = refs.filter(ref => ref.kind === "item");
-	if (gear.length) paintRefSection(panel(sheet), plugin, "Gear", gear);
-	if (snapshot.actions?.length) {
-		paintActions(panel(sheet), plugin, snapshot.actions, {
-			edition,
-			prefer: preferNames(refs),
-		});
-	}
-	const feats = refs.filter(ref => ref.kind === "feat");
-	if (feats.length) paintRefSection(panel(sheet), plugin, "Feats", feats);
-	const coins = formatCoins(snapshot.coins);
-	if (snapshot.traits) {
-		const traits = panel(sheet, true);
-		paintTraits(traits, snapshot.traits);
-		if (coins) {
-			traits.createEl("h3", {text: "Coins"});
-			traits.createEl("p", {text: coins});
-		}
-	} else if (coins) {
-		const box = panel(sheet);
-		box.createEl("h3", {text: "Coins"});
-		box.createEl("p", {text: coins});
-	}
-	bindDiceRollers(host, plugin);
 }
 
-function panel (sheet, wide) {
-	return sheet.createDiv({cls: `fiveetools-character-card__panel${wide ? " is-wide" : ""}`});
+function paintCombatColumn (col, plugin, record) {
+	const fields = record.fields || {};
+	const snapshot = record.snapshot || {};
+	paintHpEditor(col, plugin, record);
+	paintCombatStats(col, fields, snapshot.rolls, snapshot.speeds);
+	paintLabeledList(col, "Senses", snapshot.senses);
+	paintLabeledList(col, "Defenses", snapshot.defenses);
+	paintConditions(col, plugin, record);
+	paintDeathSaves(col, plugin, record);
+	paintInspiration(col, plugin, record);
+	paintXp(col, plugin, record);
+}
+
+function paintAbilityColumn (col, snapshot) {
+	paintAbilities(col, snapshot.abilities, snapshot.rolls);
+	if (snapshot.rolls?.skills?.length) paintSkills(col, snapshot.rolls);
+	paintLabeledList(col, "Proficiencies", snapshot.proficiencies);
+}
+
+function paintSpellColumn (col, plugin, record, edition) {
+	const spells = (record.snapshot?.refs || []).filter(ref => ref.kind === "spell");
+	paintSlots(col, plugin, record);
+	paintSpellcasting(col, record.snapshot?.spellcasting);
+	if (!spells.length) return;
+	const play = playState(record);
+	const preparedBox = col.createDiv();
+	const preparedTitle = preparedBox.createEl("h3", {text: "Prepared"});
+	const preparedList = preparedBox.createDiv({cls: "fiveetools-character-card__rows"});
+	const restBox = col.createDiv();
+	const levelLists = new Map();
+	const levels = [...new Set(spells.map(spell => spellLevel(spell, edition)))].sort((a, b) => a - b);
+	for (const level of levels) {
+		const frame = restBox.createDiv({cls: "fiveetools-character-card__spell-level"});
+		frame.createDiv({cls: "fiveetools-character-card__spell-level-label", text: spellLevelLabel(level)});
+		const list = frame.createDiv({cls: "fiveetools-character-card__rows"});
+		levelLists.set(level, {frame, list});
+	}
+	const syncGroups = () => {
+		preparedTitle.style.display = preparedList.childElementCount ? "" : "none";
+		preparedBox.style.display = preparedList.childElementCount ? "" : "none";
+		for (const {frame, list} of levelLists.values()) frame.style.display = list.childElementCount ? "" : "none";
+	};
+	const place = (spell, row) => {
+		if (spellIsPrepared(spell, play)) preparedList.append(row);
+		else levelLists.get(spellLevel(spell, edition)).list.append(row);
+		syncGroups();
+	};
+	const ordered = spells.slice().sort((a, b) => spellLevel(a, edition) - spellLevel(b, edition) || String(a.label || a.name).localeCompare(String(b.label || b.name)));
+	for (const spell of ordered) {
+		const row = paintSpellRow(preparedList, plugin, spell, edition, play);
+		const box = row.querySelector("input");
+		if (box && !spell.alwaysPrepared) {
+			box.addEventListener("change", () => {
+				const name = spell.name || spell.label;
+				const set = new Set(play.prepared || []);
+				if (box.checked) set.add(name);
+				else set.delete(name);
+				play.prepared = [...set];
+				place(spell, row);
+				persistPlay(plugin, record);
+			});
+		}
+		place(spell, row);
+	}
+}
+
+function paintSpellRow (parent, plugin, spell, edition, play) {
+	const row = parent.createDiv({cls: "fiveetools-character-card__twoline"});
+	const line = row.createDiv({cls: "fiveetools-character-card__twoline-line"});
+	const box = line.createEl("input", {
+		cls: "fiveetools-character-card__check",
+		attr: {type: "checkbox", title: spell.alwaysPrepared ? "Always prepared" : "Prepared"},
+	});
+	box.checked = spellIsPrepared(spell, play);
+	box.disabled = !!spell.alwaysPrepared;
+	const linked = linkRef(spell, [], spell.edition || edition);
+	paintRefButton(line, plugin, linked, spell.label || spell.name || "Spell");
+	const meta = [spell.list, spell.school, spell.concentration ? "concentration" : "", spell.ritual ? "ritual" : ""].filter(Boolean);
+	if (meta.length) line.createSpan({cls: "fiveetools-character-card__source", text: ` · ${meta.join(" · ")}`});
+	const detail = [spell.castingTime, spell.range, spell.duration, spell.components, spell.attack, spell.save].filter(Boolean);
+	if (detail.length) {
+		row.createDiv({
+			cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source",
+			text: detail.join(" · "),
+		});
+	}
+	return row;
+}
+
+function paintGearColumn (col, plugin, gear, coins) {
+	if (gear.length) {
+		const list = col.createDiv({cls: "fiveetools-character-card__rows"});
+		for (const ref of gear) paintGearRow(list, plugin, ref);
+	}
+	if (coins) {
+		col.createEl("h3", {text: "Coins"});
+		col.createEl("p", {text: coins});
+	}
+}
+
+function paintGearRow (parent, plugin, ref) {
+	const row = parent.createDiv({cls: "fiveetools-character-card__twoline"});
+	const line = row.createDiv({cls: "fiveetools-character-card__twoline-line"});
+	const linked = linkRef(ref, [], ref.edition);
+	paintRefButton(line, plugin, linked, ref.label || ref.name || "Item");
+	const extra = [];
+	if (ref.equipped) extra.push("equipped");
+	if (ref.attuned) extra.push("attuned");
+	if (Number(ref.qty) > 1) extra.push(`×${ref.qty}`);
+	if (ref.rarity) extra.push(ref.rarity);
+	if (extra.length) line.createSpan({cls: "fiveetools-character-card__source", text: ` · ${extra.join(" · ")}`});
+	const detail = [];
+	if (Number(ref.weight) > 0) detail.push(`${ref.weight} lb`);
+	if (Number(ref.charges) > 0) detail.push(`${ref.charges} charges`);
+	if (ref.snippet) detail.push(ref.snippet);
+	if (detail.length) {
+		row.createDiv({
+			cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source",
+			text: detail.join(" · "),
+		});
+	}
+}
+
+function hasFeatures (snapshot, refs) {
+	return !!(snapshot.features?.length || snapshot.choices?.length || snapshot.hitDice?.length || snapshot.companions?.length || refs.some(ref => ref.kind === "feat"));
+}
+
+function paintFeatureColumn (col, plugin, record, edition) {
+	const snapshot = record.snapshot || {};
+	paintHitDice(col, plugin, record);
+	const feats = (snapshot.refs || []).filter(ref => ref.kind === "feat");
+	if (feats.length) {
+		col.createEl("h3", {text: "Feats"});
+		const list = col.createDiv({cls: "fiveetools-character-card__rows"});
+		for (const feat of feats) paintGearRow(list, plugin, feat);
+	}
+	if (snapshot.features?.length) {
+		col.createEl("h3", {text: "Traits and features"});
+		const list = col.createDiv({cls: "fiveetools-character-card__rows"});
+		for (const feature of snapshot.features) paintFeatureRow(list, plugin, feature, edition, preferNames(snapshot.refs));
+	}
+	if (snapshot.choices?.length) paintLabeledList(col, "Choices", snapshot.choices);
+	if (snapshot.companions?.length) {
+		col.createEl("h3", {text: "Companions"});
+		const list = col.createDiv({cls: "fiveetools-character-card__rows"});
+		for (const companion of snapshot.companions) {
+			const row = list.createDiv({cls: "fiveetools-character-card__twoline"});
+			const bits = [companion.name, companion.line].filter(Boolean);
+			row.createDiv({cls: "fiveetools-character-card__twoline-line", text: bits.join(" · ")});
+			if (companion.snippet) {
+				row.createDiv({cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source", text: companion.snippet});
+			}
+		}
+	}
+}
+
+function paintFeatureRow (parent, plugin, feature, edition, prefer) {
+	const row = parent.createDiv({cls: "fiveetools-character-card__twoline"});
+	const line = row.createDiv({cls: "fiveetools-character-card__twoline-line"});
+	const doc = findNamedFeature(feature.name, {edition, prefer});
+	const ref = doc?.n && doc.s
+		? {kind: String(doc.cf || "").toLowerCase(), name: doc.n, source: doc.s}
+		: {name: feature.name};
+	paintRefButton(line, plugin, ref, feature.name);
+	if (feature.group) line.createSpan({cls: "fiveetools-character-card__source", text: ` · ${feature.group}`});
+	if (feature.snippet) {
+		row.createDiv({cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source", text: feature.snippet});
+	}
+}
+
+function paintStory (sheet, story, traits) {
+	const rows = storyRows(story);
+	if (!rows.length && !traits) return;
+	const box = sheet.createDiv({cls: "fiveetools-character-card__story"});
+	box.createEl("h3", {cls: "fiveetools-character-card__col-title", text: "Person and story"});
+	if (traits) paintTraits(box, traits);
+	if (!rows.length) return;
+	for (const [label, text] of rows) {
+		const line = box.createEl("p");
+		line.createEl("strong", {text: `${label}. `});
+		line.createSpan({text: String(text).trim()});
+	}
+}
+
+function storyRows (story) {
+	if (!story) return [];
+	return [
+		["Gender", story.gender],
+		["Faith", story.faith],
+		["Age", story.age],
+		["Hair", story.hair],
+		["Eyes", story.eyes],
+		["Skin", story.skin],
+		["Height", story.height],
+		["Weight", story.weight],
+		["Alignment", story.alignment],
+		["Lifestyle", story.lifestyle],
+		["Appearance", story.appearance],
+		["Backstory", story.backstory],
+		["Allies", story.allies],
+		["Organizations", story.organizations],
+		["Enemies", story.enemies],
+		["Other notes", story.otherNotes],
+		["Personal possessions", story.possessions],
+	].filter(([, text]) => String(text || "").trim());
+}
+
+function paintHpEditor (host, plugin, record) {
+	const play = playState(record);
+	const controls = host.createDiv({cls: "fiveetools-character-card__hp"});
+	const hp = controls.createDiv({cls: "fiveetools-encounter__hp"});
+	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
+	const input = hp.createEl("input", {
+		cls: "fiveetools-encounter__hpinput",
+		attr: {type: "number", value: String(play.hpCurrent ?? 0), title: "Current HP"},
+	});
+	hp.createSpan({cls: "fiveetools-encounter__hpmax", text: "/"});
+	const max = hp.createEl("input", {
+		cls: "fiveetools-encounter__hpinput",
+		attr: {type: "number", min: "0", value: String(play.hpMax ?? 0), title: "Max HP"},
+	});
+	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 HP"}});
+	const temp = controls.createEl("input", {
+		cls: "fiveetools-encounter__tempinput",
+		attr: {type: "number", min: "0", value: String(play.tempHp ?? 0), title: "Temporary HP", placeholder: "Temp"},
+	});
+	const writeCurrent = (value) => {
+		const cap = Number(play.hpMax) || 0;
+		const next = Number(value);
+		const current = Number.isFinite(next) ? next : (Number(play.hpCurrent) || 0);
+		play.hpCurrent = Math.max(0, cap > 0 ? Math.min(cap, current) : current);
+		input.value = String(play.hpCurrent);
+		persistPlay(plugin, record);
+	};
+	minus.addEventListener("click", () => writeCurrent((Number(play.hpCurrent) || 0) - 1));
+	plus.addEventListener("click", () => writeCurrent((Number(play.hpCurrent) || 0) + 1));
+	input.addEventListener("change", () => writeCurrent(input.value));
+	max.addEventListener("change", () => {
+		play.hpMax = Math.max(0, Math.floor(Number(max.value) || 0));
+		max.value = String(play.hpMax);
+		if ((Number(play.hpCurrent) || 0) > play.hpMax) writeCurrent(play.hpMax);
+		else persistPlay(plugin, record);
+	});
+	temp.addEventListener("change", () => {
+		play.tempHp = Math.max(0, Math.floor(Number(temp.value) || 0));
+		temp.value = String(play.tempHp);
+		persistPlay(plugin, record);
+	});
+}
+
+function paintCombatStats (host, fields, rolls, speeds) {
+	const line = host.createEl("p", {cls: "fiveetools-character-card__combat"});
+	const bits = [];
+	if (fields.ac != null && fields.ac !== "") bits.push(`AC ${fields.ac}`);
+	const speedText = (speeds || []).filter(speed => Number(speed?.value) > 0).map(speed => `${speed.label} ${speed.value}`).join(", ");
+	if (speedText) bits.push(speedText);
+	else if (fields.speed != null && fields.speed !== "") bits.push(`Speed ${fields.speed}`);
+	if (bits.length) line.createSpan({text: bits.join(" · ")});
+	if (rolls && rolls.initiative != null) {
+		line.createSpan({text: `${bits.length ? " · " : ""}Initiative `});
+		paintRoll(line, "Initiative", rolls.initiative);
+		if (rolls.initiativeEdge) {
+			line.createSpan({cls: "fiveetools-character-card__source", text: rolls.initiativeEdge === "adv" ? " adv" : " dis"});
+		}
+	}
+	const tail = [];
+	if (rolls?.proficiency != null) tail.push(`PB ${signed(rolls.proficiency)}`);
+	if (rolls?.passivePerception != null) tail.push(`Passive Perception ${rolls.passivePerception}`);
+	if (tail.length) line.createSpan({text: `${bits.length || rolls?.initiative != null ? " · " : ""}${tail.join(" · ")}`});
+}
+
+function paintLabeledList (host, title, values) {
+	const text = (values || []).map(value => String(value || "").trim()).filter(Boolean);
+	if (!text.length) return;
+	host.createEl("h3", {text: title});
+	host.createEl("p", {text: text.join(", ")});
+}
+
+function paintConditions (host, plugin, record) {
+	const play = playState(record);
+	if (!Array.isArray(play.conditions)) play.conditions = [];
+	host.createEl("h3", {text: "Conditions"});
+	const chips = host.createDiv({cls: "fiveetools-character-card__chips"});
+	const select = host.createEl("select", {cls: "fiveetools-encounter__condition", attr: {title: "Condition"}});
+	select.createEl("option", {attr: {value: ""}, text: "Add condition"});
+	for (const cond of CONDITIONS) select.createEl("option", {attr: {value: cond.id}, text: cond.label});
+	const paintChips = () => {
+		chips.empty();
+		for (const id of play.conditions) {
+			const label = CONDITIONS.find(cond => cond.id === id)?.label || id;
+			const chip = chips.createEl("button", {
+				cls: "fiveetools-character-card__chip",
+				attr: {type: "button", title: `Remove ${label}`},
+				text: `${label} ×`,
+			});
+			chip.addEventListener("click", () => {
+				play.conditions = play.conditions.filter(it => it !== id);
+				paintChips();
+				persistPlay(plugin, record);
+			});
+		}
+	};
+	paintChips();
+	select.addEventListener("change", () => {
+		const id = select.value;
+		select.value = "";
+		if (!id || play.conditions.includes(id)) return;
+		play.conditions.push(id);
+		paintChips();
+		persistPlay(plugin, record);
+	});
+}
+
+function paintDeathSaves (host, plugin, record) {
+	const play = playState(record);
+	play.deathSaves = play.deathSaves || {success: 0, fail: 0, stable: false};
+	host.createEl("h3", {text: "Death saves"});
+	const row = host.createDiv({cls: "fiveetools-character-card__death"});
+	paintDeathChecks(row, "Success", play.deathSaves.success, (n) => {
+		play.deathSaves.success = n;
+		persistPlay(plugin, record);
+	});
+	paintDeathChecks(row, "Fail", play.deathSaves.fail, (n) => {
+		play.deathSaves.fail = n;
+		persistPlay(plugin, record);
+	});
+	const stable = host.createEl("label", {cls: "fiveetools-character-card__stable"});
+	const box = stable.createEl("input", {attr: {type: "checkbox"}});
+	box.checked = !!play.deathSaves.stable;
+	stable.appendText(" Stable");
+	box.addEventListener("change", () => {
+		play.deathSaves.stable = box.checked;
+		persistPlay(plugin, record);
+	});
+}
+
+function paintDeathChecks (row, label, count, onChange) {
+	const group = row.createDiv({cls: "fiveetools-character-card__death-group"});
+	group.createSpan({text: label});
+	const boxes = [];
+	for (let i = 0; i < 3; i++) {
+		const box = group.createEl("input", {attr: {type: "checkbox", title: `${label} ${i + 1}`}});
+		box.checked = i < count;
+		boxes.push(box);
+		box.addEventListener("change", () => {
+			const next = box.checked ? i + 1 : i;
+			boxes.forEach((el, n) => { el.checked = n < next; });
+			onChange(next);
+		});
+	}
+}
+
+function paintInspiration (host, plugin, record) {
+	const play = playState(record);
+	const label = host.createEl("label", {cls: "fiveetools-character-card__stable"});
+	const box = label.createEl("input", {attr: {type: "checkbox"}});
+	box.checked = !!play.inspiration;
+	label.appendText(" Inspiration");
+	box.addEventListener("change", () => {
+		play.inspiration = box.checked;
+		persistPlay(plugin, record);
+	});
+}
+
+function paintXp (host, plugin, record) {
+	const play = playState(record);
+	const adjustment = Number(record.snapshot?.xpAdjustment);
+	if (play.xp == null && !adjustment) return;
+	host.createEl("h3", {text: "Experience"});
+	const row = host.createDiv({cls: "fiveetools-character-card__xp"});
+	row.createSpan({text: "XP "});
+	const input = row.createEl("input", {
+		cls: "fiveetools-encounter__hpinput fiveetools-character-card__xp-input",
+		attr: {type: "number", min: "0", value: play.xp == null ? "" : String(play.xp), title: "Current XP"},
+	});
+	if (adjustment) row.createSpan({cls: "fiveetools-character-card__source", text: ` adjustment ${adjustment > 0 ? "+" : ""}${adjustment}`});
+	input.addEventListener("change", () => {
+		const next = Math.max(0, Math.floor(Number(input.value) || 0));
+		play.xp = next;
+		input.value = String(next);
+		persistPlay(plugin, record);
+	});
+}
+
+function paintSpellcasting (host, lines) {
+	if (!lines?.length) return;
+	host.createEl("p", {
+		cls: "fiveetools-character-card__combat",
+		text: lines.map(line => `${line.className} ${signed(line.attack)} / DC ${line.dc}`).join(" · "),
+	});
+}
+
+function paintHitDice (host, plugin, record) {
+	const dice = record.snapshot?.hitDice || [];
+	if (!dice.length) return;
+	const play = playState(record);
+	play.hitDiceSpent = play.hitDiceSpent || {};
+	host.createEl("h3", {text: "Hit dice"});
+	for (const die of dice) {
+		const row = host.createDiv({cls: "fiveetools-character-card__hitdie"});
+		row.createSpan({text: `${die.className} d${die.die} `});
+		const spent = Math.max(0, Math.min(die.count, Number(play.hitDiceSpent[die.className] ?? die.spent) || 0));
+		const input = row.createEl("input", {
+			cls: "fiveetools-encounter__hpinput",
+			attr: {type: "number", min: "0", max: String(die.count), value: String(spent), title: "Spent hit dice"},
+		});
+		row.createSpan({text: ` / ${die.count}`});
+		input.addEventListener("change", () => {
+			const next = Math.max(0, Math.min(die.count, Math.floor(Number(input.value) || 0)));
+			input.value = String(next);
+			play.hitDiceSpent[die.className] = next;
+			persistPlay(plugin, record);
+		});
+	}
+}
+
+function playState (record) {
+	const snap = record.snapshot || {};
+	if (snap.play) return snap.play;
+	const fields = record.fields || {};
+	const prepared = [];
+	for (const ref of snap.refs || []) {
+		if (ref?.kind === "spell" && ref.prepared && !ref.alwaysPrepared) prepared.push(ref.name || ref.label);
+	}
+	const hitDiceSpent = {};
+	for (const die of snap.hitDice || []) {
+		if (die?.className && Number(die.spent) > 0) hitDiceSpent[die.className] = Number(die.spent);
+	}
+	snap.play = {
+		hpCurrent: fields.hp_current != null && fields.hp_current !== "" ? Number(fields.hp_current) : null,
+		hpMax: fields.hp_max != null && fields.hp_max !== "" ? Number(fields.hp_max) : null,
+		tempHp: 0,
+		conditions: [],
+		deathSaves: {success: 0, fail: 0, stable: false},
+		inspiration: false,
+		xp: null,
+		prepared,
+		hitDiceSpent,
+	};
+	record.snapshot = snap;
+	return snap.play;
+}
+
+function persistPlay (plugin, record) {
+	const id = String(record.fields?.ddb_id || "");
+	if (!id || !record.snapshot?.play) return;
+	void saveCharacterPlay(plugin, id, record.snapshot.play).catch((e) => {
+		new Notice(e.message || "Could not save the character.");
+	});
+}
+
+function spellIsPrepared (spell, play) {
+	if (spell?.alwaysPrepared) return true;
+	const name = spell?.name || spell?.label;
+	return (play?.prepared || []).includes(name);
 }
 
 function paintSlots (host, plugin, record) {
@@ -112,24 +564,6 @@ function paintSlots (host, plugin, record) {
 				});
 			});
 		}
-	}
-}
-
-function paintSpells (host, plugin, spells, edition) {
-	host.createEl("h3", {text: "Spells"});
-	const grouped = spells.map(spell => ({spell, level: spellLevel(spell, edition)}));
-	grouped.sort((a, b) => a.level - b.level || String(a.spell.label || a.spell.name).localeCompare(String(b.spell.label || b.spell.name)));
-	let last = null;
-	let frame = null;
-	for (const {spell, level} of grouped) {
-		if (level !== last) {
-			frame = host.createDiv({cls: "fiveetools-character-card__spell-level"});
-			frame.createDiv({cls: "fiveetools-character-card__spell-level-label", text: spellLevelLabel(level)});
-			last = level;
-		}
-		const meta = spellMeta(spell, edition);
-		const sub = (meta?.classAbbrs || []).join(", ");
-		paintEntityRow(frame, plugin, spell, spell.label || spell.name || "Spell", {sub});
 	}
 }
 
@@ -268,7 +702,6 @@ function paintAbilities (host, abilities, rolls) {
 	if (!abilities) return;
 	const rows = ABILITY_KEYS.filter(key => abilities[key] != null);
 	if (!rows.length) return;
-	host.createEl("h3", {text: "Abilities"});
 	const grid = host.createDiv({cls: "fiveetools-character-card__abilities"});
 	const saves = new Map((rolls?.saves || []).map(save => [save.key, save]));
 	for (const key of rows) {
@@ -287,28 +720,8 @@ function paintAbilities (host, abilities, rolls) {
 		paintValueRoll(values, `${key.toUpperCase()} save`, signed(save.mod), save.mod);
 		[...values.querySelectorAll(".render-roller")].pop()?.classList.add("fiveetools-character-card__ability-save");
 		if (save.proficient) values.createSpan({cls: "fiveetools-character-card__source", text: "PB"});
+		if (save.edge) values.createSpan({cls: "fiveetools-character-card__source", text: save.edge === "adv" ? " adv" : " dis"});
 	}
-}
-
-function paintCombat (host, fields, rolls) {
-	const line = host.createEl("p", {cls: "fiveetools-character-card__combat"});
-	const bits = [];
-	if (fields.ac != null && fields.ac !== "") bits.push(`AC ${fields.ac}`);
-	if (fields.hp_max != null && fields.hp_max !== "") {
-		const current = fields.hp_current != null && fields.hp_current !== "" ? fields.hp_current : fields.hp_max;
-		bits.push(`HP ${current}/${fields.hp_max}`);
-	}
-	if (fields.speed != null && fields.speed !== "") bits.push(`Speed ${fields.speed}`);
-	if (bits.length) line.createSpan({text: bits.join(" · ")});
-	if (rolls && rolls.initiative != null) {
-		if (bits.length) line.createSpan({text: " · Initiative "});
-		else line.createSpan({text: "Initiative "});
-		paintRoll(line, "Initiative", rolls.initiative);
-	}
-	const tail = [];
-	if (rolls?.proficiency != null) tail.push(`PB ${signed(rolls.proficiency)}`);
-	if (rolls?.passivePerception != null) tail.push(`Passive Perception ${rolls.passivePerception}`);
-	if (tail.length) line.createSpan({text: `${bits.length || rolls?.initiative != null ? " · " : ""}${tail.join(" · ")}`});
 }
 
 function paintSkills (host, rolls) {
@@ -323,25 +736,35 @@ function paintRollList (host, title, rows, labelOf, rollName, listCls) {
 		const line = list.createEl("li", {cls: row.proficient || row.expertise ? "is-proficient" : ""});
 		line.createSpan({text: `${labelOf(row)} `});
 		paintRoll(line, rollName(row), row.mod);
+		if (row.half) line.createSpan({cls: "fiveetools-character-card__source", text: " half"});
+		if (row.edge) line.createSpan({cls: "fiveetools-character-card__source", text: row.edge === "adv" ? " adv" : " dis"});
 	}
 }
 
 function paintActions (host, plugin, actions, {edition = "classic", prefer = []} = {}) {
 	if (!actions?.length) return;
-	host.createEl("h3", {text: "Actions"});
 	const list = host.createDiv({cls: "fiveetools-character-card__rows"});
 	for (const action of actions) {
 		const doc = action.lookup && action.source
 			? {n: action.lookup, s: action.source, cf: action.kind}
 			: findNamedFeature(action.name, {edition, prefer});
-		const extra = [];
-		if (action.activation) extra.push(action.activation);
-		if (action.uses) extra.push(`${action.uses} uses`);
-		if (action.dice) extra.push(action.dice);
 		const ref = doc?.n && doc.s
 			? {kind: String(doc.cf || action.kind || "").toLowerCase(), name: doc.n, source: doc.s}
 			: {name: action.name};
-		paintEntityRow(list, plugin, ref, action.name, {sub: extra.join(" · ")});
+		const row = list.createDiv({cls: "fiveetools-character-card__twoline"});
+		const line = row.createDiv({cls: "fiveetools-character-card__twoline-line"});
+		paintRefButton(line, plugin, ref, action.name);
+		const extra = [];
+		if (action.activation) extra.push(action.activation);
+		if (action.uses) extra.push(`${action.uses} uses`);
+		if (action.attack) extra.push(action.attack);
+		if (action.range) extra.push(action.range);
+		if (extra.length) line.createSpan({cls: "fiveetools-character-card__source", text: ` · ${extra.join(" · ")}`});
+		const detail = [action.dice, action.damage, action.save, action.snippet].filter(Boolean);
+		if (detail.length) {
+			const second = row.createDiv({cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source"});
+			appendTextWithDiceRollers(second, detail.join(" · "));
+		}
 	}
 }
 

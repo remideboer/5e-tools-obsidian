@@ -6,11 +6,11 @@ Accepted
 
 ## Context
 
-The plugin needs public D&D Beyond characters in a campaign without a full character sheet. Browser pages cannot call `character-service.dndbeyond.com` directly. A small proxy already serves public v5 JSON (`GET /?id=`) and avatars (`GET /?img=`).
+The plugin needs public D&D Beyond characters in a campaign. Browser pages cannot call `character-service.dndbeyond.com` directly. A small proxy already serves public v5 JSON (`GET /?id=`) and avatars (`GET /?img=`).
 
 ## Decision
 
-- One markdown card per character at `{notesFolder}/_characters/{ddbId}.md`, with the avatar under `_characters/_avatars/`. Importing the same id overwrites that file. The raw payload is not stored.
+- One markdown card per character at `{notesFolder}/_characters/{ddbId}.md`, with the avatar under `_characters/_avatars/`. Importing the same id overwrites that file. The raw payload is not stored. The card keeps the short mechanics needed to render the sheet: senses, speeds, defenses, proficiencies, spell rows, actions, gear, features, choices, companions, and the person-and-story fields.
 - Player → Characters lists, imports, refreshes, and deletes those cards. Refresh fetches the id again through `settings.ddbProxyUrl`.
 - A campaign player note stays a normal note. Frontmatter `character: {ddbId}` points at the shared card. The Players tab shows that card above the note editor. The card is not copied into the campaign folder.
 - Only public characters work. Private and missing ids surface the proxy error. There is no pasted-JSON path and no rules-engine sheet.
@@ -19,7 +19,8 @@ The plugin needs public D&D Beyond characters in a campaign without a full chara
 ## Consequences
 
 - Campaigns and the character list share one file. Deleting the character leaves the player note in place; the card then says it is missing.
-- AC and HP on the card are a short summary (armor base, capped Dex, shield +2, name bonus `+N`, hit points from base or override). They are not a full modifier walk.
+- AC starts from armor base, capped Dex, shield +2, and a `+N` in the item name, then adds numeric armor-class bonuses. With no armor equipped, an unarmored-armor-class modifier is 10 plus the named ability modifiers. Resistances, immunities, and vulnerabilities are text, not a second AC formula.
+- Editable table state lives in `snapshot.play`: current HP, max HP, temporary HP, conditions, death saves, inspiration, current XP, prepared spell names, and hit dice spent. Spell-slot checks stay on `snapshot.slots`. Refresh rewrites D&D Beyond content and keeps `play` and spent slots. The first import seeds `play` from the payload.
 - The default proxy is the already deployed worker. A different public proxy can be set in plugin settings.
 - A card imported before edition links has no snapshot. Refresh rewrites it. Homebrew names with no 5etools match stay plain text.
-- Ability checks, saving throws, skills, and initiative on the card are clickable `1d20` rolls. A proficient save or skill adds the proficiency bonus, shown on the card as `PB +n`; expertise adds it twice. Passive Perception is 10 + Perception. Spell slots are checkboxes on the card; checking one marks it spent and saves that count on the note. The card is a grid of panels: combat and abilities across the top, then skills, spells, actions, and gear beside each other when the pane is wide.
+- The sheet is a row of columns that scroll on their own, in the same way as the DM screen, with person and story in a short strip underneath. Combat is the first column. Ability checks, saving throws, skills, and initiative are clickable `1d20` rolls. A proficient save or skill adds the proficiency bonus; expertise adds it twice; half-proficiency adds half, rounded down. Advantage and disadvantage are marked, and Passive Perception moves by 5. Prepared spells sit above the rest. Each spell, action, and gear row is at most two lines; the long description opens the preview.

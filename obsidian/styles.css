@@ -637,21 +637,134 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-character-card--dock {
-	flex: 0 1 auto;
+	flex: 0 1 42%;
 	max-height: 42%;
-	overflow: auto;
+	min-height: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
 .fiveetools-character-card {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
 	padding: 8px 12px 12px;
 }
 
+.fiveetools-character-card.fiveetools-character-card--dock {
+	flex: 0 1 42%;
+	height: auto;
+}
+
 .fiveetools-character-card__sheet {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	gap: 8px;
+}
+
+.fiveetools-character-card__header {
+	display: flex;
 	gap: 10px;
-	align-items: start;
+	align-items: flex-start;
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.fiveetools-character-card__header-text {
+	min-width: 0;
+}
+
+.fiveetools-character-card__columns {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: stretch;
+	gap: 10px;
+	min-height: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.fiveetools-character-card__col {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 300px;
+	width: 300px;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 8px 10px;
+}
+
+.fiveetools-character-card__col-title {
+	margin-top: 0;
+}
+
+.fiveetools-character-card__story {
+	flex: 0 0 auto;
+	max-height: 8.5rem;
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 8px 10px;
+}
+
+.fiveetools-character-card__story p {
+	margin: 0.25em 0;
+}
+
+.fiveetools-character-card__twoline {
+	min-width: 0;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-character-card__twoline-line {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+	line-height: 1.35;
+}
+
+.fiveetools-character-card__check {
+	margin: 0 4px 0 0;
+	vertical-align: middle;
+}
+
+.fiveetools-character-card__hp,
+.fiveetools-character-card__chips,
+.fiveetools-character-card__death,
+.fiveetools-character-card__death-group,
+.fiveetools-character-card__xp,
+.fiveetools-character-card__hitdie,
+.fiveetools-character-card__stable {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.fiveetools-character-card__chip {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	padding: 0 8px;
+	cursor: pointer;
+}
+
+.fiveetools-character-card__xp-input {
+	width: 5em;
 }
 
 .fiveetools-character-card__panel {
@@ -863,7 +976,9 @@ a.fiveetools-inline-link {
 .fiveetools-characters__card {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .fiveetools-campaign__body > .fiveetools-view__meta {
