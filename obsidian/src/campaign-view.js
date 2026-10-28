@@ -426,12 +426,10 @@ export function renderCampaignManager (formEl, resultEl, {
 				closeCampaignNote(plugin);
 				bodyEl.empty();
 				resultEl.addClass("fiveetools-campaign-reader");
-				const card = bodyEl.createDiv({cls: "fiveetools-character-card fiveetools-character-card--dock"});
+				const card = bodyEl.createDiv();
 				await renderCharacterCard(card, plugin, linkedId);
 				if (!bodyEl.isConnected) return;
-				const wrap = bodyEl.createDiv({cls: "fiveetools-campaign__editor"});
 				syncChrome();
-				await openCampaignNote(plugin, wrap, file);
 				return;
 			}
 			await openCampaignNote(plugin, editorHost(), file);

@@ -1,4 +1,4 @@
-import {setIcon} from "obsidian";
+import {setIcon, Notice} from "obsidian";
 import {characterName, listCharacters} from "./character-store.js";
 import {attackFromCr, crOptions, crProfile, creatureTurn, formatNum, normalizeDefenses} from "./dpr-calc.js";
 import {combineReports, createFight, runFight, stepRound, stepTurn, summarize} from "./dpr-sim.js";
@@ -17,6 +17,7 @@ import {
 	sourcesFor,
 } from "./dpr-view.js";
 import {listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
+import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
 import {resolveTokenImage} from "./image-resolver.js";
@@ -96,7 +97,10 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		}
 		const known = new Set(state.characters.map(characterId));
 		state.partyIds = new Set(savedParty(session, state.characters).filter(id => known.has(id)));
-		paintParty(setupEl, state, () => { void loadSources(); }, () => { void refreshEncounter(); });
+		try {
+			state.campaigns = await listCampaigns(plugin);
+		} catch (_) { state.campaigns = []; }
+		paintParty(setupEl, state, plugin, () => { void loadSources(); }, () => { void refreshEncounter(); });
 		await loadSources();
 	}
 
@@ -237,9 +241,40 @@ function partyRecords (state) {
 	return state.characters.filter(record => state.partyIds.has(characterId(record)));
 }
 
-function paintParty (host, state, onParty, onThreat) {
+function paintParty (host, state, plugin, onParty, onThreat) {
 	host.empty();
 	host.createEl("h4", {text: "Party"});
+	const campRow = field(host, "Campaign");
+	const campEl = campRow.createEl("select");
+	campEl.createEl("option", {text: state.campaigns?.length ? "Add players…" : "No campaigns", attr: {value: ""}});
+	for (const camp of state.campaigns || []) {
+		campEl.createEl("option", {text: camp.name || camp.slug, attr: {value: camp.slug}});
+	}
+	campEl.addEventListener("change", () => {
+		const slug = campEl.value;
+		campEl.value = "";
+		if (slug) void addCampaignPlayers(slug);
+	});
+	const addCampaignPlayers = async (slug) => {
+		let entries = [];
+		try {
+			entries = await listEntries(plugin, slug, "players");
+		} catch (_) { entries = []; }
+		const known = new Set(state.characters.map(characterId));
+		const ids = [];
+		for (const entry of entries) {
+			const id = String(entry.fields?.character || "").trim();
+			if (id && known.has(id) && !ids.includes(id)) ids.push(id);
+		}
+		if (!ids.length) {
+			new Notice("That campaign has no linked characters.");
+			return;
+		}
+		for (const id of ids) state.partyIds.add(id);
+		paintMembers();
+		paintChoices();
+		onParty();
+	};
 	const membersEl = host.createDiv({cls: "fiveetools-sim__members"});
 	const finder = host.createDiv({cls: "fiveetools-sim__combo"});
 	const query = finder.createEl("input", {attr: {type: "search", placeholder: "Add a character", autocomplete: "off"}});
