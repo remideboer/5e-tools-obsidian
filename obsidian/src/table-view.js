@@ -7,6 +7,7 @@ import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from ".
 import {
 	addCombatants,
 	applyGroupInitScore,
+	kindKey,
 	listKindGroups,
 	reorderCombatantsByGroups,
 	sortGroupsByInitiative,
@@ -40,6 +41,8 @@ export class FiveEToolsTableView extends ItemView {
 	async onOpen () {
 		this.contentEl.addClass("fiveetools-table-player");
 		this._off = onTableChange(() => this.paint());
+		this._onTurnKey = (evt) => onInitiativeKey(this.plugin, evt);
+		this.contentEl.win?.addEventListener("keydown", this._onTurnKey);
 		markTableWindow(this, true);
 		this.paint();
 		this.contentEl.onWindowMigrated?.(() => {
@@ -51,6 +54,8 @@ export class FiveEToolsTableView extends ItemView {
 	async onClose () {
 		this._off?.();
 		this._off = null;
+		this.contentEl.win?.removeEventListener("keydown", this._onTurnKey);
+		this._onTurnKey = null;
 		this.frame?.remove();
 		this.frame = null;
 		markTableWindow(this, false);
@@ -79,7 +84,7 @@ export class FiveEToolsTableView extends ItemView {
 			img.src = src;
 			frame.appendChild(img);
 		}
-		if (session.combatants?.length) paintPlayerRoster(frame, session, this.contentEl.win.document);
+		if (placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document);
 	}
 }
 
@@ -131,27 +136,12 @@ function paintPlayerRoster (host, session, doc) {
 	const title = doc.createElement("h2");
 	title.textContent = "Initiative";
 	panel.appendChild(title);
-	for (const group of listKindGroups(session.combatants)) {
-		const block = doc.createElement("div");
-		block.className = "fiveetools-table-player__group";
-		const head = doc.createElement("div");
-		head.className = "fiveetools-table-player__head";
-		const name = doc.createElement("span");
-		name.className = "fiveetools-table-player__name";
-		name.textContent = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
-		const score = doc.createElement("span");
-		score.className = "fiveetools-table-player__score";
-		score.textContent = group.initScore != null ? String(group.initScore) : "—";
-		head.append(name, score);
-		block.appendChild(head);
-		for (const member of group.members) {
-			if (group.members.length === 1 && member.label === group.label) continue;
-			const line = doc.createElement("div");
-			line.className = "fiveetools-table-player__member";
-			line.textContent = member.label;
-			block.appendChild(line);
-		}
-		panel.appendChild(block);
+	const current = currentTurnKey(session);
+	for (const chip of placedChips(session)) {
+		const row = doc.createElement("div");
+		row.className = `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}`;
+		row.textContent = chip.label;
+		panel.appendChild(row);
 	}
 	host.appendChild(panel);
 }
@@ -216,6 +206,14 @@ async function paintInserts (listEl, plugin) {
 		for (const doc of docs) {
 			const hit = hitsEl.createDiv({cls: "fiveetools-encounter__hit"});
 			hit.createDiv({cls: "fiveetools-modal__name", text: doc.n});
+			hit.setAttr("draggable", "true");
+			hit.addEventListener("dragstart", (evt) => {
+				evt.dataTransfer.setData("text/plain", JSON.stringify({
+					doc: {n: doc.n, u: doc.u || "", s: doc.s || "", c: doc.c, cf: doc.cf, sA: doc.sA},
+					count: Number(copiesEl.value) || 1,
+				}));
+				evt.dataTransfer.effectAllowed = "copy";
+			});
 			const addBtn = hit.createEl("button", {text: "Add", cls: "fiveetools-btn", attr: {type: "button"}});
 			addBtn.addEventListener("click", () => {
 				void addCreature(plugin, doc, Number(copiesEl.value) || 1);
@@ -267,37 +265,138 @@ function paintDmRoster (host, plugin) {
 	const head = host.createDiv({cls: "fiveetools-table__roster-head"});
 	head.createEl("h3", {text: "Initiative"});
 	toolButton(head, "Roll all", () => { void rollAll(plugin); });
-	if (!session.combatants.length) {
-		host.createEl("p", {cls: "fiveetools-view__meta", text: "Add a creature, encounter, character, or name."});
+	toolButton(head, "Show on table", (evt) => {
+		castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
+	});
+	const waiting = listKindGroups(session.combatants).filter(group => group.initScore == null);
+	if (waiting.length) {
+		const tray = host.createDiv({cls: "fiveetools-init-tray"});
+		tray.createEl("p", {cls: "fiveetools-view__meta", text: "Drag onto a number."});
+		const row = tray.createDiv({cls: "fiveetools-init-ruler__chips"});
+		for (const group of waiting) mountChip(row, plugin, group);
+	}
+	const ruler = host.createDiv({cls: "fiveetools-init-ruler", attr: {tabindex: "0"}});
+	ruler.addEventListener("keydown", (evt) => onInitiativeKey(plugin, evt));
+	const byScore = new Map();
+	for (const group of placedChips(session)) {
+		const slot = rulerSlot(group.initScore);
+		if (!byScore.has(slot)) byScore.set(slot, []);
+		byScore.get(slot).push(group);
+	}
+	for (let score = 25; score >= 1; score--) {
+		const line = ruler.createDiv({cls: "fiveetools-init-ruler__row"});
+		line.createSpan({cls: "fiveetools-init-ruler__n", text: String(score)});
+		const chips = line.createDiv({cls: "fiveetools-init-ruler__chips"});
+		const groups = byScore.get(score) || [];
+		groups.forEach((group, index) => {
+			if (index) chips.createSpan({cls: "fiveetools-init-ruler__slash", text: "/"});
+			mountChip(chips, plugin, group);
+		});
+		line.addEventListener("dragover", (evt) => {
+			evt.preventDefault();
+			line.addClass("is-drop");
+		});
+		line.addEventListener("dragleave", () => line.removeClass("is-drop"));
+		line.addEventListener("drop", (evt) => {
+			evt.preventDefault();
+			line.removeClass("is-drop");
+			void dropOnScore(plugin, score, evt);
+		});
+	}
+}
+
+function mountChip (parent, plugin, group) {
+	const chip = parent.createEl("span", {
+		cls: "fiveetools-init-chip",
+		attr: {draggable: "true"},
+	});
+	chip.createSpan({text: group.label});
+	chip.addEventListener("dragstart", (evt) => {
+		evt.dataTransfer.setData("text/plain", JSON.stringify({key: group.key}));
+		evt.dataTransfer.effectAllowed = "move";
+	});
+	const remove = chip.createEl("button", {
+		text: "×",
+		cls: "fiveetools-init-chip__x",
+		attr: {type: "button", "aria-label": `Remove ${group.label}`},
+	});
+	remove.addEventListener("click", (evt) => {
+		evt.stopPropagation();
+		removeGroup(plugin, group.key);
+	});
+}
+
+async function dropOnScore (plugin, score, evt) {
+	let payload = null;
+	try { payload = JSON.parse(evt.dataTransfer?.getData("text/plain") || ""); } catch (_) { return; }
+	if (!payload) return;
+	const session = ensureTableSession(plugin);
+	if (payload.key) {
+		placeGroup(session, payload.key, score);
+		refreshTable(plugin);
 		return;
 	}
-	for (const group of listKindGroups(session.combatants)) {
-		const shell = host.createDiv({cls: "fiveetools-encounter__group"});
-		const title = shell.createDiv({cls: "fiveetools-encounter__group-head"});
-		title.createDiv({
-			cls: "fiveetools-encounter__group-name",
-			text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
-		});
-		const actions = title.createDiv({cls: "fiveetools-encounter__group-actions"});
-		const roll = actions.createEl("button", {
-			text: `Init ${formatBonus(group.bonus)}`,
-			cls: "fiveetools-btn",
-			attr: {type: "button", title: "Roll initiative for this group"},
-		});
-		roll.addEventListener("click", () => { void rollGroup(plugin, group); });
-		actions.createSpan({
-			cls: `fiveetools-encounter__init-score${group.initScore != null ? " has-score" : ""}`,
-			text: group.initScore != null ? String(group.initScore) : "—",
-		});
-		const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
-		for (const member of group.members) {
-			const row = body.createDiv({cls: "fiveetools-sim__member"});
-			const hp = member.hpMax ? `${member.hpCurrent ?? member.hpMax}/${member.hpMax}` : "";
-			row.createSpan({text: [member.label, hp].filter(Boolean).join(" · ")});
-			const remove = row.createEl("button", {text: "Remove", cls: "fiveetools-btn", attr: {type: "button"}});
-			remove.addEventListener("click", () => removeCombatant(plugin, member.id));
-		}
-	}
+	if (!payload.doc?.n) return;
+	await addCreature(plugin, payload.doc, payload.count || 1);
+	const next = ensureTableSession(plugin);
+	const key = kindKey({doc: payload.doc, label: payload.doc.n});
+	if (listKindGroups(next.combatants).some(group => group.key === key)) placeGroup(next, key, score);
+	refreshTable(plugin);
+}
+
+function placeGroup (session, key, score) {
+	const n = Math.max(1, Math.min(25, Math.round(Number(score))));
+	applyGroupInitScore(session.combatants, key, n);
+	const groups = listKindGroups(session.combatants);
+	const moved = groups.find(group => group.key === key);
+	if (!moved) return;
+	const rest = groups.filter(group => group.key !== key);
+	const scored = rest.filter(group => group.initScore != null)
+		.sort((a, b) => Number(b.initScore) - Number(a.initScore));
+	const open = rest.filter(group => group.initScore == null);
+	const at = scored.findIndex(group => Number(group.initScore) < n);
+	const placed = at < 0 ? [...scored, moved] : [...scored.slice(0, at), moved, ...scored.slice(at)];
+	session.combatants = reorderCombatantsByGroups([...placed, ...open]);
+}
+
+export function placedChips (session) {
+	return listKindGroups(session?.combatants)
+		.filter(group => group.initScore != null && Number.isFinite(Number(group.initScore)))
+		.sort((a, b) => Number(b.initScore) - Number(a.initScore));
+}
+
+function currentTurnKey (session) {
+	const chips = placedChips(session);
+	if (!chips.length) return null;
+	return chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
+}
+
+export function onInitiativeKey (plugin, evt) {
+	const tag = evt.target?.tagName;
+	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || evt.target?.isContentEditable) return;
+	if (evt.key !== "ArrowDown" && evt.key !== "ArrowUp") return;
+	const session = ensureTableSession(plugin);
+	const chips = placedChips(session);
+	if (!chips.length) return;
+	evt.preventDefault();
+	const dir = evt.key === "ArrowDown" ? 1 : -1;
+	let index = chips.findIndex(chip => chip.key === currentTurnKey(session));
+	if (index < 0) index = 0;
+	session.turnKey = chips[(index + dir + chips.length) % chips.length].key;
+	refreshTable(plugin);
+}
+
+function rulerSlot (score) {
+	const n = Math.round(Number(score));
+	if (!Number.isFinite(n)) return null;
+	return Math.max(1, Math.min(25, n));
+}
+
+function removeGroup (plugin, key) {
+	const session = ensureTableSession(plugin);
+	session.combatants = session.combatants.filter(combatant => kindKey(combatant) !== key);
+	if (session.turnKey === key) session.turnKey = placedChips(session)[0]?.key || null;
+	refreshTable(plugin);
 }
 
 async function addCreature (plugin, doc, count) {
@@ -381,12 +480,6 @@ function pushNamed (session, name, extra) {
 	});
 }
 
-function removeCombatant (plugin, id) {
-	const session = ensureTableSession(plugin);
-	session.combatants = session.combatants.filter(it => it.id !== id);
-	refreshTable(plugin);
-}
-
 async function rollGroup (plugin, group) {
 	const result = rollInitiative(group.bonus, {}, group.label || "Initiative");
 	await presentRoll(plugin, result);
@@ -415,12 +508,6 @@ function nextLabel (name, combatants) {
 	let n = 2;
 	while (used.has(`${base} ${n}`)) n += 1;
 	return `${base} ${n}`;
-}
-
-function formatBonus (n) {
-	if (n == null || !Number.isFinite(Number(n))) return "—";
-	const value = Number(n);
-	return value >= 0 ? `+${value}` : `${value}`;
 }
 
 function toolButton (row, text, onClick) {

@@ -12,7 +12,7 @@ The map player popout draws the battle map. The table also needs a screen for a 
 
 - The Table is its own popout view (`fiveetools-table`).
 - One image is the full background until it is cleared or replaced.
-- The initiative roster and the existing 3D dice plus result popup are overlays. They do not resize the image.
+- The initiative overlay is the ordered names and the current turn, not the empty ruler. The ruler is edited on the DM screen. Public dice sit on top of the image and do not resize it.
 - Private rolls stay on the DM screen. The map “Public rolls” switch is unchanged.
 - The roster is edited on the DM screen and kept in memory. Nothing is written to the vault.
 

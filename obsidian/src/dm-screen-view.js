@@ -15,6 +15,8 @@ import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
+import {ensureTableSession, onTableChange} from "./table-session.js";
+import {onInitiativeKey, placedChips} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -49,6 +51,12 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const bar = listEl.createDiv({cls: "fiveetools-dmscreen__bar"});
+	const turnEl = listEl.createDiv({cls: "fiveetools-init-list", attr: {tabindex: "0"}});
+	const paintTurns = () => paintInitiative(turnEl, plugin);
+	paintTurns();
+	plugin._dmTurnUnsub?.();
+	plugin._dmTurnUnsub = onTableChange(() => { if (turnEl.isConnected) paintTurns(); });
+	listEl.addEventListener("keydown", (evt) => onInitiativeKey(plugin, evt));
 	const addEntityBtn = bar.createEl("button", {
 		text: "Entry / note",
 		cls: "fiveetools-btn",
@@ -720,6 +728,20 @@ async function readCampaignNote (plugin, filePath) {
 	const file = vault.getAbstractFileByPath(filePath);
 	if (!file || file.children) return null;
 	return parseCampaignMarkdown(await vault.read(file));
+}
+
+function paintInitiative (host, plugin) {
+	host.empty();
+	const chips = placedChips(ensureTableSession(plugin));
+	if (!chips.length) return;
+	const session = ensureTableSession(plugin);
+	const current = chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
+	for (const chip of chips) {
+		host.createDiv({
+			cls: `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}`,
+			text: chip.label,
+		});
+	}
 }
 
 function slimDoc (doc) {

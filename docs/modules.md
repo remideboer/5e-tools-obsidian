@@ -88,7 +88,7 @@ flowchart TB
 | Simulation | `sim-view.js`, `dpr-sim.js`, `dpr-ai.js` (dice fight; party and encounter controls; class tactics, Disengage, movement, Wild Shape, and damage adjustments) |
 | DM screen | `dm-screen-view.js`, `dm-screen-store.js` (pins, homebrew, campaign notes, encounter card, quick refs, roll tables; `{notesFolder}/_dmscreen/board.json`) |
 | Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js`; Tools → Dice roller via `dice-roller-view.js` + `dice-icons.js` (polyhedral tap-to-roll, adv/disadv). Non-private rolls also play on the Table popout. |
-| Table | `table-view.js`, `table-session.js` (DM roster; popout image, grouped initiative, 3D dice). Not the map player window. |
+| Table | `table-view.js`, `table-session.js` (25-to-1 initiative ruler; popout image, ordered names, current turn, 3D dice). Not the map player window. |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
 | Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |
 | Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
