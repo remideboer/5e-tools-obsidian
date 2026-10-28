@@ -1,5 +1,6 @@
 import {expectedDamage, spellAtSlot, takeHighestSlot} from "./dpr-calc.js";
 import {rollDice} from "./dice-roll.js";
+import {xpFromCr} from "./encounter-difficulty.js";
 
 const COLS = 10;
 const ROWS = 8;
@@ -15,16 +16,19 @@ export function createFight (party, enemies) {
 		actor.init = roll.total ?? 0;
 	}
 	actors.sort((a, b) => b.init - a.init || (a.side === "party" ? -1 : 1));
-	return {
+	const fight = {
 		actors,
 		order: actors.map(actor => actor.id),
 		round: 1,
 		cursor: 0,
 		over: false,
+		xp: 0,
 		log: [],
 		cols: COLS,
 		rows: ROWS,
 	};
+	log(fight, null, `Initiative: ${actors.map(actor => `${actor.name} ${actor.init}`).join(", ")}.`);
+	return fight;
 }
 
 export function stepTurn (fight) {
@@ -38,7 +42,7 @@ export function stepTurn (fight) {
 	let actor = null;
 	while (guard < fight.order.length) {
 		actor = fight.actors.find(it => it.id === fight.order[fight.cursor]);
-		if (actor && actor.hp > 0) break;
+		if (actor && !isGone(actor)) break;
 		actor = null;
 		advance(fight);
 		guard++;
@@ -85,7 +89,10 @@ export function summarize (fight) {
 		rounds: fight?.rounds || fight?.round || 0,
 		damage,
 		healing,
-		dropped: actors.filter(actor => actor.hp <= 0).map(actor => actor.name),
+		xp: partyXp(fight),
+		share: partyShare(fight),
+		alive: actors.filter(actor => !isGone(actor)).map(actor => actor.name),
+		dead: actors.filter(isGone).map(actor => actor.name),
 		actors: actors.map(actor => ({
 			name: actor.name,
 			side: actor.side,
@@ -94,6 +101,9 @@ export function summarize (fight) {
 			hits: actor.hits,
 			hp: Math.max(0, Math.round(actor.hp)),
 			max: actor.max,
+			dead: isGone(actor),
+			dying: !!actor.dying,
+			stable: !!actor.stable,
 		})),
 	};
 }
@@ -112,6 +122,7 @@ export function combineReports (reports) {
 		rounds: stat(report => report.rounds),
 		damage: stat(report => report.damage),
 		healing: stat(report => report.healing),
+		xp: stat(report => report.xp),
 		actors: names.map(name => ({
 			name,
 			damage: stat(report => report.actors.find(actor => actor.name === name)?.damage || 0),
@@ -136,9 +147,14 @@ function actorsFrom (list, side) {
 		extraSwings: Math.max(1, Number(actor.extraSwings) || 1),
 		characterLevel: Number(actor.characterLevel) || 1,
 		pool: (actor.pool || []).map(slot => ({level: slot.level, pact: !!slot.pact})),
+		cr: actor.cr || "",
 		x: 0,
 		y: 0,
 		conditions: new Set(),
+		dead: false,
+		dying: false,
+		stable: false,
+		saves: {success: 0, fail: 0},
 		dealt: 0,
 		healed: 0,
 		hits: 0,
@@ -155,6 +171,14 @@ function place (group, col, actors) {
 }
 
 function takeTurn (fight, actor) {
+	if (actor.side === "party" && actor.hp <= 0) {
+		if (actor.stable) {
+			log(fight, actor, `${actor.name} is stable at 0 hit points and skips the turn.`);
+			return;
+		}
+		rollDeathSave(fight, actor);
+		return;
+	}
 	if (actor.conditions.has("stunned") || actor.conditions.has("paralyzed")) {
 		log(fight, actor, `${actor.name} is ${actor.conditions.has("paralyzed") ? "paralyzed" : "stunned"} and skips the turn.`);
 		return;
@@ -187,7 +211,7 @@ function bestOption (actor, actors, slot, blockLeveled) {
 function scoreOption (actor, option, actors) {
 	const range = optionRange(option);
 	const foes = actors.filter(it => it.side !== actor.side && it.hp > 0);
-	const friends = actors.filter(it => it.side === actor.side && it.hp > 0 && it.hp < it.max);
+	const friends = actors.filter(it => it.side === actor.side && !isGone(it) && it.hp < it.max);
 	const goals = option.kind === "heal" ? friends : foes;
 	if (!goals.length) return null;
 	let best = null;
@@ -225,8 +249,11 @@ function optionScore (option, actor, target, range) {
 }
 
 function resolveChoice (fight, actor, choice) {
+	const from = {x: actor.x, y: actor.y};
 	actor.x = choice.cell.x;
 	actor.y = choice.cell.y;
+	const moved = feetBetween(from, actor);
+	if (moved > 0) log(fight, actor, `${actor.name} moves ${moved} ft.`);
 	let cast = choice.option;
 	if (isLeveled(cast)) {
 		const slot = takeHighestSlot(actor.pool, cast.level);
@@ -240,8 +267,10 @@ function resolveChoice (fight, actor, choice) {
 	const times = !cast.spell && cast.activation !== "bonus" && !cast.repeats ? actor.extraSwings : 1;
 	for (let n = 0; n < times; n++) {
 		for (const swing of list) {
-			const target = choice.targets.find(it => it.hp > 0) || choice.targets[0];
-			if (!target || target.hp <= 0) break;
+			const target = swing.kind === "heal"
+				? choice.targets.find(it => !isGone(it) && it.hp < it.max)
+				: choice.targets.find(it => it.hp > 0);
+			if (!target) break;
 			applyCast(fight, actor, swing, target, range, choice.targets);
 		}
 	}
@@ -251,11 +280,12 @@ function applyCast (fight, actor, cast, target, range, area) {
 	const mode = attackMode(actor, target, range.melee);
 	if (cast.kind === "heal") {
 		const amount = rollAmount(cast, false);
-		const ally = [...area].filter(it => it.hp > 0 && it.hp < it.max).sort((a, b) => a.hp - b.hp)[0] || target;
+		const ally = [...area].filter(it => !isGone(it) && it.hp < it.max).sort((a, b) => a.hp - b.hp)[0] || target;
 		const before = ally.hp;
 		ally.hp = Math.min(ally.max, ally.hp + amount);
 		actor.healed += ally.hp - before;
-		log(fight, actor, `${actor.name} heals ${ally.name} for ${amount} (${ally.hp}/${ally.max}).`);
+		log(fight, actor, `${actor.name} heals ${ally.name} with ${cast.name} for ${amount} (${Math.round(ally.hp)}/${ally.max}).`);
+		wake(ally);
 		return;
 	}
 	if (cast.kind === "save" || cast.kind === "auto") {
@@ -263,16 +293,16 @@ function applyCast (fight, actor, cast, target, range, area) {
 		const amount = rollAmount(cast, false);
 		for (const victim of victims) {
 			if (cast.kind === "auto") {
-				hurt(actor, victim, amount);
-				log(fight, actor, `${actor.name} hits ${victim.name} for ${amount}.`);
+				hurt(fight, actor, victim, amount, false);
+				log(fight, actor, `${actor.name} hits ${victim.name} with ${cast.name} for ${amount}.`);
 				continue;
 			}
 			const save = rollD20(victim.saveBonus, "normal");
 			const failed = save.nat === 1 || (save.nat !== 20 && save.total < (cast.dc || 10));
 			const dealt = failed ? amount : Math.floor(amount / 2);
-			hurt(actor, victim, dealt);
+			hurt(fight, actor, victim, dealt, false);
 			const named = failed ? applyCondition(victim, cast) : "";
-			log(fight, actor, `${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${save.total}) and takes ${dealt}${named}.`);
+			log(fight, actor, `${actor.name} casts ${cast.name}. ${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${save.total}) and takes ${dealt}${named}.`);
 		}
 		return;
 	}
@@ -281,18 +311,102 @@ function applyCast (fight, actor, cast, target, range, area) {
 	const crit = attack.nat === 20 || (autoCrit && attack.nat !== 1 && attack.total >= target.ac);
 	const hit = attack.nat !== 1 && (attack.nat === 20 || attack.total >= target.ac);
 	if (!hit) {
-		log(fight, actor, `${actor.name} misses ${target.name} (${attack.total} vs AC ${target.ac}).`);
+		log(fight, actor, `${actor.name} misses ${target.name} with ${cast.name} (${attack.total} vs AC ${target.ac}).`);
 		return;
 	}
 	const amount = rollAmount(cast, crit);
-	hurt(actor, target, amount);
+	hurt(fight, actor, target, amount, crit);
 	actor.hits += 1;
-	log(fight, actor, `${actor.name} ${crit ? "crits" : "hits"} ${target.name} (${attack.total}) for ${amount}.`);
+	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${amount}${crit ? " (critical)" : ""}.`);
 }
 
-function hurt (actor, target, amount) {
+function hurt (fight, actor, target, amount, crit) {
+	if (target.side === "party" && target.hp <= 0 && !target.dead) {
+		actor.dealt += amount;
+		addDeathFail(fight, target, crit ? 2 : 1);
+		return;
+	}
 	target.hp = Math.max(0, target.hp - amount);
 	actor.dealt += amount;
+	if (target.hp > 0) return;
+	if (target.side === "enemy") markDead(fight, target);
+	else knockOut(fight, target);
+}
+
+function knockOut (fight, target) {
+	target.hp = 0;
+	target.dying = true;
+	target.stable = false;
+	target.dead = false;
+	target.saves = {success: 0, fail: 0};
+	log(fight, target, `${target.name} falls unconscious and is dying.`);
+}
+
+function markDead (fight, target) {
+	if (target.dead) return;
+	target.hp = 0;
+	target.dead = true;
+	target.dying = false;
+	target.stable = false;
+	if (target.side === "enemy" && !target.xpGiven) {
+		target.xpGiven = true;
+		fight.xp += xpFromCr(target.cr);
+	}
+	log(fight, target, `${target.name} dies.`);
+}
+
+function addDeathFail (fight, target, count) {
+	target.saves.fail += count;
+	log(fight, target, `${target.name} takes damage while dying (${count === 2 ? "two failures" : "a failure"}).`);
+	if (target.saves.fail >= 3) markDead(fight, target);
+}
+
+function rollDeathSave (fight, actor) {
+	const roll = rollDice("1d20");
+	const nat = roll.total || 1;
+	if (nat === 20) {
+		actor.hp = 1;
+		actor.dying = false;
+		actor.stable = false;
+		actor.saves = {success: 0, fail: 0};
+		log(fight, actor, `${actor.name} rolls a death save: 20. ${actor.name} wakes with 1 hit point.`);
+		return;
+	}
+	if (nat === 1) actor.saves.fail += 2;
+	else if (nat >= 10) actor.saves.success += 1;
+	else actor.saves.fail += 1;
+	const mark = nat >= 10 ? "success" : "failure";
+	log(fight, actor, `${actor.name} rolls a death save: ${nat} (${mark}). ${actor.saves.success} successes, ${actor.saves.fail} failures.`);
+	if (actor.saves.success >= 3) {
+		actor.dying = false;
+		actor.stable = true;
+		log(fight, actor, `${actor.name} is stable at 0 hit points.`);
+	}
+	if (actor.saves.fail >= 3) markDead(fight, actor);
+}
+
+function wake (actor) {
+	if (actor.hp <= 0 || actor.dead) return;
+	actor.dying = false;
+	actor.stable = false;
+	actor.saves = {success: 0, fail: 0};
+}
+
+function isGone (actor) {
+	return !!actor?.dead || (actor?.side === "enemy" && actor.hp <= 0);
+}
+
+function partyXp (fight) {
+	const party = (fight?.actors || []).filter(actor => actor.side === "party");
+	if (!party.length || party.every(actor => actor.dead)) return 0;
+	return fight?.xp || 0;
+}
+
+function partyShare (fight) {
+	const survivors = (fight?.actors || []).filter(actor => actor.side === "party" && !actor.dead);
+	const xp = partyXp(fight);
+	if (!survivors.length || !xp) return 0;
+	return Math.floor(xp / survivors.length);
 }
 
 function applyCondition (target, cast) {
@@ -386,7 +500,7 @@ function isLeveled (option) {
 }
 
 function sideLiving (fight, side) {
-	return fight.actors.some(actor => actor.side === side && actor.hp > 0);
+	return fight.actors.some(actor => actor.side === side && !isGone(actor));
 }
 
 function advance (fight) {
@@ -399,7 +513,6 @@ function advance (fight) {
 
 function log (fight, actor, text) {
 	fight.log.push({round: fight.round, name: actor?.name || "", text});
-	if (fight.log.length > 80) fight.log.shift();
 }
 
 function signed (mod) {

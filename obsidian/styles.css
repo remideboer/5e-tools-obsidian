@@ -2083,12 +2083,38 @@ a.fiveetools-inline-link {
 	border-top: 1px solid var(--background-modifier-border);
 }
 
+.fiveetools-dpr__sim-controls {
+	flex-wrap: wrap;
+}
+
+.fiveetools-dpr__stage {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+}
+
 .fiveetools-dpr__board {
 	display: grid;
 	gap: 2px;
 	width: min(100%, 420px);
+	flex: 1 1 280px;
 	margin: 8px 0;
 }
+
+.fiveetools-dpr__roster {
+	flex: 0 1 220px;
+	min-width: 160px;
+	font-size: 12px;
+}
+
+.fiveetools-dpr__roster-row {
+	padding: 4px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-dpr__roster-row.is-active { font-weight: 700; }
+
+.fiveetools-dpr__token.is-dead { opacity: 0.35; }
 
 .fiveetools-dpr__cell {
 	aspect-ratio: 1;
@@ -2132,7 +2158,7 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-dpr__log {
-	max-height: 9em;
+	max-height: 16em;
 	overflow: auto;
 	font-size: 12px;
 }

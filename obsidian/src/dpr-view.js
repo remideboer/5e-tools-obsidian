@@ -29,6 +29,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 	listEl.addClass("fiveetools-dpr");
 	readerEl?.empty();
 	readerEl?.addClass("fiveetools-dpr-reader");
+	stopSimTimer(plugin);
 
 	const state = {
 		characterId: String(session.characterId || ""),
@@ -112,6 +113,7 @@ export function renderDprTool (listEl, readerEl, {plugin, session = {}, onSessio
 		const token = ++state.token;
 		resultsEl.empty();
 		resultsEl.createEl("p", {cls: "fiveetools-view__meta", text: "Reading spells…"});
+		stopSimTimer(plugin);
 		state.fight = null;
 		state.reports = [];
 		const sheets = {};
@@ -786,16 +788,25 @@ function paintSim (host, state, plugin) {
 	host.createEl("h3", {text: "Simulation"});
 	host.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Dice and a 5-foot grid. Each creature uses its best option, not the checkboxes. Step a turn or a round, or run several fights.",
+		text: "Dice and a 5-foot grid. Each creature uses its best option, not the checkboxes. Run plays a fight from the start. Auto steps one creature at a time.",
 	});
-	const row = host.createDiv({cls: "fiveetools-dpr__row"});
+	const row = host.createDiv({cls: "fiveetools-dpr__row fiveetools-dpr__sim-controls"});
 	const count = row.createEl("input", {attr: {type: "number", min: "1", max: "20", value: String(state.simCount || 1)}});
 	count.addEventListener("change", () => { state.simCount = clamp(count.value, 1, 20, 1); });
 	const refresh = () => paintSim(host, state, plugin);
-	simButton(row, "Step turn", () => { beginFight(state, plugin); stepTurn(state.fight); refresh(); });
-	simButton(row, "Step round", () => { beginFight(state, plugin); stepRound(state.fight); refresh(); });
-	simButton(row, "Run", () => { beginFight(state, plugin); runFight(state.fight); state.reports = [summarize(state.fight)]; refresh(); });
+	simButton(row, "Reset", () => { resetFight(state, plugin); refresh(); });
+	simButton(row, "Step turn", () => { stopSimTimer(plugin); beginFight(state, plugin); stepTurn(state.fight); refresh(); });
+	simButton(row, "Step round", () => { stopSimTimer(plugin); beginFight(state, plugin); stepRound(state.fight); refresh(); });
+	simButton(row, "Auto", () => startAuto(host, state, plugin));
+	simButton(row, "Run", () => {
+		stopSimTimer(plugin);
+		state.fight = createFight(...simSides(state, plugin));
+		runFight(state.fight);
+		state.reports = [summarize(state.fight)];
+		refresh();
+	});
 	simButton(row, "Run N", () => {
+		stopSimTimer(plugin);
 		const n = clamp(count.value, 1, 20, 1);
 		const reports = [];
 		let last = null;
@@ -808,9 +819,42 @@ function paintSim (host, state, plugin) {
 		state.reports = reports;
 		refresh();
 	});
+	if (plugin._dprSimTimer) row.createEl("span", {cls: "fiveetools-view__meta", text: "Auto"});
 	paintBoard(host, state.fight);
 	paintLog(host, state.fight);
 	paintReport(host, state.reports, state.fight);
+}
+
+function resetFight (state, plugin) {
+	stopSimTimer(plugin);
+	state.fight = createFight(...simSides(state, plugin));
+	state.reports = [];
+}
+
+function startAuto (host, state, plugin) {
+	stopSimTimer(plugin);
+	if (!state.fight || state.fight.over) resetFight(state, plugin);
+	plugin._dprSimTimer = setInterval(() => {
+		if (!state.fight || state.fight.over) {
+			stopSimTimer(plugin);
+			if (state.fight?.over) state.reports = [summarize(state.fight)];
+			paintSim(host, state, plugin);
+			return;
+		}
+		stepTurn(state.fight);
+		if (state.fight.over) {
+			state.reports = [summarize(state.fight)];
+			stopSimTimer(plugin);
+		}
+		paintSim(host, state, plugin);
+	}, 800);
+	paintSim(host, state, plugin);
+}
+
+function stopSimTimer (plugin) {
+	if (!plugin?._dprSimTimer) return;
+	clearInterval(plugin._dprSimTimer);
+	plugin._dprSimTimer = null;
 }
 
 function beginFight (state, plugin) {
@@ -851,6 +895,7 @@ function simEnemies (state) {
 			image: creature.image || "",
 			options: enemyOptions(creature.attacks),
 			extraSwings: 1,
+			cr: creature.cr || "",
 			saveBonus: crProfile(creature.cr)?.save || 0,
 		}));
 	}
@@ -868,6 +913,7 @@ function simEnemies (state) {
 		image: "",
 		options: [option],
 		extraSwings: 1,
+		cr: profile.cr,
 		saveBonus: profile.save,
 	}));
 }
@@ -889,7 +935,8 @@ function enemyOptions (attacks) {
 }
 
 function paintBoard (host, fight) {
-	const board = host.createDiv({cls: "fiveetools-dpr__board"});
+	const stage = host.createDiv({cls: "fiveetools-dpr__stage"});
+	const board = stage.createDiv({cls: "fiveetools-dpr__board"});
 	if (!fight) {
 		board.createEl("p", {cls: "fiveetools-view__meta", text: "Step or run to place tokens."});
 		return;
@@ -899,14 +946,44 @@ function paintBoard (host, fight) {
 	for (let y = 0; y < fight.rows; y++) {
 		for (let x = 0; x < fight.cols; x++) {
 			const cell = board.createDiv({cls: "fiveetools-dpr__cell"});
-			const actor = fight.actors.find(it => it.x === x && it.y === y && it.hp > 0);
+			const actor = fight.actors.find(it => it.x === x && it.y === y);
 			if (!actor) continue;
-			const token = cell.createDiv({cls: `fiveetools-dpr__token${actor.side === "enemy" ? " is-enemy" : ""}${next && next.id === actor.id ? " is-active" : ""}`});
+			const dead = actor.dead || (actor.side === "enemy" && actor.hp <= 0);
+			const token = cell.createDiv({cls: `fiveetools-dpr__token${actor.side === "enemy" ? " is-enemy" : ""}${dead ? " is-dead" : ""}${next && next.id === actor.id ? " is-active" : ""}`});
 			if (actor.image) token.createEl("img", {attr: {src: actor.image, alt: actor.name}});
 			else token.createSpan({text: actor.name.slice(0, 1)});
 			token.createEl("span", {cls: "fiveetools-dpr__hp", text: String(Math.max(0, Math.round(actor.hp)))});
 		}
 	}
+	paintRoster(stage, fight, next);
+}
+
+function paintRoster (host, fight, next) {
+	const roster = host.createDiv({cls: "fiveetools-dpr__roster"});
+	roster.createEl("h4", {text: `Round ${fight.round}`});
+	for (const actor of fight.actors.filter(it => it.side === "party")) {
+		const line = roster.createDiv({cls: `fiveetools-dpr__roster-row${next && next.id === actor.id ? " is-active" : ""}`});
+		line.createDiv({cls: "fiveetools-dpr__actor-name", text: actor.name});
+		line.createDiv({text: rosterStatus(actor)});
+		const slots = slotText(actor.pool);
+		if (slots) line.createDiv({cls: "fiveetools-view__meta", text: slots});
+	}
+}
+
+function rosterStatus (actor) {
+	if (actor.dead) return "Dead";
+	if (actor.stable) return "Stable 0";
+	if (actor.dying) return `Dying ${actor.saves?.success || 0} success, ${actor.saves?.fail || 0} fail`;
+	return `HP ${Math.round(actor.hp)}/${actor.max}`;
+}
+
+function slotText (pool) {
+	const counts = new Map();
+	for (const slot of pool || []) counts.set(slot.level, (counts.get(slot.level) || 0) + 1);
+	return [...counts.entries()]
+		.sort((a, b) => a[0] - b[0])
+		.map(([level, count]) => `${ordinal(level)} ${count}`)
+		.join(" · ");
 }
 
 function paintLog (host, fight) {
@@ -915,7 +992,7 @@ function paintLog (host, fight) {
 		log.createEl("p", {cls: "fiveetools-view__meta", text: "No actions yet."});
 		return;
 	}
-	for (const line of fight.log.slice(-12)) {
+	for (const line of fight.log) {
 		log.createEl("p", {text: `R${line.round} ${line.text}`});
 	}
 }
@@ -930,10 +1007,17 @@ function paintReport (host, reports, fight) {
 	statTile(stats, "Rounds", many ? rangeText(summary.rounds) : String(summary.rounds || "—"));
 	statTile(stats, "Damage", many ? rangeText(summary.damage) : formatNum(summary.damage));
 	statTile(stats, "Healing", many ? rangeText(summary.healing) : formatNum(summary.healing));
-	const dropped = many ? "" : (summary.dropped || []).join(", ");
-	if (dropped) card.createEl("p", {text: `Down: ${dropped}`});
-	const rows = many ? summary.actors : summary.actors;
-	if (!rows?.length) return;
+	statTile(stats, "XP", many ? rangeText(summary.xp) : (summary.xp ? `${summary.xp} (${summary.share} each)` : "0"));
+	if (!many) {
+		const actors = summary.actors || [];
+		reportGroup(card, "Characters alive", actors.filter(actor => actor.side === "party" && !actor.dead));
+		reportGroup(card, "Characters dead", actors.filter(actor => actor.side === "party" && actor.dead));
+		reportGroup(card, "Creatures alive", actors.filter(actor => actor.side !== "party" && !actor.dead));
+		reportGroup(card, "Creatures dead", actors.filter(actor => actor.side !== "party" && actor.dead));
+		return;
+	}
+	const rows = many ? summary.actors : [];
+	if (!rows.length) return;
 	for (const actor of rows) {
 		const line = card.createDiv({cls: "fiveetools-dpr__actor"});
 		line.createSpan({cls: "fiveetools-dpr__actor-name", text: actor.name});
@@ -942,6 +1026,20 @@ function paintReport (host, reports, fight) {
 		} else {
 			line.createSpan({text: `${formatNum(actor.damage)} damage · ${formatNum(actor.healing)} healing · ${actor.hits} hits · ${actor.hp}/${actor.max}`});
 		}
+	}
+}
+
+function reportGroup (host, title, actors) {
+	host.createEl("h4", {text: title});
+	if (!actors.length) {
+		host.createEl("p", {cls: "fiveetools-view__meta", text: "None"});
+		return;
+	}
+	for (const actor of actors) {
+		const line = host.createDiv({cls: "fiveetools-dpr__actor"});
+		line.createSpan({cls: "fiveetools-dpr__actor-name", text: actor.name});
+		const state = actor.dying ? "dying" : actor.stable ? "stable" : actor.dead ? "dead" : `${actor.hp}/${actor.max}`;
+		line.createSpan({text: `${actor.side === "party" ? "Character" : "Creature"} · ${state} · ${formatNum(actor.damage)} damage · ${formatNum(actor.healing)} healing`});
 	}
 }
 
