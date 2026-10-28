@@ -140,6 +140,8 @@ export class FiveEToolsLibraryView extends ItemView {
 		this._closeFilterMenus = () => closeLibraryFilterMenus(this.filterEl);
 		this.contentEl.addEventListener("click", this._closeFilterMenus);
 		this.listEl = this.listColEl.createDiv({cls: "fiveetools-library__list"});
+		this._onListArrow = (evt) => this.onListArrow(evt);
+		this.contentEl.addEventListener("keydown", this._onListArrow);
 		this.readerEl = this.contentEl.createDiv({cls: "fiveetools-library__reader fiveetools-view"});
 		this.applyFolds();
 
@@ -206,6 +208,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	async onClose () {
+		if (this._onListArrow) this.contentEl.removeEventListener("keydown", this._onListArrow);
 		if (this._closeFilterMenus) this.contentEl.removeEventListener("click", this._closeFilterMenus);
 		teardownCampaignManager(this.plugin);
 		teardownMapView(this.plugin, {closePlayer: true});
@@ -706,6 +709,29 @@ export class FiveEToolsLibraryView extends ItemView {
 			paintLibraryRow(row, doc);
 			row.addEventListener("click", () => this.navigateToDoc(doc));
 		}
+	}
+
+	onListArrow (evt) {
+		if (evt.key !== "ArrowUp" && evt.key !== "ArrowDown") return;
+		if (!this.listColEl?.contains(evt.target)) return;
+		const tag = evt.target?.tagName;
+		if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || evt.target?.isContentEditable) return;
+		const selector = ".fiveetools-library__row, .fiveetools-homebrew__hit, .fiveetools-rolltables__hit";
+		const focused = evt.target?.closest?.(selector);
+		const root = focused?.parentElement || this.listEl;
+		const rows = [...(root?.querySelectorAll(selector) || [])];
+		if (!rows.length) return;
+		evt.preventDefault();
+		const current = rows.findIndex(row => row.classList.contains("is-selected"));
+		let next = current;
+		if (evt.key === "ArrowDown") next = current < 0 ? 0 : Math.min(rows.length - 1, current + 1);
+		else next = current < 0 ? rows.length - 1 : Math.max(0, current - 1);
+		const row = rows[next];
+		if (!row || next === current) return;
+		const libraryRows = rows.every(item => item.classList.contains("fiveetools-library__row"));
+		if (libraryRows && this.docs?.length === rows.length) void this.openDoc(this.docs[next]);
+		else row.click();
+		row.scrollIntoView({block: "nearest"});
 	}
 
 	async openDoc (doc) {
