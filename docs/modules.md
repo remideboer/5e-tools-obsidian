@@ -10,7 +10,8 @@ The plugin is mostly **ESM functions**, not a class hierarchy. Views subclass Ob
 | `FiveEToolsLibraryView` | `library-view.js` | Main UI: nav, list, tools (map, loot, …) |
 | `FiveEToolsView` | `entity-view.js` | Entity preview leaf |
 | `FiveEToolsMapPlayerView` | `map-view.js` | Player popout; owns `frame` canvas |
-| View type ids | `constants.js` | `fiveetools-library`, `fiveetools-preview`, `fiveetools-map-player` |
+| `FiveEToolsTableView` | `table-view.js` | Table popout; image background, initiative overlay |
+| View type ids | `constants.js` | `fiveetools-library`, `fiveetools-preview`, `fiveetools-map-player`, `fiveetools-table` |
 
 ## Area map
 
@@ -86,7 +87,8 @@ flowchart TB
 | DPR | `dpr-view.js`, `dpr-calc.js` (expected damage charts; spell and attack checkboxes) |
 | Simulation | `sim-view.js`, `dpr-sim.js`, `dpr-ai.js` (dice fight; party and encounter controls; class tactics, Disengage, movement, Wild Shape, and damage adjustments) |
 | DM screen | `dm-screen-view.js`, `dm-screen-store.js` (pins, homebrew, campaign notes, encounter card, quick refs, roll tables; `{notesFolder}/_dmscreen/board.json`) |
-| Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js`; Tools → Dice roller via `dice-roller-view.js` + `dice-icons.js` (polyhedral tap-to-roll, adv/disadv) |
+| Dice | `dice-roll.js`, `dice-3d.js`, `dice-3d-lib.js`; Tools → Dice roller via `dice-roller-view.js` + `dice-icons.js` (polyhedral tap-to-roll, adv/disadv). Non-private rolls also play on the Table popout. |
+| Table | `table-view.js`, `table-session.js` (DM roster; popout image, grouped initiative, 3D dice). Not the map player window. |
 | Homebrew | `homebrew-view.js`, `homebrew-store.js` |
 | Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |
 | Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |

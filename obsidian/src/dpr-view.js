@@ -27,6 +27,7 @@ import {
 import {resolveTokenImage} from "./image-resolver.js";
 import {loadEntity} from "./entity-loader.js";
 import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
+import {initiativeFromEnt, kindKey} from "./encounter-view.js";
 import {ensureSearchIndex, findEditionDoc, listEntities} from "./search-index.js";
 import {ensureMonsterMeta, getMonsterMeta} from "./bestiary-meta.js";
 import {getParser} from "./fiveetools-host.js";
@@ -163,6 +164,7 @@ export async function encounterCreatures (plugin, encounterId) {
 		let saveMods = null;
 		let type = "";
 		let traits = null;
+		let initMod = null;
 		try {
 			const ent = combatant.ent || (combatant.doc ? (await loadEntity(combatant.doc))?.ent : null);
 			attacks = creatureTurn(ent);
@@ -170,6 +172,7 @@ export async function encounterCreatures (plugin, encounterId) {
 			saveMods = ent ? creatureSaves(ent) : null;
 			type = creatureType(ent);
 			traits = ent ? combatTraits(ent) : null;
+			initMod = initiativeFromEnt(ent);
 			const token = ent ? resolveTokenImage(ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl}) : null;
 			image = token?.url || "";
 			const walk = ent?.speed?.walk ?? ent?.speed;
@@ -189,6 +192,8 @@ export async function encounterCreatures (plugin, encounterId) {
 			saveMods,
 			type,
 			traits,
+			kind: kindKey({doc: combatant.doc, label: combatant.label, ent: combatant.ent}),
+			initMod: Number.isFinite(initMod) ? initMod : 2,
 		});
 	}
 	return creatures;

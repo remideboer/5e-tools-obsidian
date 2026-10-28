@@ -1,5 +1,5 @@
 import {Notice, Platform, Plugin} from "obsidian";
-import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY, VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./src/constants.js";
+import {DEFAULT_SETTINGS, VIEW_TYPE_FIVEETOOLS, VIEW_TYPE_FIVEETOOLS_LIBRARY, VIEW_TYPE_FIVEETOOLS_MAP_PLAYER, VIEW_TYPE_FIVEETOOLS_TABLE} from "./src/constants.js";
 import {FiveEToolsView} from "./src/entity-view.js";
 import {configureFiveEToolsRoot, setStyleHint} from "./src/fiveetools-host.js";
 import {ICON_ID, registerFiveEToolsIcon} from "./src/icon.js";
@@ -14,6 +14,7 @@ import {FiveEToolsSettingTab} from "./src/settings.js";
 import {registerLinkSuggest} from "./src/link-suggest.js";
 import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
 import {FiveEToolsMapPlayerView, teardownMapView, toggleMapPlayerZoomFreeze} from "./src/map-view.js";
+import {FiveEToolsTableView} from "./src/table-view.js";
 import {registerHeicImport} from "./src/heic-import.js";
 
 export default class FiveEToolsPlugin extends Plugin {
@@ -39,6 +40,10 @@ export default class FiveEToolsPlugin extends Plugin {
 		this.registerView(
 			VIEW_TYPE_FIVEETOOLS_MAP_PLAYER,
 			(leaf) => new FiveEToolsMapPlayerView(leaf, this),
+		);
+		this.registerView(
+			VIEW_TYPE_FIVEETOOLS_TABLE,
+			(leaf) => new FiveEToolsTableView(leaf, this),
 		);
 
 		this.addCommand({

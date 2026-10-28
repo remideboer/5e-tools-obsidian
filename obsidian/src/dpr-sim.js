@@ -12,11 +12,7 @@ export function createFight (party, enemies) {
 	const actors = [];
 	place(actorsFrom(party, "party"), 1, actors);
 	place(actorsFrom(enemies, "enemy"), 6, actors);
-	for (const actor of actors) {
-		const roll = rollDice(`1d20${signed(actor.initMod)}`);
-		actor.init = roll.total ?? 0;
-	}
-	actors.sort((a, b) => b.init - a.init || (a.side === "party" ? -1 : 1));
+	for (const actor of actors) actor.init = null;
 	const fight = {
 		actors,
 		order: actors.map(actor => actor.id),
@@ -27,9 +23,91 @@ export function createFight (party, enemies) {
 		log: [],
 		cols: COLS,
 		rows: ROWS,
+		initiativeRolled: false,
 	};
-	log(fight, null, `Initiative: ${actors.map(actor => `${actor.name} ${actor.init}`).join(", ")}.`);
 	return fight;
+}
+
+export function rollFightInitiative (fight, style) {
+	if (!fight || fight.initiativeRolled) return fight;
+	if (style === "players") orderPlayersFirst(fight);
+	else orderRolled(fight);
+	fight.cursor = 0;
+	fight.initiativeRolled = true;
+	log(fight, null, `Initiative: ${fight.order.map(id => {
+		const actor = fight.actors.find(it => it.id === id);
+		return actor ? `${actor.name} ${actor.init}` : "";
+	}).filter(Boolean).join(", ")}.`);
+	return fight;
+}
+
+function kindOf (actor) {
+	if (actor.side === "party") return actor.id;
+	return actor.kind || String(actor.name || "").replace(/\s+\d+$/, "").trim().toLowerCase() || actor.id;
+}
+
+function groupLabel (actor) {
+	if (actor.side === "party") return actor.name;
+	return String(actor.name || "Creature").replace(/\s+\d+$/, "").trim() || actor.name;
+}
+
+function initRoll (actor) {
+	const roll = rollDice(`1d20${signed(actor.initMod)}`);
+	return roll.total ?? 0;
+}
+
+function orderRolled (fight) {
+	const rolled = new Map();
+	for (const actor of fight.actors) {
+		const key = kindOf(actor);
+		if (!rolled.has(key)) rolled.set(key, initRoll(actor));
+		actor.init = rolled.get(key);
+	}
+	const order = [...fight.actors].sort((a, b) => {
+		if (b.init !== a.init) return b.init - a.init;
+		if (a.side !== b.side) return a.side === "party" ? -1 : 1;
+		return 0;
+	});
+	fight.order = order.map(actor => actor.id);
+}
+
+function orderPlayersFirst (fight) {
+	for (const actor of fight.actors) actor.init = 10 + (Number(actor.initMod) || 0);
+	const party = orderSide(fight, fight.actors.filter(actor => actor.side === "party"), false);
+	const enemies = orderSide(fight, fight.actors.filter(actor => actor.side !== "party"), true);
+	fight.order = [...party, ...enemies].map(actor => actor.id);
+}
+
+function orderSide (fight, actors, group) {
+	const sorted = [...actors].sort((a, b) => (Number(b.initMod) || 0) - (Number(a.initMod) || 0));
+	const out = [];
+	let index = 0;
+	while (index < sorted.length) {
+		let end = index + 1;
+		while (end < sorted.length && (Number(sorted[end].initMod) || 0) === (Number(sorted[index].initMod) || 0)) end += 1;
+		const run = sorted.slice(index, end);
+		const keys = [...new Set(run.map(actor => group ? kindOf(actor) : actor.id))];
+		if (keys.length > 1) {
+			const rolls = new Map();
+			for (const actor of run) {
+				const key = group ? kindOf(actor) : actor.id;
+				if (!rolls.has(key)) rolls.set(key, initRoll(actor));
+			}
+			run.sort((a, b) => (rolls.get(group ? kindOf(b) : b.id) || 0) - (rolls.get(group ? kindOf(a) : a.id) || 0));
+			const seen = new Set();
+			const names = [];
+			for (const actor of run) {
+				const key = group ? kindOf(actor) : actor.id;
+				if (seen.has(key)) continue;
+				seen.add(key);
+				names.push(`${groupLabel(actor)} ${rolls.get(key)}`);
+			}
+			log(fight, null, `Initiative tie: ${names.join(", ")}.`);
+		}
+		out.push(...run);
+		index = end;
+	}
+	return out;
 }
 
 export function stepTurn (fight) {
@@ -220,7 +298,8 @@ function actorsFrom (list, side) {
 		hp: Math.max(1, Number(actor.max ?? actor.hp) || 1),
 		max: Math.max(1, Number(actor.max ?? actor.hp) || 1),
 		speed: Math.max(5, Number(actor.speed) || 30),
-		initMod: Number(actor.initMod) || 0,
+		initMod: Number.isFinite(Number(actor.initMod)) ? Number(actor.initMod) : 0,
+		kind: String(actor.kind || ""),
 		saveBonus: Number(actor.saveBonus) || 0,
 		image: actor.image || "",
 		options: (actor.options || []).map(copyOption),

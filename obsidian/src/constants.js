@@ -1,6 +1,7 @@
 export const VIEW_TYPE_FIVEETOOLS = "fiveetools-preview";
 export const VIEW_TYPE_FIVEETOOLS_LIBRARY = "fiveetools-library";
 export const VIEW_TYPE_FIVEETOOLS_MAP_PLAYER = "fiveetools-map-player";
+export const VIEW_TYPE_FIVEETOOLS_TABLE = "fiveetools-table";
 
 export const DEFAULT_SETTINGS = {
 	notesFolder: "5etools",
@@ -43,6 +44,7 @@ export const LIBRARY_NAV = [
 			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
 			{id: "dpr", label: "DPR", tool: "dpr"},
 			{id: "sim", label: "Simulation", tool: "sim"},
+			{id: "table", label: "Table", tool: "table"},
 			{id: "dmscreen", label: "DM screen", tool: "dmscreen"},
 			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
 			{id: "campaign", label: "Campaigns", tool: "campaign"},

@@ -2,6 +2,7 @@ import {fs, path} from "./node-fs.js";
 import {ItemView, Menu, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./constants.js";
 import {ICON_ID} from "./icon.js";
+import {fillTableMenu} from "./table-view.js";
 import {
 	applyWorldTransform,
 	bindMapPointer,
@@ -903,6 +904,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		state.scenePath = sceneVault;
 		revokeImageUrl(image);
 		image = await loadMapImage(app, imageAbs);
+		plugin._mapTableSrc = image?.src || "";
 		if (!image) {
 			edgeColor = "#111";
 			fog = null;
@@ -1321,6 +1323,7 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 					schedule();
 				});
 		});
+		fillTableMenu(plugin, menu, plugin._mapTableSrc || "");
 		menu.showAtMouseEvent(evt);
 	});
 	diagEl.addEventListener("change", () => {

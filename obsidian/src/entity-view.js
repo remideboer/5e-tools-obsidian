@@ -1,6 +1,7 @@
 import {ItemView} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS} from "./constants.js";
 import {renderEntityPanel} from "./entity-reader.js";
+import {bindTableImageMenu} from "./table-view.js";
 
 export class FiveEToolsView extends ItemView {
 	constructor (leaf, plugin) {
@@ -24,6 +25,7 @@ export class FiveEToolsView extends ItemView {
 
 	async onOpen () {
 		this.contentEl.addClass("fiveetools-view");
+		bindTableImageMenu(this.contentEl, this.plugin);
 	}
 
 	async onClose () {

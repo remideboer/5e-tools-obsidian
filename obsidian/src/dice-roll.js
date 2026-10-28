@@ -1,5 +1,6 @@
 import {showDice3d} from "./dice-3d.js";
 import {mapPlayerDocument} from "./map-view.js";
+import {tableDocument} from "./table-session.js";
 
 const POPUP_ID = "fiveetools-roll-popup";
 const POPUP_MS = 4000;
@@ -102,9 +103,14 @@ export function presentRoll (plugin, result) {
 
 function rollDocuments (plugin) {
 	const docs = [document];
-	if (!plugin?.settings?.dicePublic) return docs;
-	const playerDoc = mapPlayerDocument(plugin);
-	if (playerDoc?.body && playerDoc !== document) docs.push(playerDoc);
+	if (plugin?.settings?.dicePublic) {
+		const playerDoc = mapPlayerDocument(plugin);
+		if (playerDoc?.body && playerDoc !== document) docs.push(playerDoc);
+	}
+	if (!plugin?._tableSession?.privateRolls) {
+		const tableDoc = tableDocument(plugin);
+		if (tableDoc?.body && !docs.includes(tableDoc)) docs.push(tableDoc);
+	}
 	return docs;
 }
 

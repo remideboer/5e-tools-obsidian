@@ -1,7 +1,7 @@
 import {setIcon, Notice} from "obsidian";
 import {characterName, listCharacters} from "./character-store.js";
 import {abilityMod, attackFromCr, combatTraits, crOptions, crProfile, creatureSaves, creatureTurn, creatureType, formatNum, normalizeDefenses} from "./dpr-calc.js";
-import {combineReports, createFight, runFight, stepRound, stepTurn, summarize} from "./dpr-sim.js";
+import {combineReports, createFight, rollFightInitiative, runFight, stepRound, stepTurn, summarize} from "./dpr-sim.js";
 import {planTurn} from "./dpr-ai.js";
 import {
 	acOf,
@@ -17,6 +17,7 @@ import {
 	sourcesFor,
 } from "./dpr-view.js";
 import {listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
+import {initiativeFromEnt, kindKey} from "./encounter-view.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
@@ -39,7 +40,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		monsters: clamp(session.monsters, 1, 12, 1),
 		encounterId: String(session.encounterId || ""),
 		simCount: clamp(session.simCount, 1, 20, 1),
-		simPace: simPace(session),
+		initStyle: session.initStyle === "players" ? "players" : "current",
 		encounterGen: 0,
 		characters: [],
 		sheets: {},
@@ -69,6 +70,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 			added: state.added.map(row => ({id: row.id, name: row.name, doc: row.doc})),
 			simCount: state.simCount,
 			simPace: state.simPace,
+			initStyle: initStyle(state),
 		});
 	};
 
@@ -108,9 +110,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		const gen = ++state.encounterGen;
 		state.creatures = await foesFor(state, plugin);
 		if (gen !== state.encounterGen) return;
-		stopSimTimer(plugin);
-		state.fight = null;
-		state.reports = [];
+		placeFight(state, plugin);
 		refresh();
 	}
 
@@ -131,6 +131,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		const gen = ++state.encounterGen;
 		state.creatures = await foesFor(state, plugin);
 		if (gen !== state.encounterGen || token !== state.token) return;
+		placeFight(state, plugin);
 		refresh();
 	}
 }
@@ -175,6 +176,7 @@ async function loadAdded (plugin, added) {
 		let saveMods = null;
 		let type = "";
 		let traits = null;
+		let initMod = null;
 		try {
 			const ent = row.doc ? (await loadEntity(row.doc))?.ent : null;
 			attacks = creatureTurn(ent);
@@ -182,6 +184,7 @@ async function loadAdded (plugin, added) {
 			saveMods = ent ? creatureSaves(ent) : null;
 			type = creatureType(ent);
 			traits = ent ? combatTraits(ent) : null;
+			initMod = initiativeFromEnt(ent);
 			const token = ent ? resolveTokenImage(ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl}) : null;
 			image = token?.url || "";
 			const walk = ent?.speed?.walk ?? ent?.speed;
@@ -204,6 +207,8 @@ async function loadAdded (plugin, added) {
 			saveMods,
 			type,
 			traits,
+			kind: kindKey({doc: row.doc, label: row.name}),
+			initMod: Number.isFinite(initMod) ? initMod : 2,
 		});
 	}
 	return creatures;
@@ -513,6 +518,19 @@ function paintSimControls (host, state, plugin, refresh) {
 	}
 	pace.value = String(simPace(state));
 	pace.addEventListener("change", () => { state.simPace = Number(pace.value) || 800; });
+	const style = row.createDiv({cls: "fiveetools-dpr__init-style"});
+	for (const [value, label] of [["current", "Standard"], ["players", "Players first"]]) {
+		const button = style.createEl("button", {
+			text: label,
+			cls: `fiveetools-btn${initStyle(state) === value ? " is-selected" : ""}`,
+			attr: {type: "button"},
+		});
+		button.addEventListener("click", () => {
+			if (initStyle(state) === value) return;
+			state.initStyle = value;
+			refresh();
+		});
+	}
 	simButton(row, "Reset", () => { resetFight(state, plugin); refresh(); }, state.running);
 	simButton(row, "Step turn", () => { stopSimTimer(plugin); beginFight(state, plugin); stepTurn(state.fight); refresh(); }, state.running);
 	simButton(row, "Step round", () => { stopSimTimer(plugin); beginFight(state, plugin); stepRound(state.fight); refresh(); }, state.running);
@@ -540,7 +558,7 @@ function paintSimControls (host, state, plugin, refresh) {
 				state.runLabel = total === 1 ? "Running the fight…" : `Running ${i + 1} of ${total}`;
 				refresh();
 				await waitFrame();
-				last = createFight(...simSides(state, plugin));
+				last = rollFightInitiative(createFight(...simSides(state, plugin)), initStyle(state));
 				runFight(last);
 				reports.push(summarize(last));
 				state.fight = last;
@@ -561,15 +579,21 @@ function waitFrame () {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-function resetFight (state, plugin) {
+function placeFight (state, plugin) {
 	stopSimTimer(plugin);
-	state.fight = createFight(...simSides(state, plugin));
 	state.reports = [];
+	state.fight = partyRecords(state).length ? createFight(...simSides(state, plugin)) : null;
+}
+
+function resetFight (state, plugin) {
+	placeFight(state, plugin);
+	if (state.fight) rollFightInitiative(state.fight, initStyle(state));
 }
 
 function startAuto (state, plugin, refresh) {
 	stopSimTimer(plugin);
 	if (!state.fight || state.fight.over) resetFight(state, plugin);
+	else rollFightInitiative(state.fight, initStyle(state));
 	plugin._dprSimTimer = setInterval(() => {
 		if (!state.fight || state.fight.over) {
 			stopSimTimer(plugin);
@@ -601,6 +625,10 @@ function simPace (state) {
 	return [400, 800, 1200, 2000, 3000].includes(pace) ? pace : 800;
 }
 
+function initStyle (state) {
+	return state?.initStyle === "players" ? "players" : "current";
+}
+
 export function stopSimTimer (plugin) {
 	if (!plugin?._dprSimTimer) return;
 	clearInterval(plugin._dprSimTimer);
@@ -608,9 +636,11 @@ export function stopSimTimer (plugin) {
 }
 
 function beginFight (state, plugin) {
-	if (state.fight && !state.fight.over) return;
-	state.fight = createFight(...simSides(state, plugin));
-	state.reports = [];
+	if (!state.fight || state.fight.over) {
+		state.fight = createFight(...simSides(state, plugin));
+		state.reports = [];
+	}
+	rollFightInitiative(state.fight, initStyle(state));
 }
 
 function medicineModOf (record) {
@@ -657,7 +687,8 @@ function simEnemies (state) {
 			ac: creature.ac || 10,
 			max: creature.hp || 1,
 			speed: creature.speed || 30,
-			initMod: 2,
+			initMod: Number.isFinite(Number(creature.initMod)) ? Number(creature.initMod) : 2,
+			kind: creature.kind || kindKey({label: creature.name}),
 			image: creature.image || "",
 			options: enemyOptions(creature.attacks),
 			extraSwings: 1,
@@ -681,6 +712,7 @@ function simEnemies (state) {
 		max: profile.hp,
 		speed: 30,
 		initMod: 2,
+		kind: `cr:${profile.cr}`,
 		image: "",
 		options: [option],
 		extraSwings: 1,
@@ -714,7 +746,11 @@ function paintBoard (host, fight) {
 	}
 	const map = stage.createDiv({cls: "fiveetools-dpr__map"});
 	const latest = fight.log.length ? fight.log[fight.log.length - 1].text : "";
-	if (latest) map.createDiv({cls: "fiveetools-dpr__action", text: latest});
+	const banner = map.createDiv({cls: "fiveetools-dpr__action"});
+	if (latest) {
+		banner.setText(latest);
+		banner.setAttr("title", latest);
+	}
 	const board = map.createDiv({cls: "fiveetools-dpr__board"});
 	const current = fight.over ? null : fight.actors.find(actor => actor.id === fight.order[fight.cursor]);
 	board.style.gridTemplateColumns = `repeat(${fight.cols}, 1fr)`;
@@ -730,7 +766,7 @@ function paintBoard (host, fight) {
 			token.createEl("span", {cls: "fiveetools-dpr__hp", text: String(Math.max(0, Math.round(actor.hp)))});
 		}
 	}
-	const target = attackTarget(current, fight.actors);
+	const target = fight.initiativeRolled ? attackTarget(current, fight.actors) : null;
 	if (current && target) paintAttackArrow(board, current, target, fight.cols, fight.rows);
 	paintRoster(stage, fight, current);
 }
@@ -791,7 +827,7 @@ function paintRoster (host, fight, current) {
 		const actor = fight.actors.find(it => it.id === id);
 		if (!actor) continue;
 		const line = roster.createDiv({cls: `fiveetools-dpr__roster-row${current && current.id === actor.id ? " is-active" : ""}`});
-		line.createSpan({cls: "fiveetools-dpr__roster-init", text: String(actor.init)});
+		line.createSpan({cls: "fiveetools-dpr__roster-init", text: actor.init == null ? "—" : String(actor.init)});
 		line.createSpan({cls: "fiveetools-dpr__actor-name", text: actor.name});
 		const slots = actor.side === "party" ? slotText(actor.pool) : "";
 		line.createSpan({cls: "fiveetools-dpr__roster-status", text: `${rosterStatus(actor)}${slots ? `  ${slots}` : ""}`});

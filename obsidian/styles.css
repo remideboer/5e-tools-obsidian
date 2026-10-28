@@ -2159,6 +2159,103 @@ a.fiveetools-inline-link {
 	min-width: 0;
 }
 
+.fiveetools-dpr__init-style {
+	flex: 1 1 100%;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.fiveetools-dpr__init-style .fiveetools-btn.is-selected {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+}
+
+.fiveetools-table__inserts {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px;
+}
+
+.fiveetools-table__inserts h3,
+.fiveetools-table__inserts h4 {
+	margin: 8px 0 0;
+}
+
+.fiveetools-table__board {
+	overflow: auto;
+	padding: 8px;
+	height: 100%;
+}
+
+.fiveetools-table__roster-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.fiveetools-table-player {
+	position: relative;
+	height: 100%;
+	background: #111;
+	overflow: hidden;
+}
+
+.fiveetools-table-player__image {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	background: #111;
+}
+
+.fiveetools-table-player__roster {
+	position: absolute;
+	top: 16px;
+	left: 16px;
+	bottom: 16px;
+	width: min(440px, 46vw);
+	overflow: auto;
+	z-index: 2;
+	padding: 16px 18px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--background-primary) 84%, transparent);
+}
+
+.fiveetools-table-player__roster h2 {
+	margin: 0 0 12px;
+}
+
+.fiveetools-table-player__group {
+	margin-bottom: 14px;
+}
+
+.fiveetools-table-player__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.fiveetools-table-player__name {
+	font-size: 1.5em;
+	font-weight: 700;
+}
+
+.fiveetools-table-player__score {
+	font-size: 2em;
+	font-weight: 800;
+}
+
+.fiveetools-table-player__member {
+	margin-left: 4px;
+	color: var(--text-muted);
+}
+
 .fiveetools-dpr__play {
 	flex: 0 0 auto;
 	display: inline-flex;
@@ -2261,7 +2358,16 @@ a.fiveetools-inline-link {
 	padding: 4px 10px;
 	border-radius: 6px;
 	margin: 0 0 6px;
-	max-width: 100%;
+	width: min(100%, 420px);
+	height: calc(1.3em + 8px);
+	box-sizing: border-box;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.fiveetools-dpr__action:empty {
+	visibility: hidden;
 }
 
 .fiveetools-dpr__board {

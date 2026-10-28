@@ -14,6 +14,7 @@ import {
 } from "./library-row.js";
 import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
+import {bindTableImageMenu, renderTableTool} from "./table-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderDprTool} from "./dpr-view.js";
@@ -143,6 +144,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this._onListArrow = (evt) => this.onListArrow(evt);
 		this.contentEl.addEventListener("keydown", this._onListArrow);
 		this.readerEl = this.contentEl.createDiv({cls: "fiveetools-library__reader fiveetools-view"});
+		bindTableImageMenu(this.contentEl, this.plugin);
 		this.applyFolds();
 
 		if (!await this.plugin.ensureReady()) {
@@ -498,6 +500,14 @@ export class FiveEToolsLibraryView extends ItemView {
 				session: this.plugin._simSession || {},
 				onSessionChange: (next) => { this.plugin._simSession = next; },
 			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "table") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			renderTableTool(this.listEl, this.readerEl, {plugin: this.plugin});
 			this.docs = [];
 			return;
 		}
