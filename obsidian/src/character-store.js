@@ -619,6 +619,20 @@ async function writeAvatar (plugin, id, avatar) {
 	return path;
 }
 
+export async function setCharacterPortrait (plugin, ddbId, avatar) {
+	const id = String(ddbId || "").trim();
+	const record = await readCharacter(plugin, id);
+	if (!record) throw new Error("Character not found.");
+	const avatarPath = await writeAvatar(plugin, id, avatar);
+	const body = String(record.body || "").replace(/^!\[\[[^\]]+\]\]\s*/, "");
+	await writeFile(plugin, record.path, serializeCampaignMarkdown({
+		fields: record.fields,
+		body: `![[${avatarPath}|80]]\n\n${body}`,
+		snapshot: record.snapshot,
+	}));
+	return readCharacter(plugin, id);
+}
+
 function existingAvatarPath (plugin, id) {
 	const vault = plugin?.app?.vault;
 	const folder = vault?.getAbstractFileByPath(avatarFolder(plugin));

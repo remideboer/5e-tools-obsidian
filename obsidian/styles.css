@@ -983,11 +983,23 @@ a.fiveetools-inline-link {
 	break-inside: avoid;
 }
 
-.fiveetools-character-card img {
+.fiveetools-character-card img,
+.fiveetools-character-card__portrait {
 	width: 80px;
 	height: 80px;
 	object-fit: cover;
 	border-radius: 8px;
+	flex: none;
+}
+
+.fiveetools-character-card__portrait {
+	padding: 6px;
+	border: 1px dashed var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: 11px;
+	line-height: 1.2;
+	cursor: pointer;
 }
 
 .fiveetools-character-card h2,

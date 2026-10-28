@@ -1,5 +1,5 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots} from "./character-store.js";
+import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {cardFromPdf} from "./pdf-character.js";
@@ -37,7 +37,7 @@ function paintLinkedCard (host, plugin, record) {
 	const refs = snapshot.refs || [];
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
-	paintSheetHeader(sheet, plugin, record, refs, edition);
+	paintSheetHeader(sheet, plugin, record, refs, edition, host);
 	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
 	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record);
 	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
@@ -60,11 +60,12 @@ function makeColumn (parent, title) {
 	return col;
 }
 
-function paintSheetHeader (sheet, plugin, record, refs, edition) {
+function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost) {
 	const fields = record.fields || {};
 	const header = sheet.createDiv({cls: "fiveetools-character-card__header"});
 	const src = avatarSrc(plugin, record.body);
 	if (src) header.createEl("img", {attr: {src, alt: characterName(record)}});
+	else paintPortraitButton(header, cardHost, plugin, record);
 	const text = header.createDiv({cls: "fiveetools-character-card__header-text"});
 	text.createEl("h2", {text: characterName(record)});
 	const identity = text.createDiv({cls: "fiveetools-character-card__identity"});
@@ -78,6 +79,41 @@ function paintSheetHeader (sheet, plugin, record, refs, edition) {
 		line.createSpan({text: "Background: "});
 		paintRefRow(line, plugin, [background], refs, edition);
 	}
+}
+
+function paintPortraitButton (header, cardHost, plugin, record) {
+	const id = String(record.fields?.ddb_id || "").trim();
+	const button = header.createEl("button", {
+		text: "Add portrait",
+		cls: "fiveetools-character-card__portrait",
+		attr: {type: "button"},
+	});
+	const input = header.createEl("input", {attr: {type: "file", accept: "image/*"}});
+	input.style.display = "none";
+	button.addEventListener("click", () => input.click());
+	input.addEventListener("change", () => {
+		const file = input.files?.[0];
+		input.value = "";
+		if (!file || !id) return;
+		void addPortrait(cardHost, plugin, id, file);
+	});
+}
+
+async function addPortrait (cardHost, plugin, id, file) {
+	try {
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		if (!bytes.byteLength) throw new Error("That file is empty.");
+		await setCharacterPortrait(plugin, id, {bytes, ext: portraitExt(file.name)});
+		await renderCharacterCard(cardHost, plugin, id);
+	} catch (e) {
+		new Notice(e.message || "Could not add that portrait.");
+	}
+}
+
+function portraitExt (name) {
+	const match = String(name || "").toLowerCase().match(/\.(png|jpe?g|webp|gif)$/);
+	if (!match) return ".png";
+	return match[1] === "jpeg" ? ".jpg" : `.${match[1]}`;
 }
 
 function paintCombatColumn (col, plugin, record) {
