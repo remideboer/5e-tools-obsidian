@@ -12,7 +12,7 @@ export function planTurn (actor, actors) {
 	const role = roleOf(actor);
 	const foes = (actors || []).filter(it => it.side !== actor.side && !it.dead && (it.hp > 0 || it.dying || it.stable));
 	const standing = foes.filter(it => it.hp > 0);
-	const friends = (actors || []).filter(it => it.side === actor.side && it !== actor && !it.dead && it.hp < it.max);
+	const friends = (actors || []).filter(it => it.side === actor.side && !it.dead && it.hp < it.max && (it !== actor || actor.hp > 0));
 	const speed = Math.max(1, Math.floor((actor.speed || 30) / 5));
 	const attacks = (actor.options || []).filter(option => option.kind !== "utility");
 	const normal = bestAttack(actor, attacks, actors, foes, friends, speed, role);
@@ -23,6 +23,23 @@ export function planTurn (actor, actors) {
 		dash = !!choice && feetBetween(actor, choice.cell) > speed * 5;
 	}
 	if (!choice && foes.length) {
+		const held = {
+			cell: {x: actor.x, y: actor.y},
+			dash: false,
+			dodge: false,
+			disengage: null,
+			action: null,
+			bonus: null,
+			shortfall: null,
+			surge: null,
+			vow: null,
+			steady: false,
+			freeSmite: false,
+		};
+		held.bonus = bestBonus(actor, attacks, actors, foes, friends, held.cell, role, null);
+		if (held.bonus && !isHealOption(held.bonus.option)) held.bonus = null;
+		considerStabilize(actor, held, actors);
+		if (held.action || held.bonus) return held;
 		const pool = standing.length ? standing : foes;
 		const goal = focusGoals(actor, pool, actors)[0] || nearest(actor, pool);
 		const cell = walk(actor, goal, actors, speed * 2).at(-1);
@@ -71,6 +88,7 @@ export function planTurn (actor, actors) {
 		vow: null,
 		steady: false,
 	};
+	preferBonusRescue(actor, planned, actors, foes, friends, attacks, role);
 	return finishPlan(actor, planned, actors, foes, attacks);
 }
 
@@ -160,6 +178,18 @@ function bestCell (actor, option, actors, foes, friends, steps, role) {
 	for (const goals of groups) {
 		if (!goals.length) continue;
 		for (const goal of (option.kind === "heal" ? goals : focusGoals(actor, goals, actors))) {
+			if (option.kind === "heal") {
+				const cell = approach(actor, goal, actors, steps, isTouch(option) ? 0 : range.feet);
+				if (!cell) continue;
+				const targets = targetsFor(cell, goal, range, friends);
+				if (!targets.length) continue;
+				let score = 0;
+				for (const target of targets) score += swingScore(option, actor, target, range, actors);
+				score += aimBias(actor, goal, actors);
+				if (role === "priest" && goal.hp <= goal.max / 2) score += 8;
+				if (!best || score > best.score) best = {score, cell, option, targets};
+				continue;
+			}
 			const toward = walk(actor, goal, actors, steps);
 			const away = role === "striker" ? [] : walkAway(actor, foes.filter(it => it.hp > 0), actors, steps);
 			for (const cell of [...toward, ...away]) {
@@ -270,16 +300,16 @@ function swingScore (option, actor, target, range, actors) {
 		for (const swing of list) {
 			const cast = castAtPool(swing, actor, target);
 			if (cast.utility === "lay") {
-				score += Math.min(actor.layPool || 0, Math.max(0, target.max - target.hp));
+				score += Math.min(actor.layPool || 0, Math.max(0, target.max - target.hp)) + rescueUrgency(target);
 				continue;
 			}
 			if (cast.utility === "spark") {
-				const heal = (cast.dice || 0) + (actor.wisMod || 0);
+				const heal = Math.min((cast.dice || 0) + (actor.wisMod || 0), Math.max(0, target.max - target.hp));
 				const harm = expectedDamage({...cast, kind: "save", dc: actor.spellDc || 10}, {saveBonus: saveOf(target, "con")});
-				score += Math.max(Math.min(heal, Math.max(0, target.max - target.hp)), harm);
+				score += Math.max(heal > 0 ? heal + rescueUrgency(target) : 0, harm);
 				continue;
 			}
-			if (cast.kind === "heal") score += Math.min((cast.dice || 0) + (cast.flat || 0), Math.max(0, target.max - target.hp));
+			if (cast.kind === "heal") score += Math.min((cast.dice || 0) + (cast.flat || 0), Math.max(0, target.max - target.hp)) + rescueUrgency(target);
 			else {
 				score += expectedDamage(cast, {
 					ac: target.ac,
@@ -411,6 +441,181 @@ function byRider (actor, rider) {
 	return found.find(option => option.bonusAction) || found[0] || null;
 }
 
+function rescueUrgency (target) {
+	if (!target || target.side !== "party" || target.dead) return 0;
+	if (target.hp <= 0 && target.dying && !target.stable) return 40 + 25 * (Number(target.saves?.fail) || 0);
+	if (target.hp > 0 && target.max > 0 && target.hp <= target.max / 4) return 12;
+	return 0;
+}
+
+function isDying (target) {
+	return !!(target && target.side === "party" && !target.dead && !target.stable && target.dying && target.hp <= 0);
+}
+
+function isHealOption (option) {
+	if (!option || /spare the dying/i.test(option.name || "")) return false;
+	return option.kind === "heal" || option.utility === "lay" || option.utility === "preserve" || option.utility === "shape-heal";
+}
+
+function wakesTarget (choice, target) {
+	if (!choice?.option || !isDying(target) || !isHealOption(choice.option)) return false;
+	return (choice.targets || []).some(it => it === target || (it?.id && it.id === target.id));
+}
+
+function spareOption (actor) {
+	return (actor?.options || []).find(option => /spare the dying/i.test(option.name || "")) || null;
+}
+
+function isTouch (option) {
+	if (!option) return false;
+	if (option.utility === "lay" || option.utility === "medicine" || option.utility === "spare") return true;
+	return /\btouch\b/i.test(`${option.range || ""}`);
+}
+
+function enemyBeside (target, actors) {
+	return (actors || []).some(it => it !== target && it.side !== target.side && it.hp > 0 && !it.dead && feetBetween(it, target) <= 5);
+}
+
+function squaresBetween (from, to) {
+	const cells = [];
+	let x = from.x;
+	let y = from.y;
+	while (x !== to.x || y !== to.y) {
+		x += Math.sign(to.x - x);
+		y += Math.sign(to.y - y);
+		cells.push({x, y});
+	}
+	return cells;
+}
+
+function pathBlocked (actor, target, actors) {
+	return squaresBetween(actor, target).some(spot => {
+		if (spot.x === target.x && spot.y === target.y) return false;
+		return (actors || []).some(it => it !== actor && !it.dead && (it.hp > 0 || it.dying || it.stable) && it.x === spot.x && it.y === spot.y);
+	});
+}
+
+function reachSquare (actor, target, actors, steps) {
+	if (!target || enemyBeside(target, actors) || pathBlocked(actor, target, actors)) return null;
+	const dist = Math.max(Math.abs(actor.x - target.x), Math.abs(actor.y - target.y));
+	if (dist > steps) return null;
+	return {x: target.x, y: target.y};
+}
+
+function rangedHealCell (actor, target, actors, steps, reach) {
+	const here = {x: actor.x, y: actor.y};
+	if (enemyBeside(target, actors) || pathBlocked(actor, target, actors)) {
+		return feetBetween(here, target) <= reach ? here : null;
+	}
+	const path = [here, ...squaresBetween(actor, target)];
+	const usable = path.filter((cell, index) => index <= steps && feetBetween(cell, target) <= reach && !(cell.x === target.x && cell.y === target.y));
+	if (!usable.length) return feetBetween(here, target) <= reach ? here : null;
+	usable.sort((a, b) => feetBetween(a, target) - feetBetween(b, target));
+	return {x: usable[0].x, y: usable[0].y};
+}
+
+function approach (actor, target, actors, steps, reach) {
+	if (!(reach > 0)) return reachSquare(actor, target, actors, steps);
+	return rangedHealCell(actor, target, actors, steps, reach);
+}
+
+function bonusHealReaches (actor, options, cell, target) {
+	if (!cell || !target) return false;
+	return (options || []).some(option => {
+		if (skipOption(option, actor) || optionSlot(option) !== "bonus" || !isHealOption(option)) return false;
+		if (isLeveled(option) && !(actor.pool || []).some(slot => slot.level >= option.level)) return false;
+		const reach = isTouch(option) ? 0 : rangeOf(option).feet;
+		return feetBetween(cell, target) <= reach;
+	});
+}
+
+function canReachWithHeal (healer, target, actors) {
+	const steps = Math.max(1, Math.floor((healer.speed || 30) / 5));
+	return (healer.options || []).some(option => {
+		if (skipOption(option, healer)) return false;
+		const spare = /spare the dying/i.test(option.name || "");
+		if (!isHealOption(option) && !spare) return false;
+		if (isLeveled(option) && !(healer.pool || []).some(slot => slot.level >= option.level)) return false;
+		if ((option.utility === "preserve" || option.utility === "spark") && !(healer.channelUses > 0)) return false;
+		const reach = spare || isTouch(option) ? 0 : rangeOf(option).feet;
+		return !!approach(healer, target, actors, steps, reach);
+	});
+}
+
+function allyCanHeal (actor, target, actors) {
+	if ((Number(target.saves?.fail) || 0) >= 2) return false;
+	return (actors || []).some(it => it !== actor && it.side === actor.side && !it.dead && it.hp > 0 && !it.acted && canReachWithHeal(it, target, actors));
+}
+
+function pickDying (actor, actors) {
+	const list = (actors || []).filter(it => it !== actor && it.side === actor.side && isDying(it));
+	list.sort((a, b) => (Number(b.saves?.fail) || 0) - (Number(a.saves?.fail) || 0) || feetBetween(actor, a) - feetBetween(actor, b));
+	return list[0] || null;
+}
+
+function assignRescue (plan, cell, action) {
+	plan.action = action;
+	plan.cell = cell;
+	plan.dash = false;
+	plan.dodge = false;
+	plan.steady = false;
+	plan.vow = null;
+	plan.freeSmite = false;
+	if (plan.disengage === "action") plan.disengage = null;
+	if (plan.bonus?.option?.rider === "smite" || plan.bonus?.option?.utility === "rage") plan.bonus = null;
+}
+
+function considerStabilize (actor, plan, actors) {
+	if (actor.side !== "party") return;
+	const dying = pickDying(actor, actors);
+	if (!dying || wakesTarget(plan.action, dying) || wakesTarget(plan.bonus, dying)) return;
+	if (allyCanHeal(actor, dying, actors)) return;
+	const steps = Math.max(1, Math.floor((actor.speed || 30) / 5));
+	if (spareOption(actor)) {
+		const beside = approach(actor, dying, actors, steps, 0);
+		if (beside) {
+			const spare = spareOption(actor);
+			assignRescue(plan, beside, {score: 80, cell: beside, option: {...spare, kind: "medicine", utility: "spare", spell: false}, targets: [dying]});
+			return;
+		}
+	}
+	const cell = approach(actor, dying, actors, steps, 0);
+	if (!cell) return;
+	assignRescue(plan, cell, {score: 50, cell, option: {name: "Medicine", kind: "medicine", utility: "medicine", spell: false}, targets: [dying]});
+}
+
+function strikeFrom (actor, options, actors, foes, cell) {
+	let best = null;
+	for (const option of options) {
+		if (skipOption(option, actor) || optionSlot(option) !== "action") continue;
+		const range = rangeOf(option);
+		for (const goal of fightGoals(option, foes, [])[0] || []) {
+			if (feetBetween(cell, goal) > range.feet) continue;
+			const targets = targetsFor(cell, goal, range, foes);
+			if (!targets.length) continue;
+			let score = 0;
+			for (const target of targets) score += swingScore(option, actor, target, range, actors);
+			if (!best || score > best.score) best = {score, cell, option, targets};
+		}
+	}
+	return best;
+}
+
+function preferBonusRescue (actor, plan, actors, foes, friends, attacks, role) {
+	if (actor.side !== "party") return;
+	const dying = (plan.action?.targets || []).find(isDying);
+	if (!wakesTarget(plan.action, dying) || !plan.cell || !bonusHealReaches(actor, attacks, plan.cell, dying)) return;
+	const options = (attacks || []).filter(option => !isHealOption(option) && !isLeveled(option));
+	const strike = strikeFrom(actor, options, actors, foes, plan.cell);
+	if (!strike) return;
+	plan.dash = false;
+	plan.disengage = disengageMode(actor, plan.cell, foes, role);
+	plan.action = plan.disengage === "action" ? null : strike;
+	plan.bonus = plan.disengage === "bonus" ? null : bestBonus(actor, attacks, actors, foes, friends, plan.cell, role, plan.action);
+	const standing = (foes || []).filter(it => it.hp > 0);
+	plan.dodge = !plan.action && !plan.bonus && standing.some(foe => feetBetween(actor, foe) <= 5) && feetBetween(actor, plan.cell) === 0;
+}
+
 function finishPlan (actor, plan, actors, foes, attacks) {
 	let action = plan.action;
 	let bonus = plan.bonus;
@@ -428,7 +633,8 @@ function finishPlan (actor, plan, actors, foes, attacks) {
 		const weapon = bestAttack(actor, attacks.filter(option => !option.spell), actors, foes, [], Math.max(1, Math.floor((actor.speed || 30) / 5)), "striker");
 		const extra = weapon ? rageDamage(classLevel(actor.classes, "barbarian")) * hitChance(weapon.option, weapon.targets?.[0] || foes[0] || actor) : 0;
 		const spellScore = action?.option?.spell ? action.score : -1;
-		if (weapon && weapon.score + extra >= spellScore && extra >= (bonus?.score || 0)) {
+		const saving = isHealOption(action?.option) && (action?.targets || []).some(isDying);
+		if (weapon && !saving && weapon.score + extra >= spellScore && extra >= (bonus?.score || 0)) {
 			action = weapon;
 			bonus = {score: extra, cell: weapon.cell, option: rage, targets: weapon.targets};
 			cell = weapon.cell;
@@ -471,11 +677,14 @@ function finishPlan (actor, plan, actors, foes, attacks) {
 	if (!spentChannel && byUtility(actor, "spark")) {
 		const spark = byUtility(actor, "spark");
 		const foe = (foes || []).find(it => it.hp > 0);
-		const ally = (actors || []).filter(it => it.side === actor.side && it.hp < it.max).sort((a, b) => a.hp - b.hp)[0];
+		const allies = (actors || []).filter(it => it.side === actor.side && !it.dead && it.hp < it.max);
+		allies.sort((a, b) => rescueUrgency(b) - rescueUrgency(a) || a.hp - b.hp);
+		const ally = allies[0];
 		const harm = foe ? expectedDamage({...spark, kind: "save", dc: actor.spellDc || 10}, {saveBonus: saveOf(foe, "con")}) : 0;
-		const heal = ally ? Math.min((spark.dice || 0) + (actor.wisMod || 0), ally.max - ally.hp) : 0;
+		const healRaw = ally ? Math.min((spark.dice || 0) + (actor.wisMod || 0), ally.max - ally.hp) : 0;
+		const heal = healRaw > 0 && !(ally && wakesTarget(bonus, ally)) ? healRaw + rescueUrgency(ally) : 0;
 		if (Math.max(harm, heal) > (action?.score || 0) && useChannel()) {
-			const healing = heal >= harm && ally;
+			const healing = heal >= harm && ally && heal > 0;
 			action = {score: Math.max(harm, heal), cell, option: {...spark, kind: healing ? "heal" : "save"}, targets: [healing ? ally : foe]};
 		}
 	}
@@ -509,9 +718,21 @@ function finishPlan (actor, plan, actors, foes, attacks) {
 	const vowTarget = action?.targets?.find(it => it.hp > 0 && feetBetween(cell, it) <= 30);
 	if (!spentChannel && vow && !actor.vowId && melee && vowTarget && useChannel()) plan.vow = vowTarget.id;
 
+	const draft = {action, bonus, cell, dash: plan.dash, dodge: plan.dodge, disengage: plan.disengage, steady: plan.steady, vow: plan.vow, freeSmite: plan.freeSmite};
+	considerStabilize(actor, draft, actors);
+	action = draft.action;
+	bonus = draft.bonus;
+	cell = draft.cell;
+	plan.dash = draft.dash;
+	plan.dodge = draft.dodge;
+	plan.disengage = draft.disengage;
+	plan.steady = draft.steady;
+	plan.vow = draft.vow;
+	plan.freeSmite = draft.freeSmite;
+
 	const surge = byUtility(actor, "surge");
 	const surgedSpell = action?.option?.spell && (surge?.edition === "one" || actor.surgeEdition === "one");
-	if (surge && (actor.surgeUses || 0) > 0 && action?.option && !surgedSpell && action.option.kind !== "heal") {
+	if (surge && (actor.surgeUses || 0) > 0 && action?.option && !surgedSpell && action.option.kind !== "heal" && action.option.kind !== "medicine") {
 		plan.surge = action;
 	}
 	if (actor.traits?.aggressive && plan.dash && action && !bonus) {

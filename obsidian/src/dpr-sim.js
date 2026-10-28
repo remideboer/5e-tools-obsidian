@@ -235,6 +235,7 @@ function actorsFrom (list, side) {
 		legendaryUses: Number(actor.traits?.legendary) || 0,
 		chaMod: Number(actor.chaMod) || 0,
 		wisMod: Number(actor.wisMod) || 0,
+		medicineMod: Number.isFinite(Number(actor.medicineMod)) ? Number(actor.medicineMod) : (Number(actor.wisMod) || 0),
 		spellDc: Number(actor.spellDc) || 10,
 		...classResources(actor),
 		cr: actor.cr || "",
@@ -439,9 +440,45 @@ function opportunity (fight, actor, next) {
 	}
 }
 
+function stabilizeAlly (fight, actor, choice) {
+	const target = (choice.targets || []).find(it => it && !it.dead && it.hp <= 0 && !it.stable) || null;
+	if (!target) return;
+	const spare = choice.option?.utility === "spare";
+	const name = spare ? (choice.option.name || "Spare the Dying") : "Medicine";
+	if (actor.x !== target.x || actor.y !== target.y) {
+		log(fight, actor, `${actor.name} cannot reach ${target.name} to stabilize them.`);
+		return;
+	}
+	if (spare) {
+		target.stable = true;
+		target.dying = false;
+		target.saves = {success: 0, fail: 0};
+		noteUse(actor, name, {kind: "heal", hit: true});
+		log(fight, actor, `${actor.name} uses ${name} and stabilizes ${target.name}.`);
+		return;
+	}
+	const mod = Number(actor.medicineMod) || 0;
+	const roll = rollDice("1d20");
+	const total = (roll.total || 1) + mod;
+	if (total >= 10) {
+		target.stable = true;
+		target.dying = false;
+		target.saves = {success: 0, fail: 0};
+		noteUse(actor, "Medicine", {kind: "heal", hit: true});
+		log(fight, actor, `${actor.name} makes a Medicine check: ${total} vs DC 10 and stabilizes ${target.name}.`);
+		return;
+	}
+	noteUse(actor, "Medicine", {kind: "heal", miss: true});
+	log(fight, actor, `${actor.name} makes a Medicine check: ${total} vs DC 10. ${target.name} is still dying.`);
+}
+
 function resolveChoice (fight, actor, choice) {
 	let cast = choice?.option;
 	if (!cast) return;
+	if (cast.kind === "medicine" || cast.utility === "medicine" || cast.utility === "spare") {
+		stabilizeAlly(fight, actor, choice);
+		return;
+	}
 	if (resolveFeature(fight, actor, choice)) return;
 	if (isLeveled(cast)) {
 		const missing = cast.kind === "heal" ? missingHp(choice.targets) : Infinity;

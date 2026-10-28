@@ -613,6 +613,13 @@ function beginFight (state, plugin) {
 	state.reports = [];
 }
 
+function medicineModOf (record) {
+	const skills = record.snapshot?.rolls?.skills || [];
+	const skill = skills.find(it => /^medicine$/i.test(String(it?.name || "").trim()));
+	if (skill && Number.isFinite(Number(skill.mod))) return Number(skill.mod);
+	return abilityMod(record.snapshot?.abilities?.wis);
+}
+
 function simSides (state, plugin) {
 	const party = partyRecords(state).map(record => {
 		const sheet = state.sheets[characterId(record)] || {attacks: [], spells: [], heals: [], swings: 1};
@@ -634,6 +641,7 @@ function simSides (state, plugin) {
 			saveMods: saveModsFrom(record),
 			chaMod: abilityMod(record.snapshot?.abilities?.cha),
 			wisMod: abilityMod(record.snapshot?.abilities?.wis),
+			medicineMod: medicineModOf(record),
 			spellDc: Number(record.snapshot?.spellcasting?.[0]?.dc) || (8 + abilityMod(record.snapshot?.abilities?.wis) + (Number(record.snapshot?.rolls?.proficiency) || 2)),
 			pb: Number(record.snapshot?.rolls?.proficiency) || 2,
 			type: "humanoid",
