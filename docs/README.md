@@ -25,14 +25,7 @@ Upstream 5etools (`js/`, `data/`) is only covered where the plugin depends on it
 
 ## Build and install
 
-From the repo root:
-
-```powershell
-$env:FIVEETOOLS_DEV_VAULTS = "C:\Users\remid\Documents\Obsidian Vault"
-node node/build-obsidian.js
-```
-
-The running plugin is the **installed vault copy** (`.obsidian/plugins/5etools`), not the git checkout. Reload the plugin in Obsidian after install.
+Requirements, the build command, and install steps are in the repo root [README](../README.md#obsidian-plugin). Obsidian runs the installed vault copy (`.obsidian/plugins/5etools`), not the git checkout. Reload the plugin after each install.
 
 ## Upstream data sync
 
