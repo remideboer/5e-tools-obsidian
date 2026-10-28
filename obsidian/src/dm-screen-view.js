@@ -16,7 +16,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange} from "./table-session.js";
-import {onInitiativeKey, placedChips, selectTableTurn} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -51,6 +51,31 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const bar = listEl.createDiv({cls: "fiveetools-dmscreen__bar"});
+	const tableBtn = bar.createEl("button", {
+		text: "Table",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Open or close the Table window"},
+	});
+	const syncTableBtn = () => {
+		const open = tableWindowOpen(plugin);
+		tableBtn.setText(open ? "Close table" : "Table");
+		tableBtn.toggleClass("is-selected", open);
+		listEl.querySelectorAll(".fiveetools-dmscreen__tabletoggle").forEach(el => {
+			el.setText(open ? "Close table" : "Table");
+			el.toggleClass("is-selected", open);
+		});
+	};
+	syncTableBtn();
+	plugin._syncDmTableBtn = syncTableBtn;
+	if (!plugin._dmTableLayout) {
+		plugin._dmTableLayout = true;
+		plugin.registerEvent(plugin.app.workspace.on("layout-change", () => plugin._syncDmTableBtn?.()));
+	}
+	tableBtn.addEventListener("click", (evt) => {
+		if (tableWindowOpen(plugin)) closeTableWindow(plugin);
+		else castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
+		window.setTimeout(syncTableBtn, 400);
+	});
 	plugin._dmTurnUnsub?.();
 	plugin._dmTurnUnsub = onTableChange(() => {
 		if (!listEl.isConnected) return;
@@ -747,6 +772,28 @@ async function readCampaignNote (plugin, filePath) {
 
 function paintInitiative (host, plugin) {
 	host.empty();
+	const actions = host.createDiv({cls: "fiveetools-dmscreen__initactions"});
+	const clearBtn = actions.createEl("button", {
+		text: "Clear",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Remove every creature, including those on the ruler"},
+	});
+	clearBtn.addEventListener("click", (evt) => {
+		evt.stopPropagation();
+		clearTableRoster(plugin);
+	});
+	const open = tableWindowOpen(plugin);
+	const toggle = actions.createEl("button", {
+		text: open ? "Close table" : "Table",
+		cls: `fiveetools-btn fiveetools-btn--ghost fiveetools-dmscreen__tabletoggle${open ? " is-selected" : ""}`,
+		attr: {type: "button", title: "Open or close the Table window"},
+	});
+	toggle.addEventListener("click", (evt) => {
+		evt.stopPropagation();
+		if (tableWindowOpen(plugin)) closeTableWindow(plugin);
+		else castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
+		window.setTimeout(() => plugin._syncDmTableBtn?.(), 400);
+	});
 	const chips = placedChips(ensureTableSession(plugin));
 	if (!chips.length) {
 		host.createEl("p", {cls: "fiveetools-view__meta", text: "Drag creatures onto the Table ruler."});

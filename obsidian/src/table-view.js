@@ -364,7 +364,7 @@ function paintSourceList (host, plugin) {
 	head.createEl("h3", {text: "Creatures"});
 	const actions = head.createDiv({cls: "fiveetools-table__roster-actions"});
 	toolButton(actions, "Reset", () => resetRuler(plugin));
-	toolButton(actions, "Clear", () => clearSourceList(plugin));
+	toolButton(actions, "Clear", () => clearTableRoster(plugin));
 	const session = ensureTableSession(plugin);
 	const groups = listKindGroups(session.combatants).filter(group => group.initScore == null);
 	if (!listKindGroups(session.combatants).length) {
@@ -383,7 +383,7 @@ function resetRuler (plugin) {
 	refreshTable(plugin);
 }
 
-function clearSourceList (plugin) {
+export function clearTableRoster (plugin) {
 	const session = ensureTableSession(plugin);
 	session.combatants = [];
 	session.selectedId = null;
@@ -805,6 +805,10 @@ function displayLabel (display, index, primary) {
 	if (display?.internal) tags.push("built-in");
 	const suffix = tags.length ? ` (${tags.join(", ")})` : "";
 	return `Screen ${index + 1} — ${w}×${h}${suffix}`;
+}
+
+export function tableWindowOpen (plugin) {
+	return (plugin?.app?.workspace?.getLeavesOfType?.(VIEW_TYPE_FIVEETOOLS_TABLE) || []).length > 0;
 }
 
 export function closeTableWindow (plugin) {

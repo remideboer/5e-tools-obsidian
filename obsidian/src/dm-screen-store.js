@@ -88,7 +88,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable"]);
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -116,6 +116,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "entity") return doc?.n || "Entry";
 	if (type === "counter") return "Counter";
 	if (type === "encounter") return "Encounter";
+	if (type === "initiative") return "Initiative";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	if (type === "rollTable") return "Roll table";
 	return "Note";

@@ -2330,6 +2330,12 @@ a.fiveetools-inline-link {
 	padding: 0 2px;
 }
 
+.fiveetools-dmscreen__initactions {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
 .fiveetools-init-list {
 	display: flex;
 	flex-direction: column;
