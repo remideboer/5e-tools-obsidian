@@ -7,6 +7,7 @@ import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {loadEntity} from "./entity-loader.js";
 import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, indexHomebrewDocs, searchEntities, sourceAbbr} from "./search-index.js";
 import {paintPackedLibraryRow} from "./library-row.js";
+import {attachHoverCard} from "./hover-card.js";
 import {getSpellMeta} from "./spell-meta.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
@@ -905,6 +906,15 @@ function paintEntityRow (parent, plugin, ref, label, packed = {}) {
 		tooltip: packed.tooltip || [label, book].filter(Boolean).join(" · "),
 	});
 	if (!linked.source) return;
+	row.removeAttribute("title");
+	attachHoverCard(row, plugin, () => {
+		const doc = findEntityDoc(linked.name, {
+			categoriesExact: REF_CATEGORIES[linked.kind] || (linked.kind ? [linked.kind] : []),
+			source: linked.source,
+		});
+		if (doc && String(doc.s || "").toLowerCase() === String(linked.source).toLowerCase()) return doc;
+		return null;
+	});
 	row.addEventListener("click", (evt) => {
 		evt.preventDefault();
 		evt.stopPropagation();
@@ -960,6 +970,15 @@ function paintRefButton (parent, plugin, ref, label) {
 	});
 	btn.createSpan({text: label});
 	if (book) btn.createSpan({cls: "fiveetools-character-card__source", text: ` · ${book}`});
+	btn.removeAttribute("title");
+	attachHoverCard(btn, plugin, () => {
+		const doc = findEntityDoc(ref.name, {
+			categoriesExact: REF_CATEGORIES[ref.kind] || (ref.kind ? [ref.kind] : []),
+			source: ref.source,
+		});
+		if (doc && String(doc.s || "").toLowerCase() === String(ref.source).toLowerCase()) return doc;
+		return null;
+	});
 	btn.addEventListener("click", (evt) => {
 		evt.preventDefault();
 		evt.stopPropagation();

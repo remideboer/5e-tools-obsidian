@@ -2920,6 +2920,24 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	margin: 8px 0 4px;
 }
 
+.fiveetools-hover-card {
+	position: fixed;
+	z-index: 1000;
+	max-width: 420px;
+	max-height: 320px;
+	overflow: auto;
+	padding: 8px 10px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.fiveetools-hover-card .ve-stats {
+	font-size: 12px;
+}
+
 .fiveetools-encounter__composer {
 	position: relative;
 	flex: 1 1 50%;

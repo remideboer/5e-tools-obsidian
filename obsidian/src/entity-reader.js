@@ -9,6 +9,7 @@ import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
 import {docFromHref, docFromVetLink} from "./search-index.js";
 import {bindDiceRollers} from "./dice-roll.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
+import {attachHoverCard} from "./hover-card.js";
 import {addCombatants} from "./encounter-view.js";
 import {emptyInstance, getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 
@@ -208,4 +209,23 @@ export function bindInternalLinks (el, plugin) {
 		evt.stopPropagation();
 		plugin.openLibrary({doc: next});
 	}, true);
+	el.addEventListener("mouseover", (evt) => {
+		const a = evt.target.closest?.("a, [data-vet-page]");
+		if (!a || !el.contains(a)) return;
+		const doc = docFromAnchor(a);
+		if (!doc) return;
+		attachHoverCard(a, plugin, () => docFromAnchor(a), evt);
+	});
+}
+
+function docFromAnchor (a) {
+	const href = a.getAttribute("href") || "";
+	const linkText = (a.textContent || "").trim();
+	if (/^https?:\/\//i.test(href) && !a.hasAttribute("data-vet-page")) return null;
+	return docFromVetLink({
+		page: a.getAttribute("data-vet-page"),
+		source: a.getAttribute("data-vet-source"),
+		hash: a.getAttribute("data-vet-hash"),
+		linkText,
+	}) || (!/^https?:\/\//i.test(href) ? docFromHref(href, {linkText}) : null);
 }

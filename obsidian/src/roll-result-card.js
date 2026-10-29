@@ -1,6 +1,7 @@
 import {Notice} from "obsidian";
 import {findEntityDoc} from "./search-index.js";
 import {appendTextWithDiceRollers, bindDiceRollers, textHasDiceNotation} from "./dice-roll.js";
+import {attachHoverCard} from "./hover-card.js";
 
 /**
  * Parse a cell that may be a wikilink or plain entity name.
@@ -92,6 +93,7 @@ export function renderRollResultCards (el, cards, {
 				}
 				onOpenItem(doc);
 			});
+			if (plugin) attachHoverCard(btn, plugin, () => resolveItem(item));
 		} else {
 			const titleEl = body.createDiv({cls: "fiveetools-roll-result__title"});
 			appendTextWithDiceRollers(titleEl, titleText);
@@ -123,6 +125,7 @@ export function renderRollResultCards (el, cards, {
 						}
 						onOpenItem(doc);
 					});
+					if (plugin) attachHoverCard(link, plugin, () => resolveItem(ref));
 				} else {
 					const span = line.createSpan();
 					appendTextWithDiceRollers(span, value);
