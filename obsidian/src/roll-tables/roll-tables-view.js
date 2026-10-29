@@ -1,7 +1,7 @@
 import {Notice, setIcon} from "obsidian";
 import {TABLE_LIMITS} from "./table-limits.js";
 import {previewPastedNote} from "./table-note.js";
-import {rollOnTable} from "./table-roll.js";
+import {rollTableResults} from "./table-roll.js";
 import {
 	deleteRollTableNote,
 	listRollTables,
@@ -115,6 +115,20 @@ export function renderRollTablesTool (listEl, readerEl, {
 		readerEl.addClass("fiveetools-rolltables__reader");
 		const name = tableName || state.parsed?.name || "";
 		const cards = (draws || []).map((draw) => {
+			const dieBadge = draw.die && draw.total != null
+				? `${draw.die.label}: ${draw.total}`
+				: (draw.total != null ? String(draw.total) : "");
+			if (draw.columnRoll && draw.cells?.[0]) {
+				const cell = draw.cells[0];
+				const title = cell.text || "—";
+				return {
+					dieBadge,
+					title,
+					meta: cell.header || name,
+					fields: [],
+					item: textHasDiceNotation(title) ? undefined : (parseItemRef(title) || undefined),
+				};
+			}
 			const primary = draw.cells?.[0];
 			const title = primary?.text || draw.row?.filter(Boolean).join(" · ") || "—";
 			const item = textHasDiceNotation(title) ? null : parseItemRef(title);
@@ -123,9 +137,6 @@ export function renderRollTablesTool (listEl, readerEl, {
 				text: cell.text,
 				item: textHasDiceNotation(cell.text) ? undefined : (parseItemRef(cell.text) || undefined),
 			}));
-			const dieBadge = draw.die && draw.total != null
-				? `${draw.die.label}: ${draw.total}`
-				: (draw.total != null ? String(draw.total) : "");
 			return {
 				dieBadge,
 				title: primary?.text || title,
@@ -177,7 +188,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 		try {
 			const draws = [];
 			for (let i = 0; i < n; i++) {
-				draws.push(rollOnTable(parsed.headers, parsed.rows, parsed.name));
+				draws.push(...rollTableResults(parsed.headers, parsed.rows, parsed.name));
 			}
 			state.parsed = parsed;
 			emit({selectedPath: path, count: n, results: draws});

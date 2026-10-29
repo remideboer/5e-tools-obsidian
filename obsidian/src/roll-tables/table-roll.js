@@ -115,3 +115,32 @@ export function rollOnTable (headers, rows, noteName = "", random = Math.random)
 		cells: resultCells(headers, row, skip),
 	};
 }
+
+function resultColumnIndexes (headers, rows, plan) {
+	const skip = plan.mode === "weight" ? plan.weightCol : (plan.rollCol ?? -1);
+	const columns = [];
+	for (let c = 0; c < headers.length; c++) {
+		if (c === skip) continue;
+		if (rows.some(row => plainCell(row[c]))) columns.push(c);
+	}
+	return columns;
+}
+
+/**
+ * One draw, or one draw per result column when the table has several.
+ * Each extra column is its own roll.
+ */
+export function rollTableResults (headers, rows, noteName = "", random = Math.random) {
+	const plan = resolveTableRoll(headers, rows, noteName);
+	if (!plan) throw new Error("Empty table.");
+	const columns = resultColumnIndexes(headers, rows, plan);
+	if (columns.length < 2) return [rollOnTable(headers, rows, noteName, random)];
+	return columns.map((col) => {
+		const draw = rollOnTable(headers, rows, noteName, random);
+		return {
+			...draw,
+			columnRoll: true,
+			cells: [{header: headers[col] || "", text: String(draw.row?.[col] ?? "")}],
+		};
+	});
+}

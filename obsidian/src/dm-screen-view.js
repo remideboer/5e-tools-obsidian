@@ -5,7 +5,7 @@ import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
-import {rollOnTable} from "./roll-tables/table-roll.js";
+import {rollTableResults} from "./roll-tables/table-roll.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {adjustHp, listKindGroups} from "./encounter-view.js";
@@ -642,12 +642,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		bindDiceRollers(tableHost, plugin);
 		rollBtn.addEventListener("click", () => {
 			try {
-				const draw = rollOnTable(parsed.headers, parsed.rows, parsed.name);
-				const next = {
-					dieLabel: draw.die?.label || "",
-					total: draw.total,
-					cells: (draw.cells || []).map(cell => ({header: cell.header || "", text: String(cell.text || "")})),
-				};
+				const draws = rollTableResults(parsed.headers, parsed.rows, parsed.name);
+				const next = draws.length > 1
+					? {results: draws.map(packRoll)}
+					: packRoll(draws[0]);
 				panel.text = JSON.stringify(next);
 				resultEl.empty();
 				showRollResult(resultEl, next);
@@ -660,6 +658,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const showRollResult = (host, roll) => {
+		if (Array.isArray(roll?.results)) {
+			for (const part of roll.results) showRollResult(host, part);
+			return;
+		}
 		const badge = roll.dieLabel && roll.total != null
 			? `${roll.dieLabel}: ${roll.total}`
 			: (roll.total != null ? String(roll.total) : "");
@@ -893,11 +895,21 @@ function copyColumns (board) {
 function savedRoll (text) {
 	try {
 		const data = JSON.parse(text || "");
-		if (!data || !Array.isArray(data.cells)) return null;
+		if (!data) return null;
+		if (Array.isArray(data.results)) return data;
+		if (!Array.isArray(data.cells)) return null;
 		return data;
 	} catch (_) {
 		return null;
 	}
+}
+
+function packRoll (draw) {
+	return {
+		dieLabel: draw?.die?.label || "",
+		total: draw?.total,
+		cells: (draw?.cells || []).map(cell => ({header: cell.header || "", text: String(cell.text || "")})),
+	};
 }
 
 function blankPanel (type, title) {
