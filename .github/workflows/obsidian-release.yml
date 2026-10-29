@@ -17,13 +17,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create GitHub release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build plugin
+        run: |
+          npm ci
+          npm run build:obsidian
+
+      - name: Pack plugin
+        run: |
+          mkdir -p plugin/5etools
+          cp build/obsidian/main.js build/obsidian/manifest.json build/obsidian/styles.css plugin/5etools/
+          for dir in data search dice heic; do
+            if [ -d "build/obsidian/$dir" ]; then
+              cp -a "build/obsidian/$dir" "plugin/5etools/$dir"
+            fi
+          done
+          (cd plugin && zip -r ../5etools.zip 5etools)
+
+      - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          gh release create "$RELEASE_TAG" \
-            --target "$RELEASE_SHA" \
-            --title "$RELEASE_TAG" \
-            --notes "Obsidian plugin at ${RELEASE_SHA}."
+          NOTES="Unzip 5etools.zip into the vault's .obsidian/plugins folder. The result must be .obsidian/plugins/5etools. Then reload Obsidian."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            git tag -f "$RELEASE_TAG" "$RELEASE_SHA"
+            git push origin "refs/tags/${RELEASE_TAG}" --force
+            gh release upload "$RELEASE_TAG" 5etools.zip --clobber
+            gh release edit "$RELEASE_TAG" --notes "$NOTES"
+          else
+            gh release create "$RELEASE_TAG" \
+              --target "$RELEASE_SHA" \
+              --title "$RELEASE_TAG" \
+              --notes "$NOTES" \
+              5etools.zip
+          fi
