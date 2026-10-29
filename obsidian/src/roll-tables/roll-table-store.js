@@ -107,6 +107,31 @@ export async function readRollTableNote (plugin, path) {
 	return {ok: true, path, name: parsed.name, headers: parsed.headers, rows: parsed.rows, text};
 }
 
+export async function updateRollTableNote (plugin, path, {name, headers, rows} = {}) {
+	const vault = plugin?.app?.vault;
+	if (!vault) throw new Error("Vault is unavailable.");
+	const folder = tablesFolder(plugin);
+	const normalized = String(path || "").replace(/\\/g, "/");
+	if (!normalized.startsWith(`${folder}/`) || !normalized.endsWith(".md")) {
+		throw new Error("Not a roll-table note.");
+	}
+	const file = vault.getAbstractFileByPath(normalized);
+	if (!file || file.children) throw new Error("Table note not found.");
+	const title = String(name || "").trim() || "Table";
+	const head = (headers || []).map(cell => String(cell ?? ""));
+	const body = (rows || []).map(row => head.map((_, i) => String(row?.[i] ?? "")));
+	if (!head.length) throw new Error("Table has no columns.");
+	if (!body.length) throw new Error("Table has no rows.");
+	if (head.length > TABLE_LIMITS.columns) throw new Error(`At most ${TABLE_LIMITS.columns} columns.`);
+	if (body.length > TABLE_LIMITS.rows) throw new Error(`At most ${TABLE_LIMITS.rows} rows.`);
+	const tooLong = [...head, ...body.flat()].some(cell => cell.length > TABLE_LIMITS.cellCharacters);
+	if (tooLong) throw new Error(`A cell is longer than ${TABLE_LIMITS.cellCharacters} characters.`);
+	const text = tableNoteText(title, head, body);
+	if (text.length > TABLE_LIMITS.noteBytes) throw new Error("Note would be too large.");
+	await vault.modify(file, text);
+	return {path: normalized, name: title, headers: head, rows: body};
+}
+
 export async function deleteRollTableNote (plugin, path) {
 	const vault = plugin?.app?.vault;
 	if (!vault) throw new Error("Vault is unavailable.");

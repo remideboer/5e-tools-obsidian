@@ -2153,6 +2153,23 @@ a.fiveetools-inline-link {
 	padding: 4px 8px;
 	text-align: left;
 	vertical-align: top;
+	cursor: text;
+}
+
+.fiveetools-rolltables__title {
+	cursor: text;
+}
+
+.fiveetools-rolltables__edit {
+	width: 100%;
+	min-height: 1.4em;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	resize: vertical;
+	background: transparent;
+	color: inherit;
+	font: inherit;
 }
 
 .fiveetools-rolltables__table th {

@@ -7,6 +7,7 @@ import {
 	listRollTables,
 	readRollTableNote,
 	saveRollTableNote,
+	updateRollTableNote,
 } from "./roll-table-store.js";
 import {parseItemRef, renderRollResultCards} from "../roll-result-card.js";
 import {appendTextWithDiceRollers, bindDiceRollers, textHasDiceNotation} from "../dice-roll.js";
@@ -93,21 +94,132 @@ export function renderRollTablesTool (listEl, readerEl, {
 			readerEl.createEl("p", {cls: "fiveetools-view__meta", text: parsed?.error || "Select a table."});
 			return;
 		}
-		readerEl.createEl("h3", {text: parsed.name});
-		const wrap = readerEl.createDiv({cls: "fiveetools-rolltables__tablewrap"});
-		const table = wrap.createEl("table", {cls: "fiveetools-rolltables__table"});
-		const thead = table.createEl("thead");
-		const hr = thead.createEl("tr");
-		for (const h of parsed.headers) hr.createEl("th", {text: h});
-		const tbody = table.createEl("tbody");
-		for (const row of parsed.rows) {
-			const tr = tbody.createEl("tr");
-			for (const cell of row) {
-				const td = tr.createEl("td");
-				appendTextWithDiceRollers(td, cell);
+		const path = parsed.path || state.selectedPath;
+		let name = parsed.name || "Table";
+		let headers = (parsed.headers || []).map(cell => String(cell ?? ""));
+		let rows = (parsed.rows || []).map(row => headers.map((_, i) => String(row?.[i] ?? "")));
+
+		const showCell = (cellEl, text) => {
+			cellEl.empty();
+			if (text) appendTextWithDiceRollers(cellEl, text);
+		};
+
+		const openEditor = (cellEl, value, apply) => {
+			if (cellEl.querySelector(".fiveetools-rolltables__edit")) return;
+			cellEl.empty();
+			const input = cellEl.createEl("textarea", {cls: "fiveetools-rolltables__edit"});
+			input.value = value;
+			input.rows = 1;
+			let finishing = false;
+			input.focus();
+			input.addEventListener("keydown", (evt) => {
+				if (evt.key === "Escape") {
+					evt.preventDefault();
+					input.value = value;
+					input.blur();
+				} else if (evt.key === "Enter" && !evt.shiftKey) {
+					evt.preventDefault();
+					input.blur();
+				}
+			});
+			input.addEventListener("blur", () => {
+				if (finishing) return;
+				finishing = true;
+				apply(input.value.replace(/\r?\n/g, " "));
+			});
+		};
+
+		const paint = () => {
+			readerEl.empty();
+			readerEl.addClass("fiveetools-rolltables__reader");
+			const title = readerEl.createEl("h3", {cls: "fiveetools-rolltables__title", text: name});
+			title.addEventListener("click", () => openEditor(title, name, (next) => {
+				const titled = next.trim() || "Table";
+				if (titled === name) {
+					paint();
+					return;
+				}
+				void save(titled, headers, rows);
+			}));
+			const wrap = readerEl.createDiv({cls: "fiveetools-rolltables__tablewrap"});
+			const table = wrap.createEl("table", {cls: "fiveetools-rolltables__table"});
+			const hr = table.createEl("thead").createEl("tr");
+			headers.forEach((header, c) => {
+				const th = hr.createEl("th");
+				showCell(th, header);
+				th.addEventListener("click", () => openEditor(th, header, (next) => {
+					if (next === header) {
+						paint();
+						return;
+					}
+					const nextHeaders = headers.slice();
+					nextHeaders[c] = next;
+					void save(name, nextHeaders, rows);
+				}));
+			});
+			const tbody = table.createEl("tbody");
+			const paintRow = (row, r, blank) => {
+				const tr = tbody.createEl("tr");
+				headers.forEach((_, c) => {
+					const td = tr.createEl("td");
+					const value = blank ? "" : (row[c] || "");
+					showCell(td, value);
+					td.addEventListener("click", () => openEditor(td, value, (next) => {
+						if (blank) {
+							if (!next.trim()) {
+								paint();
+								return;
+							}
+							if (rows.length >= TABLE_LIMITS.rows) {
+								new Notice(`At most ${TABLE_LIMITS.rows} rows.`);
+								paint();
+								return;
+							}
+							const added = headers.map(() => "");
+							added[c] = next;
+							void save(name, headers, [...rows, added]);
+							return;
+						}
+						const nextRows = rows.map(line => line.slice());
+						nextRows[r][c] = next;
+						const empty = nextRows[r].every(cell => !String(cell).trim());
+						if (empty && nextRows.length > 1) nextRows.splice(r, 1);
+						if (next === rows[r][c] && nextRows.length === rows.length) {
+							paint();
+							return;
+						}
+						void save(name, headers, nextRows);
+					}));
+				});
+			};
+			rows.forEach((row, r) => paintRow(row, r, false));
+			paintRow(null, rows.length, true);
+			if (plugin) bindDiceRollers(readerEl, plugin);
+		};
+
+		const save = async (nextName, nextHeaders, nextRows) => {
+			try {
+				const saved = await updateRollTableNote(plugin, path, {
+					name: nextName,
+					headers: nextHeaders,
+					rows: nextRows,
+				});
+				name = saved.name;
+				headers = saved.headers.map(cell => String(cell ?? ""));
+				rows = saved.rows.map(row => headers.map((_, i) => String(row?.[i] ?? "")));
+				state.parsed = {ok: true, path, name: saved.name, headers: saved.headers, rows: saved.rows};
+				const listed = state.tables.find(table => table.path === path);
+				if (listed) listed.name = saved.name;
+				const esc = window.CSS?.escape ? CSS.escape(path) : String(path).replace(/"/g, "\\\"");
+				const label = listHost.querySelector(`[data-path="${esc}"] .fiveetools-rolltables__hitname`);
+				if (label) label.setText(saved.name);
+			} catch (e) {
+				new Notice(e.message || "Could not save table.");
 			}
-		}
-		if (plugin) bindDiceRollers(readerEl, plugin);
+			paint();
+		};
+
+		paint();
 	};
 
 	const renderResults = (draws, tableName = "") => {
