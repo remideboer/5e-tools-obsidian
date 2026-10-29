@@ -3,7 +3,8 @@ name: Build and Upload Release
 on:
    push:
       tags:
-         - 'v**'
+         - 'v2**'
+         - 'v1.2**'
 
    # Allow running manually from the actions tab
    workflow_dispatch:
