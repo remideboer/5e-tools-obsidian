@@ -20,6 +20,9 @@ export function registerHeicImport (plugin) {
 	plugin.registerEvent(plugin.app.workspace.on("editor-drop", (evt, editor, info) => {
 		void handleHeicTransfer(plugin, evt, editor, info, evt.dataTransfer);
 	}));
+	plugin.registerMarkdownPostProcessor((el, ctx) => {
+		displayHeicEmbeds(plugin, el, ctx?.sourcePath || "");
+	});
 }
 
 async function handleHeicTransfer (plugin, evt, editor, info, data) {
@@ -50,6 +53,88 @@ async function handleHeicTransfer (plugin, evt, editor, info, data) {
 	else if (typeof editor?.replaceRange === "function" && typeof editor?.getCursor === "function") {
 		editor.replaceRange(text, editor.getCursor());
 	}
+}
+
+function displayHeicEmbeds (plugin, el, sourcePath) {
+	const embeds = [];
+	const images = [];
+	const take = (node) => {
+		if (!node) return;
+		if (node.classList?.contains("internal-embed")) embeds.push(node);
+		else if (node.tagName === "IMG") images.push(node);
+	};
+	take(el);
+	el.querySelectorAll?.(".internal-embed, img").forEach(take);
+	const claimed = new Set();
+	for (const embed of embeds) {
+		const file = resolveHeicFile(plugin, embed.getAttribute("src") || "", sourcePath);
+		if (!file) continue;
+		const img = embed.querySelector("img");
+		if (img) claimed.add(img);
+		watchHeic(plugin, embed, file);
+	}
+	for (const img of images) {
+		if (claimed.has(img)) continue;
+		const file = resolveHeicFile(plugin, img.getAttribute("src") || img.currentSrc || img.src || "", sourcePath);
+		if (!file) continue;
+		void paintHeic(plugin, img, img, file);
+	}
+}
+
+function watchHeic (plugin, embed, file) {
+	const apply = () => {
+		if (!embed.isConnected) {
+			observer.disconnect();
+			const previous = embed.dataset.fiveetoolsHeicUrl;
+			if (previous) {
+				URL.revokeObjectURL(previous);
+				delete embed.dataset.fiveetoolsHeicUrl;
+			}
+			return;
+		}
+		const img = embed.querySelector("img");
+		if (img) void paintHeic(plugin, img, embed, file);
+	};
+	const observer = new MutationObserver(apply);
+	apply();
+	observer.observe(embed, {childList: true, subtree: true});
+	if (embed.parentNode) observer.observe(embed.parentNode, {childList: true});
+}
+
+async function paintHeic (plugin, img, host, file) {
+	const mark = file.path;
+	if (img.dataset.fiveetoolsHeic === mark || img.dataset.fiveetoolsHeic === `pending:${mark}`) return;
+	img.dataset.fiveetoolsHeic = `pending:${mark}`;
+	try {
+		const bytes = await plugin.app.vault.readBinary(file);
+		if (!img.isConnected) return;
+		const jpeg = await heicFileToJpegBytes(plugin, new Blob([bytes], {type: "image/heic"}));
+		if (!img.isConnected) return;
+		const url = URL.createObjectURL(new Blob([jpeg], {type: "image/jpeg"}));
+		const previous = host.dataset.fiveetoolsHeicUrl;
+		if (previous) URL.revokeObjectURL(previous);
+		host.dataset.fiveetoolsHeicUrl = url;
+		img.dataset.fiveetoolsHeic = mark;
+		img.src = url;
+	} catch (_) {
+		if (img.dataset.fiveetoolsHeic === `pending:${mark}`) delete img.dataset.fiveetoolsHeic;
+	}
+}
+
+function resolveHeicFile (plugin, link, sourcePath) {
+	const linkpath = String(link || "").split("|")[0].trim();
+	if (!linkpath) return null;
+	let name = linkpath;
+	try { name = decodeURIComponent(linkpath.split("?")[0].split("/").pop() || ""); } catch (_) { /* keep the raw name */ }
+	if (!HEIC_EXT.test(name) && !HEIC_EXT.test(linkpath)) return null;
+	const directLink = /^app:|^https?:|^blob:/i.test(linkpath) ? name : linkpath;
+	const dest = plugin.app.metadataCache?.getFirstLinkpathDest?.(directLink, sourcePath || "");
+	if (dest && !dest.children && HEIC_EXT.test(dest.path)) return dest;
+	if (!/^app:|^https?:|^blob:/i.test(linkpath)) {
+		const direct = plugin.app.vault.getAbstractFileByPath(normalizePath(linkpath));
+		if (direct && !direct.children && HEIC_EXT.test(direct.path)) return direct;
+	}
+	return null;
 }
 
 function heicFilesFromTransfer (data) {
