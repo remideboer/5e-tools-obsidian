@@ -579,6 +579,28 @@ export function renderEncounterComposer (formEl, resultEl, {
 				text: group.initScore != null ? String(group.initScore) : "—",
 				attr: {title: "Initiative score"},
 			});
+			const removeGroup = headActions.createEl("button", {
+				text: "×",
+				cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
+				attr: {type: "button", title: "Remove group"},
+			});
+			removeGroup.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				const ids = new Set(group.members.map(member => member.id));
+				const label = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
+				confirmRemove(app, label, () => {
+					combatants = combatants.filter(it => !ids.has(it.id));
+					if (ids.has(selectedId)) selectedId = combatants[combatants.length - 1]?.id || null;
+					if (initOrderBaseline?.length) {
+						initOrderBaseline = initOrderBaseline.filter(id => !ids.has(id));
+						if (!initOrderBaseline.length) initOrderBaseline = null;
+					}
+					emit();
+					paintRoster();
+					openSelected();
+				});
+			});
 			head.addEventListener("click", (evt) => {
 				if (evt.target.closest(".fiveetools-encounter__group-actions")) return;
 				selectGroup();
