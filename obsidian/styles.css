@@ -2921,11 +2921,31 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 }
 
 .fiveetools-encounter__composer {
+	position: relative;
 	flex: 1 1 50%;
 	min-width: 0;
 	overflow: auto;
 	padding: 8px;
 	border-right: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-encounter__composer.is-collapsed {
+	flex: 0 0 28px;
+	width: 28px;
+	min-width: 28px;
+	overflow: hidden;
+	padding: 0;
+}
+
+.fiveetools-encounter__composer.is-collapsed > :not(.fiveetools-library__fold) {
+	display: none;
+}
+
+.fiveetools-encounter__composer.is-collapsed .fiveetools-library__fold {
+	position: static;
+	width: 100%;
+	height: 100%;
+	border-radius: 0;
 }
 
 .fiveetools-encounter__creatures {

@@ -1,4 +1,4 @@
-import {Modal, Notice} from "obsidian";
+import {Modal, Notice, setIcon} from "obsidian";
 import {searchEntities, brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
 import {CONDITIONS, renderCreatureForm} from "./creature-form.js";
@@ -345,9 +345,14 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let initOrderBaseline = Array.isArray(session?.initOrderBaseline)
 		? session.initOrderBaseline.map(String)
 		: null;
+	let composerCollapsed = !!session?.composerCollapsed;
 	bumpIdCounter(combatants);
 
 	const composerEl = formEl.createDiv({cls: "fiveetools-encounter__composer"});
+	const composerFold = composerEl.createEl("button", {
+		cls: "fiveetools-library__fold",
+		attr: {type: "button"},
+	});
 	composerEl.createEl("h3", {text: "Encounter Composer"});
 	composerEl.createEl("p", {
 		cls: "fiveetools-view__meta",
@@ -423,6 +428,23 @@ export function renderEncounterComposer (formEl, resultEl, {
 		resetOrderBtn.toggleAttribute("disabled", !initOrderBaseline?.length);
 	};
 
+	const paintComposerFold = () => {
+		composerEl.classList.toggle("is-collapsed", composerCollapsed);
+		const action = composerCollapsed ? "Expand encounter controls" : "Collapse encounter controls";
+		composerFold.setAttr("aria-expanded", composerCollapsed ? "false" : "true");
+		composerFold.setAttr("title", action);
+		composerFold.setAttr("aria-label", action);
+		setIcon(composerFold, composerCollapsed ? "panel-left-open" : "panel-left-close");
+	};
+	composerFold.addEventListener("click", (evt) => {
+		evt.preventDefault();
+		evt.stopPropagation();
+		composerCollapsed = !composerCollapsed;
+		paintComposerFold();
+		emit();
+	});
+	paintComposerFold();
+
 	const emit = () => {
 		clearBtn.toggleAttribute("disabled", !combatants.length);
 		loadBtn.toggleAttribute("disabled", !pickedId);
@@ -440,6 +462,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			blankDraft: normalizeMonsterForm(blankDraft),
 			saveToHomebrew,
 			initOrderBaseline: initOrderBaseline ? [...initOrderBaseline] : null,
+			composerCollapsed,
 		};
 		onSessionChange?.(next);
 		setEncounterInstance(next);
