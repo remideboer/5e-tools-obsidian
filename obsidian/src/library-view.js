@@ -706,6 +706,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (listToken !== this._listToken) return;
 		this.listEl.empty();
 		renderLootGenerator(this.listEl, this.readerEl, {
+			plugin: this.plugin,
 			selectedIds: session.ids,
 			count: session.count,
 			results: session.results,

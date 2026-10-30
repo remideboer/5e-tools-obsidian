@@ -229,6 +229,7 @@ function pickClosestIndividual (pool, crNum) {
 }
 
 export function renderLootGenerator (formEl, resultEl, {
+	plugin,
 	onOpenItem,
 	selectedIds = [],
 	count = 1,
@@ -304,7 +305,7 @@ export function renderLootGenerator (formEl, resultEl, {
 					const next = rollSelectedTables([table.id], countSel.value);
 					setViewedRow(null);
 					emitSession(next);
-					renderLootResults(resultEl, next, onOpenItem);
+					renderLootResults(resultEl, next, onOpenItem, plugin);
 				} catch (e) {
 					resultEl.empty();
 					resultEl.createEl("p", {text: e.message || "Failed to roll."});
@@ -350,7 +351,7 @@ export function renderLootGenerator (formEl, resultEl, {
 	countSel.addEventListener("change", () => emitSession());
 
 	if (currentResults?.items?.length) {
-		renderLootResults(resultEl, currentResults, onOpenItem);
+		renderLootResults(resultEl, currentResults, onOpenItem, plugin);
 	} else if (viewId) {
 		const meta = listLootTables().find(t => t.id === viewId);
 		if (meta) {
@@ -384,7 +385,7 @@ export function renderLootGenerator (formEl, resultEl, {
 			const next = rollSelectedTables(ids, countSel.value);
 			setViewedRow(null);
 			emitSession(next);
-			renderLootResults(resultEl, next, onOpenItem);
+			renderLootResults(resultEl, next, onOpenItem, plugin);
 		} catch (e) {
 			resultEl.setText(`Failed to roll: ${e.message}`);
 		} finally {
@@ -888,7 +889,7 @@ function groupTables (tables) {
 		.filter(group => group.tables.length);
 }
 
-function renderLootResults (el, results, onOpenItem) {
+function renderLootResults (el, results, onOpenItem, plugin) {
 	el.empty();
 	el.addClass("fiveetools-loot__result");
 	const items = results?.items || [];
@@ -909,6 +910,7 @@ function renderLootResults (el, results, onOpenItem) {
 		onOpenItem,
 		resolveItem: resolveLootItemDoc,
 		emptyText: "Select at least one loot table.",
+		plugin,
 	});
 }
 
