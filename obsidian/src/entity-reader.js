@@ -31,20 +31,6 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 		text: [doc.cf, doc.sA || doc.s].filter(Boolean).join(" · "),
 	});
 
-	const crRow = header.createDiv({cls: "fiveetools-view__cr is-hidden"});
-	crRow.createEl("span", {cls: "fiveetools-view__cr-label", text: "CR"});
-	const crSlider = crRow.createEl("input", {
-		cls: "fiveetools-view__cr-slider",
-		attr: {type: "range", min: "0", max: String(CR_STEPS.length - 1), step: "1"},
-	});
-	const crValue = crRow.createEl("span", {cls: "fiveetools-view__cr-value", text: "—"});
-	const saveBrewBtn = crRow.createEl("button", {
-		text: "Save homebrew",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Save this CR as a new homebrew creature"},
-	});
-	saveBrewBtn.setAttr("disabled", "true");
-
 	const actions = header.createDiv({cls: "fiveetools-view__actions"});
 	const insertBtn = actions.createEl("button", {text: "Insert note", cls: "fiveetools-btn"});
 	const printBtn = actions.createEl("button", {text: "Print card", cls: "fiveetools-btn fiveetools-btn--ghost"});
@@ -57,6 +43,20 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 		? actions.createEl("button", {text: "Add to encounter", cls: "fiveetools-btn fiveetools-btn--ghost"})
 		: null;
 	if (addEncounterBtn) addEncounterBtn.setAttr("disabled", "true");
+
+	const crRow = actions.createDiv({cls: "fiveetools-view__cr is-hidden"});
+	crRow.createEl("span", {cls: "fiveetools-view__cr-label", text: "CR"});
+	const crSlider = crRow.createEl("input", {
+		cls: "fiveetools-view__cr-slider",
+		attr: {type: "range", min: "0", max: String(CR_STEPS.length - 1), step: "1"},
+	});
+	const crValue = crRow.createEl("span", {cls: "fiveetools-view__cr-value", text: "—"});
+	const saveBrewBtn = crRow.createEl("button", {
+		text: "Save homebrew",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Save this CR as a new homebrew creature"},
+	});
+	saveBrewBtn.setAttr("disabled", "true");
 
 	const body = containerEl.createDiv({cls: "fiveetools-view__body"});
 	body.setText("Loading…");
