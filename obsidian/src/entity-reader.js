@@ -6,12 +6,14 @@ import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
-import {docFromHref, docFromVetLink} from "./search-index.js";
+import {docFromHref, docFromVetLink, indexHomebrewDocs} from "./search-index.js";
 import {bindDiceRollers} from "./dice-roll.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {attachHoverCard} from "./hover-card.js";
 import {addCombatants} from "./encounter-view.js";
 import {emptyInstance, getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
+import {adjustMultiattack, CR_STEPS, crLabel, crNumber, homebrewName} from "./creature-scale.js";
+import {cacheBrewInDataLoader, saveHomebrewToVault, upsertEntity} from "./homebrew-store.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 	containerEl.empty();
@@ -28,6 +30,20 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 		cls: "fiveetools-view__meta",
 		text: [doc.cf, doc.sA || doc.s].filter(Boolean).join(" · "),
 	});
+
+	const crRow = header.createDiv({cls: "fiveetools-view__cr is-hidden"});
+	crRow.createEl("span", {cls: "fiveetools-view__cr-label", text: "CR"});
+	const crSlider = crRow.createEl("input", {
+		cls: "fiveetools-view__cr-slider",
+		attr: {type: "range", min: "0", max: String(CR_STEPS.length - 1), step: "1"},
+	});
+	const crValue = crRow.createEl("span", {cls: "fiveetools-view__cr-value", text: "—"});
+	const saveBrewBtn = crRow.createEl("button", {
+		text: "Save homebrew",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Save this CR as a new homebrew creature"},
+	});
+	saveBrewBtn.setAttr("disabled", "true");
 
 	const actions = header.createDiv({cls: "fiveetools-view__actions"});
 	const insertBtn = actions.createEl("button", {text: "Insert note", cls: "fiveetools-btn"});
@@ -56,6 +72,7 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 
 		if (loaded.ent) {
 			if (loaded.ent.__prop === "adventure") {
+				crRow.remove();
 				insertBtn.addEventListener("click", async () => {
 					insertBtn.setAttr("disabled", "true");
 					try {
@@ -95,6 +112,20 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 				bindInternalLinks(statWrap, plugin);
 				bindDiceRollers(statWrap, plugin);
 				await rewriteMediaUrls(plugin, statWrap);
+				wireCrSlider({
+					plugin,
+					doc,
+					page,
+					ent: loaded.ent,
+					statWrap,
+					crRow,
+					crSlider,
+					crValue,
+					saveBrewBtn,
+					setPrintHtml: (html) => { compactHtml = html; },
+				});
+			} else {
+				crRow.remove();
 			}
 
 			insertBtn.addEventListener("click", async () => {
@@ -130,11 +161,13 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 				addEncounterBtn.remove();
 			}
 		} else {
+			crRow.remove();
 			insertBtn.setAttr("disabled", "true");
 			addEncounterBtn?.remove();
 			body.createEl("p", {text: `No JSON found for ${doc.n}.`});
 		}
 	} catch (e) {
+		crRow.remove();
 		insertBtn.setAttr("disabled", "true");
 		addEncounterBtn?.remove();
 		body.empty();
@@ -151,6 +184,110 @@ function isCreatureDoc (doc) {
 function isCreatureEntity (ent, doc) {
 	if (ent?.__prop === "monster") return true;
 	return isCreatureDoc(doc);
+}
+
+let scaleCreaturePromise = null;
+
+function loadScaleCreature () {
+	if (!scaleCreaturePromise) {
+		scaleCreaturePromise = import("../../js/scalecreature/scalecreature-scaler-cr.js")
+			.then(mod => mod.ScaleCreature)
+			.catch(err => {
+				scaleCreaturePromise = null;
+				throw err;
+			});
+	}
+	return scaleCreaturePromise;
+}
+
+async function scaledCopy (original, targetNumber) {
+	const copy = JSON.parse(JSON.stringify(original));
+	if (crNumber(copy.cr) === targetNumber) return copy;
+	adjustMultiattack(copy, targetNumber);
+	const ScaleCreature = await loadScaleCreature();
+	return ScaleCreature.scale(copy, targetNumber);
+}
+
+async function paintScaledStat (statWrap, ent, page, plugin, doc) {
+	statWrap.innerHTML = renderCompactHtml(ent, page);
+	if (isCreatureEntity(ent, doc)) appendCreatureStatFooter(statWrap, ent, plugin);
+	bindInternalLinks(statWrap, plugin);
+	bindDiceRollers(statWrap, plugin);
+	await rewriteMediaUrls(plugin, statWrap);
+}
+
+function wireCrSlider ({plugin, doc, page, ent, statWrap, crRow, crSlider, crValue, saveBrewBtn, setPrintHtml}) {
+	const label = crLabel(ent?.cr);
+	const startIndex = CR_STEPS.indexOf(label);
+	if (!isCreatureEntity(ent, doc) || startIndex < 0 || crNumber(label) == null) {
+		crRow.remove();
+		return;
+	}
+	crRow.removeClass("is-hidden");
+	crSlider.value = String(startIndex);
+	crValue.setText(label);
+
+	const original = JSON.parse(JSON.stringify(ent));
+	let shown = original;
+	let appliedIndex = startIndex;
+	let timer = 0;
+	let token = 0;
+
+	const applyIndex = async (index) => {
+		const nextLabel = CR_STEPS[index];
+		const myToken = ++token;
+		try {
+			const next = await scaledCopy(original, crNumber(nextLabel));
+			if (myToken !== token) return;
+			shown = next;
+			appliedIndex = index;
+			await paintScaledStat(statWrap, next, page, plugin, doc);
+			if (myToken !== token) return;
+			setPrintHtml(statWrap.innerHTML);
+			crValue.setText(nextLabel);
+			if (index === startIndex) saveBrewBtn.setAttr("disabled", "true");
+			else saveBrewBtn.removeAttribute("disabled");
+		} catch (e) {
+			if (myToken !== token) return;
+			new Notice(e.message || "Could not scale this creature.");
+			crSlider.value = String(appliedIndex);
+			crValue.setText(CR_STEPS[appliedIndex]);
+			if (appliedIndex === startIndex) saveBrewBtn.setAttr("disabled", "true");
+			else saveBrewBtn.removeAttribute("disabled");
+		}
+	};
+
+	crSlider.addEventListener("input", () => {
+		window.clearTimeout(timer);
+		const index = Number(crSlider.value);
+		crValue.setText(CR_STEPS[index] || "—");
+		saveBrewBtn.setAttr("disabled", "true");
+		timer = window.setTimeout(() => { void applyIndex(index); }, 200);
+	});
+
+	saveBrewBtn.addEventListener("click", async () => {
+		saveBrewBtn.setAttr("disabled", "true");
+		try {
+			const nextLabel = CR_STEPS[appliedIndex];
+			const saved = JSON.parse(JSON.stringify(shown));
+			saved.name = homebrewName(original.name || doc.n, nextLabel);
+			saved.source = "HB";
+			saved.__prop = "monster";
+			delete saved._displayName;
+			delete saved._scaledCr;
+			delete saved._isScaledCr;
+			delete saved._originalCr;
+			upsertEntity("monster", saved);
+			await saveHomebrewToVault(plugin);
+			cacheBrewInDataLoader();
+			indexHomebrewDocs();
+			new Notice(`Saved ${saved.name}.`);
+		} catch (e) {
+			new Notice(e.message || "Could not save homebrew.");
+		} finally {
+			if (appliedIndex !== startIndex) saveBrewBtn.removeAttribute("disabled");
+		}
+	});
 }
 
 function encounterSessionForAdd (plugin) {

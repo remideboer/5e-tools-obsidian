@@ -93,7 +93,7 @@ flowchart TB
 | Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |
 | Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
 | Library rows | `library-row.js` + `spell-meta.js` / `item-meta.js` / `bestiary-meta.js` (CR, rarity, level, type/alignment/habitat, classes; icon sort; spell/item/bestiary filters) |
-| Creature stats | `entity-reader.js` + `creature-stat-footer.js` (Habitat/Treasure on compact monsters; habitat → bestiary filter; treasure link/dice → Loot Generator / roll popup) |
+| Creature stats | `entity-reader.js` + `creature-stat-footer.js` + `creature-scale.js` (Habitat/Treasure on compact monsters; habitat → bestiary filter; treasure link/dice → Loot Generator / roll popup; CR slider scales a copy with the DMG scaler and can save it as new homebrew) |
 | Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
 
 ## Import rules of thumb
