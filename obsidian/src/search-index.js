@@ -89,7 +89,7 @@ export function brewDocFromEntity (ent, type) {
 		n: ent.name,
 		u: hash,
 		s: source,
-		sA: "HB",
+		sA: source === "ToV" ? "ToV" : "HB",
 		c: type.catId,
 		cf: Parser.pageCategoryToFull(type.catId),
 	};
