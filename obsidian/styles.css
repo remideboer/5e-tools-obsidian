@@ -923,8 +923,9 @@ a.fiveetools-inline-link {
 
 .fiveetools-dmscreen__note {
 	width: 100%;
-	min-height: 6em;
-	resize: vertical;
+	min-height: 0;
+	resize: none;
+	overflow: hidden;
 	box-sizing: border-box;
 	font: inherit;
 }

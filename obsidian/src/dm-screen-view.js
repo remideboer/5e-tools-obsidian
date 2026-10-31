@@ -4,6 +4,7 @@ import {characterName, listCharacters, saveCharacterPlay} from "./character-stor
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
+import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
@@ -172,6 +173,8 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const paint = () => {
+		plugin._dmNoteFit?.forEach(stop => stop());
+		plugin._dmNoteFit = [];
 		const gridScroll = grid.scrollLeft;
 		const scrolls = [...grid.querySelectorAll(".fiveetools-dmscreen__column")].map(el => el.scrollTop);
 		grid.empty();
@@ -1026,11 +1029,29 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	const paintNote = (body, panel) => {
 		const area = body.createEl("textarea", {
 			cls: "fiveetools-dmscreen__note",
-			attr: {placeholder: "Note"},
+			attr: {placeholder: "Note", rows: "1"},
 		});
+		const fit = () => {
+			area.style.height = "auto";
+			area.style.height = `${area.scrollHeight}px`;
+		};
 		area.value = panel.text || "";
+		fit();
+		let width = body.clientWidth;
+		const observer = new ResizeObserver(() => {
+			if (!area.isConnected) {
+				observer.disconnect();
+				return;
+			}
+			if (body.clientWidth === width) return;
+			width = body.clientWidth;
+			fit();
+		});
+		observer.observe(body);
+		plugin._dmNoteFit.push(() => observer.disconnect());
 		area.addEventListener("input", () => {
 			panel.text = area.value;
+			fit();
 			emit();
 		});
 	};
