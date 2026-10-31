@@ -1598,7 +1598,7 @@ function paintInitiative (host, plugin) {
 	for (const chip of chips) {
 		const row = list.createDiv({
 			cls: initRowClass(chip, current, done),
-			attr: {"data-key": chip.key, title: "Double-click to mark this turn"},
+			attr: {"data-key": chip.key, title: "Double-click to mark this turn. Again, before the round ends, unmarks this row."},
 		});
 		row.createSpan({cls: "fiveetools-init-list__name", text: chip.label});
 		const remove = row.createEl("button", {

@@ -502,10 +502,21 @@ export function selectTableTurn (plugin, key) {
 	refreshTable(plugin);
 }
 
-/** Mark the current turn done and move to the next, the same as Enter. `key` selects that row first. */
+/** Mark the current turn done and move to the next, the same as Enter. `key` selects that row first. Doing this again on a row that already went, before the round is over, unmarks only that row. */
 export function finishTableTurn (plugin, key) {
 	const session = ensureTableSession(plugin);
 	if (key) session.turnKey = key;
+	const chips = placedChips(session);
+	const current = currentTurnKey(session);
+	const done = doneKeys(session);
+	const already = current && done.includes(current);
+	const roundOpen = chips.some(chip => !done.includes(chip.key));
+	if (already && roundOpen) {
+		session.doneKeys = done.filter(it => it !== current);
+		session.turnKey = current;
+		refreshTable(plugin);
+		return;
+	}
 	markTurnDone(session);
 	refreshTable(plugin);
 }
