@@ -2205,10 +2205,48 @@ a.fiveetools-inline-link {
 	flex: 0 0 auto;
 }
 
-.fiveetools-dice-roller__die-label {
+.fiveetools-dice-roller--compact {
+	height: auto;
+	gap: 8px;
+	padding: 0;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__row {
+	gap: 6px;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__label,
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__flag {
 	font-size: 12px;
-	font-weight: 600;
-	font-variant-numeric: tabular-nums;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__flags {
+	gap: 8px 10px;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__grid {
+	grid-template-columns: repeat(auto-fill, minmax(3.2em, 1fr));
+	gap: 6px;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__die {
+	min-height: 3.7em;
+	padding: 6px 4px;
+	gap: 4px;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__icon {
+	width: 1.6em;
+	height: 1.6em;
+}
+
+.fiveetools-dice-roller--compact .fiveetools-dice-roller__die-label {
+	font-size: 11px;
+}
+
+.fiveetools-dmscreen__dicehist {
+	max-height: 8em;
+	overflow: auto;
 }
 
 .fiveetools-dice-roller-reader h3 {

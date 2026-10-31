@@ -27,9 +27,11 @@ export function renderDiceRoller (listEl, readerEl, {
 	plugin,
 	session = emptyDiceSession(),
 	onSessionChange,
+	compact = false,
 } = {}) {
 	listEl.empty();
 	listEl.addClass("fiveetools-dice-roller");
+	if (compact) listEl.addClass("fiveetools-dice-roller--compact");
 	readerEl?.empty();
 	readerEl?.addClass("fiveetools-dice-roller-reader");
 
@@ -55,11 +57,13 @@ export function renderDiceRoller (listEl, readerEl, {
 		});
 	};
 
-	listEl.createEl("h3", {text: "Dice roller"});
-	listEl.createEl("p", {
-		cls: "fiveetools-view__meta",
-		text: "Set amount, tap a die. Advantage / disadvantage apply to d20.",
-	});
+	if (!compact) {
+		listEl.createEl("h3", {text: "Dice roller"});
+		listEl.createEl("p", {
+			cls: "fiveetools-view__meta",
+			text: "Set amount, tap a die. Advantage / disadvantage apply to d20.",
+		});
+	}
 
 	const amountRow = listEl.createDiv({cls: "fiveetools-dice-roller__row"});
 	amountRow.createEl("label", {text: "Amount", cls: "fiveetools-dice-roller__label"});
@@ -207,7 +211,7 @@ export function renderDiceRoller (listEl, readerEl, {
 				...state.history,
 			].slice(0, HISTORY_MAX);
 			emit();
-			paintHistory(readerEl, state.history);
+			paintHistory(readerEl, state.history, compact);
 		});
 	}
 
@@ -220,10 +224,10 @@ export function renderDiceRoller (listEl, readerEl, {
 	clearBtn.addEventListener("click", () => {
 		state.history = [];
 		emit();
-		paintHistory(readerEl, state.history);
+		paintHistory(readerEl, state.history, compact);
 	});
 
-	paintHistory(readerEl, state.history);
+	paintHistory(readerEl, state.history, compact);
 }
 
 function rollDie (faces, state) {
@@ -271,11 +275,11 @@ function clampModifier (value) {
 	return Math.max(-5, Math.min(10, n));
 }
 
-function paintHistory (readerEl, history) {
+function paintHistory (readerEl, history, compact) {
 	if (!readerEl) return;
 	readerEl.empty();
 	readerEl.addClass("fiveetools-dice-roller-reader");
-	readerEl.createEl("h3", {text: "Results"});
+	if (!compact) readerEl.createEl("h3", {text: "Results"});
 	if (!history?.length) {
 		readerEl.createEl("p", {
 			cls: "fiveetools-view__meta",

@@ -4,7 +4,7 @@ import {characterName, listCharacters, saveCharacterPlay} from "./character-stor
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
-import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
+import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
@@ -122,6 +122,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Add the day timeline"},
 	});
+	const addDiceBtn = bar.createEl("button", {
+		text: "Dice",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Add the dice roller"},
+	});
 	const refButtons = QUICK_REFS.map((spec) => {
 		const el = bar.createEl("button", {
 			text: spec.label,
@@ -148,6 +153,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		addInitBtn.toggleAttribute("disabled", items().some(panel => panel.type === "initiative"));
 		addPlayersBtn.toggleAttribute("disabled", items().some(panel => panel.type === "players"));
 		addTimeBtn.toggleAttribute("disabled", items().some(panel => panel.type === "time"));
+		addDiceBtn.toggleAttribute("disabled", items().some(panel => panel.type === "dice"));
 		for (const btn of refButtons) {
 			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
 		}
@@ -568,6 +574,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (items().some(panel => panel.type === "time")) return;
 		addColumn(blankPanel("time", "Time"));
 	});
+	addDiceBtn.addEventListener("click", () => {
+		if (items().some(panel => panel.type === "dice")) return;
+		addColumn(blankPanel("dice", "Dice"));
+	});
 
 	const pinReference = (spec) => {
 		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
@@ -666,7 +676,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				}
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative" || panel.type === "time") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -708,6 +718,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "encounter") paintEncounter(body);
 		else if (panel.type === "players") void paintPlayers(body, panel);
 		else if (panel.type === "time") paintTime(body, panel);
+		else if (panel.type === "dice") paintDice(body, panel);
 		else if (panel.type === "initiative") {
 			body.addClass("fiveetools-dmscreen__init");
 			body.setAttr("tabindex", "0");
@@ -717,6 +728,22 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "reference") void paintReference(body, panel);
 		else if (panel.type === "rollTable") void paintRollTable(body, panel);
 		else void paintEntity(body, panel);
+	};
+
+	const paintDice = (body, panel) => {
+		body.empty();
+		if (!panel.dice) panel.dice = emptyDiceSession();
+		const controls = body.createDiv();
+		const history = body.createDiv({cls: "fiveetools-dmscreen__dicehist"});
+		renderDiceRoller(controls, history, {
+			plugin,
+			session: panel.dice,
+			compact: true,
+			onSessionChange: (next) => {
+				panel.dice = next;
+				emit();
+			},
+		});
 	};
 
 	const paintTime = (body, panel) => {
@@ -1411,6 +1438,7 @@ function blankPanel (type, title) {
 		panel.timeMode = "explore";
 		panel.timeStep = 10;
 	}
+	if (type === "dice") panel.dice = emptyDiceSession();
 	return panel;
 }
 

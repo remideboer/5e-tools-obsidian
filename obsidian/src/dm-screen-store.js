@@ -91,7 +91,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative", "players", "time"]);
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative", "players", "time", "dice"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -116,7 +116,38 @@ function normalizePanel (raw) {
 	};
 	if (type === "players") panel.characters = characterIds(raw.characters);
 	if (type === "time") Object.assign(panel, normalizeTime(raw));
+	if (type === "dice") panel.dice = normalizeDice(raw.dice);
 	return panel;
+}
+
+function normalizeDice (raw) {
+	const dice = raw && typeof raw === "object" ? raw : {};
+	const amount = String(dice.amount ?? "1");
+	const amountOk = amount === "custom" || (Number(amount) >= 1 && Number(amount) <= 10 && String(Number(amount)) === amount);
+	const custom = Math.floor(Number(dice.customAmount));
+	const mod = Math.floor(Number(dice.modifier));
+	const advantage = !!dice.advantage;
+	const history = [];
+	for (const row of Array.isArray(dice.history) ? dice.history : []) {
+		if (!row || typeof row !== "object" || history.length >= 40) continue;
+		history.push({
+			id: String(row.id || ""),
+			faces: Number(row.faces) || 0,
+			notation: String(row.notation || ""),
+			mode: String(row.mode || ""),
+			total: row.total == null || row.total === "" ? null : Number(row.total),
+			text: String(row.text || ""),
+		});
+	}
+	return {
+		amount: amountOk ? amount : "1",
+		customAmount: Number.isFinite(custom) ? Math.min(99, Math.max(1, custom)) : 1,
+		modifier: Number.isFinite(mod) ? Math.min(10, Math.max(-5, mod)) : 0,
+		useModifier: !!dice.useModifier,
+		advantage,
+		disadvantage: !!dice.disadvantage && !advantage,
+		history,
+	};
 }
 
 function characterIds (raw) {
@@ -138,6 +169,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "initiative") return "Initiative";
 	if (type === "players") return "Players";
 	if (type === "time") return "Time";
+	if (type === "dice") return "Dice";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	if (type === "rollTable") return "Roll table";
 	return "Note";
