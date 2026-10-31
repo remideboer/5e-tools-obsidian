@@ -484,6 +484,32 @@ function placeGroup (session, key, score) {
 	session.combatants = reorderCombatantsByGroups([...placed, ...open]);
 }
 
+/** Move one placed group before or after another, then pack the roster onto consecutive numbers from the highest score already in use. */
+export function reorderPlacedRoster (plugin, fromKey, toKey, after) {
+	const session = ensureTableSession(plugin);
+	const chips = placedChips(session);
+	if (chips.length < 2 || !fromKey || !toKey || fromKey === toKey) return false;
+	const from = chips.findIndex(chip => chip.key === fromKey);
+	const to = chips.findIndex(chip => chip.key === toKey);
+	if (from < 0 || to < 0) return false;
+	const next = chips.slice();
+	const [moved] = next.splice(from, 1);
+	let insert = next.findIndex(chip => chip.key === toKey);
+	if (insert < 0) return false;
+	if (after) insert += 1;
+	next.splice(insert, 0, moved);
+	if (next.every((chip, i) => chip.key === chips[i].key)) return false;
+	let score = Math.max(...chips.map(chip => Number(chip.initScore)));
+	for (const chip of next) {
+		applyGroupInitScore(session.combatants, chip.key, Math.max(1, score));
+		if (score > 1) score -= 1;
+	}
+	const open = listKindGroups(session.combatants).filter(group => group.initScore == null);
+	session.combatants = reorderCombatantsByGroups([...next, ...open]);
+	refreshTable(plugin);
+	return true;
+}
+
 export function placedChips (session) {
 	return listKindGroups(session?.combatants)
 		.filter(group => group.initScore != null && Number.isFinite(Number(group.initScore)))

@@ -2771,6 +2771,19 @@ a.fiveetools-inline-link {
 .fiveetools-init-list__name {
 	flex: 1 1 auto;
 	min-width: 0;
+	cursor: grab;
+}
+
+.fiveetools-init-list__name:active {
+	cursor: grabbing;
+}
+
+.fiveetools-init-list__row.is-drop-before {
+	box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.fiveetools-init-list__row.is-drop-after {
+	box-shadow: inset 0 -2px 0 var(--interactive-accent);
 }
 
 .fiveetools-init-list__x {

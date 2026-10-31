@@ -20,7 +20,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
-import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, removeTableGroup, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, removeTableGroup, reorderPlacedRoster, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -1600,7 +1600,36 @@ function paintInitiative (host, plugin) {
 			cls: initRowClass(chip, current, done),
 			attr: {"data-key": chip.key, title: "Double-click to mark this turn. Again, before the round ends, unmarks this row."},
 		});
-		row.createSpan({cls: "fiveetools-init-list__name", text: chip.label});
+		const name = row.createSpan({
+			cls: "fiveetools-init-list__name",
+			text: chip.label,
+			attr: {draggable: "true", title: "Drag to reorder. Double-click to mark this turn. Again, before the round ends, unmarks this row."},
+		});
+		name.addEventListener("dragstart", (evt) => {
+			evt.stopPropagation();
+			evt.dataTransfer.setData("text/plain", JSON.stringify({rosterKey: chip.key}));
+			evt.dataTransfer.effectAllowed = "move";
+		});
+		row.addEventListener("dragover", (evt) => {
+			evt.preventDefault();
+			const after = evt.clientY > row.getBoundingClientRect().top + row.clientHeight / 2;
+			row.classList.toggle("is-drop-before", !after);
+			row.classList.toggle("is-drop-after", after);
+		});
+		row.addEventListener("dragleave", (evt) => {
+			if (row.contains(evt.relatedTarget)) return;
+			row.classList.remove("is-drop-before", "is-drop-after");
+		});
+		row.addEventListener("drop", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			const after = row.classList.contains("is-drop-after");
+			row.classList.remove("is-drop-before", "is-drop-after");
+			let payload = null;
+			try { payload = JSON.parse(evt.dataTransfer?.getData("text/plain") || ""); } catch (_) { return; }
+			if (!payload?.rosterKey) return;
+			reorderPlacedRoster(plugin, payload.rosterKey, chip.key, after);
+		});
 		const remove = row.createEl("button", {
 			text: "×",
 			cls: "fiveetools-init-list__x",
