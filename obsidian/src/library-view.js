@@ -40,6 +40,15 @@ const BADGE_SORT_LABEL = {
 	item: "rarity",
 };
 
+function openOnDmScreen (plugin) {
+	return plugin?.settings?.dmScreenOnStart !== false;
+}
+
+function openingState (view, state) {
+	if (!openOnDmScreen(view?.plugin) || view?._settled) return state || null;
+	return {...(state || {}), navId: "dmscreen", doc: null, query: ""};
+}
+
 export class FiveEToolsLibraryView extends ItemView {
 	constructor (leaf, plugin) {
 		super(leaf);
@@ -96,6 +105,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	async setState (state, result) {
+		state = openingState(this, state);
 		this._pendingState = state || null;
 		if (state?.doc && result) result.history = true;
 		await super.setState(state, result);
@@ -110,6 +120,7 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	async onOpen () {
+		this._settled = false;
 		this.contentEl.empty();
 		this.contentEl.addClass("fiveetools-library");
 
@@ -152,6 +163,13 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
+		if (openOnDmScreen(this.plugin)) {
+			this.navId = "dmscreen";
+			this.selectedDoc = null;
+			this.query = "";
+			this._pendingState = openingState(this, this._pendingState);
+		}
+
 		if (this.plugin._pendingBestiaryFilters) {
 			this.applyBestiaryFilters(this.plugin._pendingBestiaryFilters);
 			this.plugin._pendingBestiaryFilters = null;
@@ -160,14 +178,22 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (this._pendingState?.doc || this._pendingState?.navId) {
 			await this.applyState(this._pendingState);
 			this.focusGlobalSearch();
+			this.settleOpen();
 			return;
 		}
 
 		this.renderNav();
 		this.refreshList();
 		this.applyFolds();
-		this.readerEl.createEl("p", {text: "Choose a category, then an entry to read."});
+		if (!currentNavItem(this.navId)?.tool) {
+			this.readerEl.createEl("p", {text: "Choose a category, then an entry to read."});
+		}
 		this.focusGlobalSearch();
+		this.settleOpen();
+	}
+
+	settleOpen () {
+		window.setTimeout(() => { this._settled = true; }, 0);
 	}
 
 	mountFold (parent, key) {

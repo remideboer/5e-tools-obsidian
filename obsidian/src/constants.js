@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
 	dicePublic: false,
 	convertHeicOnPaste: true,
 	focusListOnNav: true,
+	dmScreenOnStart: true,
 	tableInitBackground: "#000000",
 	tableInitText: "#ffffff",
 };

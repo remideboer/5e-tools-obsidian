@@ -7,7 +7,7 @@ The plugin is mostly **ESM functions**, not a class hierarchy. Views subclass Ob
 | Symbol | File | Role |
 |--------|------|------|
 | `FiveEToolsPlugin` | `obsidian/main.js` | Lifecycle, settings, `ensureReady`, open library |
-| `FiveEToolsLibraryView` | `library-view.js` | Main UI: nav, list, tools (map, loot, …) |
+| `FiveEToolsLibraryView` | `library-view.js` | Main UI: nav, list, tools (map, loot, …). Opens on the DM screen unless that setting is off, which restores the last section. |
 | `FiveEToolsView` | `entity-view.js` | Entity preview leaf |
 | `FiveEToolsMapPlayerView` | `map-view.js` | Player popout; owns `frame` canvas |
 | `FiveEToolsTableView` | `table-view.js` | Table popout; image background, initiative overlay the DM screen card can hide |

@@ -94,6 +94,16 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName("Open on the DM screen")
+			.setDesc("The library opens on the DM screen every time. Turn this off to reopen the last section.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.dmScreenOnStart !== false)
+				.onChange(async (value) => {
+					this.plugin.settings.dmScreenOnStart = !!value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName("Focus the list after choosing a section")
 			.setDesc("When you pick an item in the library navigation, the cursor moves to that list so the arrow keys work. Turn this off to leave focus where it was.")
 			.addToggle(toggle => toggle
