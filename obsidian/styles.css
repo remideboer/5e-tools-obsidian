@@ -2900,7 +2900,12 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 }
 
 .fiveetools-table-player__roster h2 {
-	margin: 0 0 12px;
+	margin: 0 0 0.4em;
+	font-size: 1.15em;
+}
+
+.fiveetools-table-player__roster .fiveetools-init-list__row {
+	font-size: 1em;
 }
 
 .fiveetools-table-player__group {

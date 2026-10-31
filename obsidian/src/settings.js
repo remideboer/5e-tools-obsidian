@@ -1,5 +1,5 @@
 import {Notice, PluginSettingTab, Setting} from "obsidian";
-import {DEFAULT_SETTINGS} from "./constants.js";
+import {DEFAULT_SETTINGS, tableInitHeightPercent} from "./constants.js";
 import {setStyleHint} from "./fiveetools-host.js";
 import {clearMediaCache} from "./media-cache.js";
 import {refreshTable} from "./table-session.js";
@@ -121,6 +121,19 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.tableInitBackground || "#000000")
 				.onChange(async (value) => {
 					this.plugin.settings.tableInitBackground = value.trim() || "#000000";
+					await this.plugin.saveSettings();
+					refreshTable(this.plugin);
+				}));
+
+		new Setting(containerEl)
+			.setName("Table initiative height")
+			.setDesc("Height of each name on the Table window, as a percentage of that window. 4 is about twice the previous size.")
+			.addSlider(slider => slider
+				.setLimits(1, 15, 1)
+				.setValue(tableInitHeightPercent(this.plugin.settings))
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					this.plugin.settings.tableInitHeight = value;
 					await this.plugin.saveSettings();
 					refreshTable(this.plugin);
 				}));

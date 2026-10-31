@@ -1,5 +1,5 @@
 import {ItemView, Menu, Notice} from "obsidian";
-import {VIEW_TYPE_FIVEETOOLS_TABLE} from "./constants.js";
+import {VIEW_TYPE_FIVEETOOLS_TABLE, tableInitHeightPercent} from "./constants.js";
 import {acOf, avatarFrom, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
 import {characterName, listCharacters} from "./character-store.js";
@@ -139,6 +139,7 @@ function paintPlayerRoster (host, session, doc, plugin) {
 	const settings = plugin?.settings || {};
 	panel.style.background = settings.tableInitBackground || "#000000";
 	panel.style.color = settings.tableInitText || "#ffffff";
+	panel.style.fontSize = `${tableInitHeightPercent(settings)}vh`;
 	const title = doc.createElement("h2");
 	title.textContent = "Initiative";
 	panel.appendChild(title);
