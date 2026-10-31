@@ -2827,6 +2827,20 @@ a.fiveetools-inline-link {
 	background: #111;
 }
 
+.fiveetools-init-list__fallback {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, currentColor 16%, transparent);
+	color: inherit;
+}
+
+.fiveetools-init-list__fallback svg {
+	width: 68%;
+	height: 68%;
+	fill: currentColor;
+}
+
 .fiveetools-init-list__name {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -2961,10 +2975,6 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 .fiveetools-table-player__roster h2 {
 	margin: 0 0 0.4em;
 	font-size: 1.15em;
-}
-
-.fiveetools-table-player__roster .fiveetools-init-list__row {
-	font-size: 1em;
 }
 
 .fiveetools-table-player__group {

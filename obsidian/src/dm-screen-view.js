@@ -21,7 +21,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
-import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, removeTableGroup, reorderPlacedRoster, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, addNamedAtEnd, appendInitToken, removeTableGroup, reorderPlacedRoster, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -1603,6 +1603,15 @@ function paintInitiative (host, plugin) {
 			evt.stopPropagation();
 			void addBoardPlayers(plugin);
 		});
+		const dmBtn = actions.createEl("button", {
+			text: "DM",
+			cls: "fiveetools-btn fiveetools-btn--ghost",
+			attr: {type: "button", title: "Add Enemies at the end of the roster"},
+		});
+		dmBtn.addEventListener("click", (evt) => {
+			evt.stopPropagation();
+			addNamedAtEnd(plugin, "Enemies");
+		});
 		const nameEl = actions.createEl("input", {
 			cls: "fiveetools-dmscreen__initname",
 			attr: {type: "text", placeholder: "Name, then Enter", title: "Add this name under the players"},
@@ -1637,7 +1646,10 @@ function paintInitiative (host, plugin) {
 	const rows = [...list.children];
 	const same = rows.length === chips.length && chips.every((chip, i) => {
 		const name = rows[i].querySelector(".fiveetools-init-list__name");
-		return rows[i].dataset.key === chip.key && name?.textContent === chip.label;
+		const token = rows[i].querySelector(".fiveetools-init-list__token");
+		const src = chip.members?.find(member => member.image)?.image || "";
+		const tokenOk = src ? token?.getAttribute("src") === src : token?.classList.contains("fiveetools-init-list__fallback");
+		return rows[i].dataset.key === chip.key && name?.textContent === chip.label && tokenOk;
 	});
 	if (same) {
 		chips.forEach((chip, i) => { rows[i].className = initRowClass(chip, current, done); });
@@ -1649,6 +1661,7 @@ function paintInitiative (host, plugin) {
 			cls: initRowClass(chip, current, done),
 			attr: {"data-key": chip.key, title: "Double-click to mark this turn. Again, before the round ends, unmarks this row."},
 		});
+		appendInitToken(row, chip);
 		const name = row.createSpan({
 			cls: "fiveetools-init-list__name",
 			text: chip.label,

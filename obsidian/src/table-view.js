@@ -149,14 +149,7 @@ function paintPlayerRoster (host, session, doc, plugin) {
 		const row = doc.createElement("div");
 		row.className = `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}${done.includes(chip.key) ? " is-done" : ""}`;
 		row.addEventListener("click", () => selectTableTurn(plugin, chip.key));
-		const src = chipImage(chip);
-		if (src) {
-			const img = doc.createElement("img");
-			img.className = "fiveetools-init-list__token";
-			img.alt = "";
-			img.src = src;
-			row.appendChild(img);
-		}
+		appendInitToken(row, chip);
 		const name = doc.createElement("span");
 		name.textContent = chip.label;
 		row.appendChild(name);
@@ -168,6 +161,25 @@ function paintPlayerRoster (host, session, doc, plugin) {
 
 function chipImage (chip) {
 	return chip.members?.find(member => member.image)?.image || "";
+}
+
+const FALLBACK_TOKEN = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 5 6.2v5.3c0 4.2 2.9 7.2 7 8.8 4.1-1.6 7-4.6 7-8.8V6.2L12 3.2zm0 2.1 5 2.2v3.9c0 3-1.9 5.3-5 6.6-3.1-1.3-5-3.6-5-6.6V7.5l5-2.2z"/><circle cx="12" cy="11" r="2.1"/></svg>`;
+
+export function appendInitToken (parent, chip) {
+	const doc = parent.ownerDocument;
+	const src = chipImage(chip);
+	if (src) {
+		const img = doc.createElement("img");
+		img.className = "fiveetools-init-list__token";
+		img.alt = "";
+		img.src = src;
+		parent.appendChild(img);
+		return;
+	}
+	const mark = doc.createElement("span");
+	mark.className = "fiveetools-init-list__token fiveetools-init-list__fallback";
+	mark.innerHTML = FALLBACK_TOKEN;
+	parent.appendChild(mark);
 }
 
 function fillMissingImages (plugin, session) {
@@ -746,6 +758,23 @@ export function renameTableCharacter (plugin, id, label) {
 
 function onRuler (combatant) {
 	return combatant?.initScore != null && Number.isFinite(Number(combatant.initScore));
+}
+
+/** Place a typed name on the last number of the roster. */
+export function addNamedAtEnd (plugin, raw) {
+	const name = String(raw || "").trim();
+	if (!name) return false;
+	const session = ensureTableSession(plugin);
+	const key = name.replace(/\s+\d+$/, "").trim().toLowerCase();
+	const groups = listKindGroups(session.combatants);
+	const existing = groups.find(group => group.key === key);
+	if (existing && onRuler(existing.members[0])) return false;
+	const combatant = existing?.members[0] || pushNamed(session, name, {});
+	const scores = (session.combatants || []).filter(onRuler).map(it => Number(it.initScore));
+	const score = scores.length ? Math.max(1, Math.min(...scores) - 1) : 20;
+	placeGroup(session, kindKey(combatant), score);
+	refreshTable(plugin);
+	return true;
 }
 
 /** Place a typed name on the next number under the players. Returns false when the name is empty. */
