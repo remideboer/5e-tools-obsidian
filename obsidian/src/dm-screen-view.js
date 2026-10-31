@@ -7,6 +7,7 @@ import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
+import {addMinutes, clockParts, formatClock, LONG_REST, shiftLabel, shiftRows, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, listKindGroups} from "./encounter-view.js";
@@ -53,6 +54,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const bar = listEl.createDiv({cls: "fiveetools-dmscreen__bar"});
+	bar.addEventListener("pointerdown", (evt) => evt.stopPropagation());
 	const tableBtn = bar.createEl("button", {
 		text: "Table",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
@@ -114,6 +116,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Add player stat cards"},
 	});
+	const addTimeBtn = bar.createEl("button", {
+		text: "Time",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Add the day timeline"},
+	});
 	const refButtons = QUICK_REFS.map((spec) => {
 		const el = bar.createEl("button", {
 			text: spec.label,
@@ -139,15 +146,22 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		addEncounterBtn.toggleAttribute("disabled", items().some(panel => panel.type === "encounter"));
 		addInitBtn.toggleAttribute("disabled", items().some(panel => panel.type === "initiative"));
 		addPlayersBtn.toggleAttribute("disabled", items().some(panel => panel.type === "players"));
+		addTimeBtn.toggleAttribute("disabled", items().some(panel => panel.type === "time"));
 		for (const btn of refButtons) {
 			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
 		}
 	};
 
 	const addColumn = (panel) => {
-		state.columns.push({id: allocPanelId(), items: [panel]});
-		emit();
-		paint();
+		try {
+			state.columns.push({id: allocPanelId(), collapsed: false, items: [panel]});
+			emit();
+			paint();
+			grid.scrollLeft = grid.scrollWidth;
+		} catch (e) {
+			new Notice(e?.message || "Could not add that widget.");
+			console.error(e);
+		}
 	};
 
 	const paint = () => {
@@ -169,7 +183,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			};
 			el.addEventListener("click", (evt) => {
 				if (!column.collapsed) return;
-				evt.preventDefault();
+				if (evt.target.closest(".fiveetools-dmscreen__colactions, button, input, textarea, select, a")) return;
 				setCollapsed(false);
 			});
 			const grip = el.createDiv({cls: "fiveetools-dmscreen__colgrip"});
@@ -227,6 +241,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				else moveCard(id, column.id, null, false);
 			});
 			const actions = el.createDiv({cls: "fiveetools-dmscreen__colactions"});
+			actions.addEventListener("pointerdown", (evt) => evt.stopPropagation());
 			const entryBtn = actions.createEl("button", {
 				text: "Entry",
 				cls: "fiveetools-btn fiveetools-btn--ghost",
@@ -247,18 +262,30 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				cls: "fiveetools-btn fiveetools-btn--ghost",
 				attr: {type: "button", title: "Add a roll table to this column"},
 			});
-			entryBtn.addEventListener("click", () => openSearch("entry", column));
-			tableBtn.addEventListener("click", () => openSearch("table", column));
-			noteBtn.addEventListener("click", () => {
-				column.items.push(blankPanel("note", "Note"));
-				emit();
-				paint();
+			const addToColumn = (evt, panel) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				try {
+					column.items.push(panel);
+					emit();
+					paint();
+				} catch (e) {
+					new Notice(e?.message || "Could not add that widget.");
+					console.error(e);
+				}
+			};
+			entryBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				openSearch("entry", column);
 			});
-			counterBtn.addEventListener("click", () => {
-				column.items.push(blankPanel("counter", "Counter"));
-				emit();
-				paint();
+			tableBtn.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				openSearch("table", column);
 			});
+			noteBtn.addEventListener("click", (evt) => addToColumn(evt, blankPanel("note", "Note")));
+			counterBtn.addEventListener("click", (evt) => addToColumn(evt, blankPanel("counter", "Counter")));
 			if (scrolls[index]) el.scrollTop = scrolls[index];
 		});
 		const lane = grid.createDiv({cls: "fiveetools-dmscreen__newcol", attr: {title: "Drop to make a new column"}});
@@ -536,6 +563,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (items().some(panel => panel.type === "players")) return;
 		addColumn(blankPanel("players", "Players"));
 	});
+	addTimeBtn.addEventListener("click", () => {
+		if (items().some(panel => panel.type === "time")) return;
+		addColumn(blankPanel("time", "Time"));
+	});
 
 	const pinReference = (spec) => {
 		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
@@ -634,7 +665,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				}
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative" || panel.type === "time") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -675,6 +706,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "campaignNote") void paintCampaignNote(body, panel);
 		else if (panel.type === "encounter") paintEncounter(body);
 		else if (panel.type === "players") void paintPlayers(body, panel);
+		else if (panel.type === "time") paintTime(body, panel);
 		else if (panel.type === "initiative") {
 			body.addClass("fiveetools-dmscreen__init");
 			body.setAttr("tabindex", "0");
@@ -684,6 +716,77 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "reference") void paintReference(body, panel);
 		else if (panel.type === "rollTable") void paintRollTable(body, panel);
 		else void paintEntity(body, panel);
+	};
+
+	const paintTime = (body, panel) => {
+		body.empty();
+		const time = {
+			timeMinute: Number.isFinite(Number(panel.timeMinute)) ? Math.max(0, Math.trunc(panel.timeMinute)) : 0,
+			timeMode: panel.timeMode,
+			timeStep: panel.timeStep,
+		};
+		const steps = stepsFor(time.timeMode);
+		if (!steps.some(step => step.id === time.timeStep)) time.timeStep = steps[0].id;
+		panel.timeMinute = time.timeMinute;
+		panel.timeMode = TIME_MODES.some(mode => mode.id === time.timeMode) ? time.timeMode : "explore";
+		panel.timeStep = stepsFor(panel.timeMode).some(step => step.id === time.timeStep)
+			? time.timeStep
+			: stepsFor(panel.timeMode)[0].id;
+		const parts = clockParts(panel.timeMinute);
+
+		const head = body.createDiv({cls: "fiveetools-dmscreen__timehead"});
+		head.createEl("div", {cls: "fiveetools-dmscreen__timeclock", text: `Day ${parts.day} · ${formatClock(parts)}`});
+		head.createEl("div", {cls: "fiveetools-dmscreen__timeshift", text: shiftLabel(parts.shift)});
+
+		const controls = body.createDiv({cls: "fiveetools-dmscreen__timecontrols"});
+		const modeSel = controls.createEl("select", {attr: {title: "Mode"}});
+		for (const mode of TIME_MODES) {
+			modeSel.createEl("option", {attr: {value: mode.id}, text: mode.label});
+		}
+		modeSel.value = panel.timeMode;
+		const stepSel = controls.createEl("select", {attr: {title: "Step"}});
+		for (const step of stepsFor(panel.timeMode)) {
+			stepSel.createEl("option", {attr: {value: String(step.id)}, text: step.label});
+		}
+		stepSel.value = String(panel.timeStep);
+
+		const move = (delta) => {
+			panel.timeMinute = addMinutes(panel.timeMinute, delta);
+			emit();
+			paintTime(body, panel);
+		};
+		const row = controls.createDiv({cls: "fiveetools-dmscreen__timerowbtns"});
+		const minus = row.createEl("button", {text: "−", cls: "fiveetools-dmscreen__countbtn", attr: {type: "button", title: "Back"}});
+		const plus = row.createEl("button", {text: "+", cls: "fiveetools-dmscreen__countbtn", attr: {type: "button", title: "Forward"}});
+		minus.addEventListener("click", () => move(-panel.timeStep));
+		plus.addEventListener("click", () => move(panel.timeStep));
+		const shortBtn = row.createEl("button", {text: "Short rest", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Add 1 hour"}});
+		const longBtn = row.createEl("button", {text: "Long rest", cls: "fiveetools-btn fiveetools-btn--ghost", attr: {type: "button", title: "Add 8 hours"}});
+		shortBtn.addEventListener("click", () => move(SHORT_REST));
+		longBtn.addEventListener("click", () => move(LONG_REST));
+
+		modeSel.addEventListener("change", () => {
+			panel.timeMode = modeSel.value;
+			panel.timeStep = stepsFor(panel.timeMode)[0].id;
+			emit();
+			paintTime(body, panel);
+		});
+		stepSel.addEventListener("change", () => {
+			panel.timeStep = Number(stepSel.value);
+			emit();
+			paintTime(body, panel);
+		});
+
+		const table = body.createDiv({cls: "fiveetools-dmscreen__timetable"});
+		let marked = null;
+		shiftRows(parts.shift).forEach((label, index) => {
+			const line = table.createDiv({
+				cls: `fiveetools-dmscreen__timerow${index === parts.row ? " is-now" : ""}`,
+				text: label,
+			});
+			if (index === parts.row) marked = line;
+		});
+		marked?.scrollIntoView({block: "nearest"});
 	};
 
 	const paintPlayers = async (body, panel) => {
@@ -1280,6 +1383,11 @@ function blankPanel (type, title) {
 		value: 0,
 	};
 	if (type === "players") panel.characters = [];
+	if (type === "time") {
+		panel.timeMinute = 0;
+		panel.timeMode = "explore";
+		panel.timeStep = 10;
+	}
 	return panel;
 }
 

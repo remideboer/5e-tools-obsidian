@@ -281,6 +281,8 @@ a.fiveetools-inline-link {
 	flex-wrap: wrap;
 	gap: 6px;
 	flex: 0 0 auto;
+	position: relative;
+	z-index: 5;
 }
 
 .fiveetools-dmscreen__search {
@@ -401,6 +403,60 @@ a.fiveetools-inline-link {
 	border-bottom: 0;
 }
 
+.fiveetools-dmscreen__timehead {
+	margin-bottom: 8px;
+}
+
+.fiveetools-dmscreen__timeclock {
+	font-size: 1.35em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.15;
+}
+
+.fiveetools-dmscreen__timeshift {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.fiveetools-dmscreen__timecontrols {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.fiveetools-dmscreen__timecontrols select {
+	min-width: 0;
+}
+
+.fiveetools-dmscreen__timerowbtns {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.fiveetools-dmscreen__timetable {
+	display: flex;
+	flex-direction: column;
+	margin-top: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.fiveetools-dmscreen__timerow {
+	padding: 2px 8px;
+	font-variant-numeric: tabular-nums;
+}
+
+.fiveetools-dmscreen__timerow.is-now {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 700;
+}
+
 .fiveetools-dmscreen__colgrip {
 	display: flex;
 	align-items: center;
@@ -509,6 +565,12 @@ a.fiveetools-inline-link {
 	flex-wrap: wrap;
 	gap: 4px;
 	flex: 0 0 auto;
+	position: sticky;
+	bottom: 0;
+	z-index: 4;
+	padding-top: 4px;
+	background: var(--background-primary);
+	pointer-events: auto;
 }
 
 .fiveetools-dmscreen__card {

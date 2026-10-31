@@ -1,3 +1,5 @@
+import {normalizeTime} from "./dm-time.js";
+
 let boardJson = emptyBoard();
 let nextPanelId = 1;
 let saveTimer = null;
@@ -89,7 +91,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative", "players"]);
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative", "players", "time"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -113,6 +115,7 @@ function normalizePanel (raw) {
 		collapsed: !!raw.collapsed,
 	};
 	if (type === "players") panel.characters = characterIds(raw.characters);
+	if (type === "time") Object.assign(panel, normalizeTime(raw));
 	return panel;
 }
 
@@ -134,6 +137,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "encounter") return "Encounter";
 	if (type === "initiative") return "Initiative";
 	if (type === "players") return "Players";
+	if (type === "time") return "Time";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	if (type === "rollTable") return "Roll table";
 	return "Note";
