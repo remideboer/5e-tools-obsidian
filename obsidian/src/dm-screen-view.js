@@ -7,7 +7,7 @@ import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
-import {addMinutes, clockParts, formatClock, LONG_REST, shiftLabel, shiftRows, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
+import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, listKindGroups} from "./encounter-view.js";
@@ -779,14 +779,36 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 
 		const table = body.createDiv({cls: "fiveetools-dmscreen__timetable"});
 		let marked = null;
-		shiftRows(parts.shift).forEach((label, index) => {
-			const line = table.createDiv({
-				cls: `fiveetools-dmscreen__timerow${index === parts.row ? " is-now" : ""}`,
-				text: label,
+		const dayBase = (parts.day - 1) * DAY_MINUTES;
+		for (const column of dayColumns()) {
+			const col = table.createDiv({
+				cls: `fiveetools-dmscreen__timecol${column.shift === parts.shift ? " is-shift" : ""}`,
 			});
-			if (index === parts.row) marked = line;
-		});
-		marked?.scrollIntoView({block: "nearest"});
+			col.createDiv({
+				cls: "fiveetools-dmscreen__timecolhead",
+				text: column.rows[0].label,
+				attr: {title: column.label},
+			});
+			for (const slot of column.rows) {
+				const isNow = column.shift === parts.shift
+					&& slot.minuteOfDay === parts.shift * 6 * 60 + parts.row * 10;
+				const line = col.createDiv({
+					cls: `fiveetools-dmscreen__timerow${slot.hour ? " is-hour" : ""}${isNow ? " is-now" : ""}`,
+					text: slot.label,
+					attr: {title: `Set time to ${slot.label}`},
+				});
+				line.addEventListener("click", () => {
+					panel.timeMinute = dayBase + slot.minuteOfDay;
+					emit();
+					paintTime(body, panel);
+				});
+				if (isNow) marked = line;
+			}
+		}
+		if (marked) {
+			const rowTop = marked.getBoundingClientRect().top - table.getBoundingClientRect().top + table.scrollTop;
+			table.scrollTop = Math.max(0, rowTop - table.clientHeight / 2);
+		}
 	};
 
 	const paintPlayers = async (body, panel) => {

@@ -438,17 +438,58 @@ a.fiveetools-inline-link {
 }
 
 .fiveetools-dmscreen__timetable {
+	position: relative;
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 4px;
+	max-height: 22em;
+	margin-top: 8px;
+	overflow: auto;
+}
+
+.fiveetools-dmscreen__timecol {
 	display: flex;
 	flex-direction: column;
-	margin-top: 8px;
+	min-width: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
-	overflow: hidden;
+	background: var(--background-primary);
+}
+
+.fiveetools-dmscreen__timecol.is-shift {
+	border-color: var(--interactive-accent);
+	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+}
+
+.fiveetools-dmscreen__timecolhead {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	padding: 4px 2px;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1.2;
+	text-align: center;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-dmscreen__timecol:nth-child(odd) {
+	background: var(--background-primary-alt, var(--background-secondary));
 }
 
 .fiveetools-dmscreen__timerow {
-	padding: 2px 8px;
+	padding: 1px 2px;
+	font-size: 11px;
 	font-variant-numeric: tabular-nums;
+	text-align: center;
+	cursor: pointer;
+}
+
+.fiveetools-dmscreen__timerow.is-hour {
+	border-top: 2px solid var(--text-muted);
+	background: var(--background-modifier-hover);
+	font-weight: 700;
 }
 
 .fiveetools-dmscreen__timerow.is-now {

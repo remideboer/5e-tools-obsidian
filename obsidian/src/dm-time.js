@@ -72,10 +72,21 @@ export function shiftLabel (shift) {
 	return `Shift ${shift + 1} · ${formatMinute(start)}–${endText}`;
 }
 
-export function shiftRows (shift) {
-	const start = shift * SHIFT_MINUTES;
-	const count = SHIFT_MINUTES / EXPLORE_TURN;
-	const rows = [];
-	for (let i = 0; i < count; i++) rows.push(formatMinute(start + i * EXPLORE_TURN));
-	return rows;
+export function dayColumns () {
+	const columns = [];
+	for (let shift = 0; shift < 4; shift++) {
+		const start = shift * SHIFT_MINUTES;
+		const rows = [];
+		const count = SHIFT_MINUTES / EXPLORE_TURN;
+		for (let i = 0; i < count; i++) {
+			const minuteOfDay = start + i * EXPLORE_TURN;
+			rows.push({
+				minuteOfDay,
+				label: formatMinute(minuteOfDay),
+				hour: minuteOfDay % 60 === 0,
+			});
+		}
+		columns.push({shift, label: shiftLabel(shift), rows});
+	}
+	return columns;
 }
