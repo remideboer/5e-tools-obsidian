@@ -11,6 +11,7 @@ import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-sto
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, listKindGroups} from "./encounter-view.js";
 import {bindInternalLinks} from "./entity-reader.js";
+import {attachHoverCard} from "./hover-card.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
 import {resolveTokenImage} from "./image-resolver.js";
@@ -904,12 +905,14 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				const headRow = roster.createDiv({cls: "fiveetools-dmscreen__encgroup"});
 				const name = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
 				headRow.createEl("span", {cls: "fiveetools-dmscreen__encname", text: name});
+				bindEncounterHover(headRow, plugin, group.members[0]?.doc);
 				headRow.createEl("span", {
 					cls: "fiveetools-dmscreen__encinit",
 					text: group.initScore != null ? String(group.initScore) : "—",
 				});
 				for (const combatant of group.members) {
 					const row = roster.createDiv({cls: "fiveetools-dmscreen__encrow"});
+					bindEncounterHover(row, plugin, combatant.doc);
 					const who = row.createEl("span", {cls: "fiveetools-dmscreen__encwho"});
 					const remove = who.createEl("button", {
 						text: "×",
@@ -1160,6 +1163,11 @@ function packRoll (draw) {
 		total: draw?.total,
 		cells: (draw?.cells || []).map(cell => ({header: cell.header || "", text: String(cell.text || "")})),
 	};
+}
+
+function bindEncounterHover (el, plugin, doc) {
+	if (!doc || (!doc.n && !doc.u)) return;
+	attachHoverCard(el, plugin, () => doc);
 }
 
 function playFor (record) {

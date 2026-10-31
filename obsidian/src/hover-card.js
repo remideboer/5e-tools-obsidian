@@ -1,5 +1,6 @@
 import {loadEntity} from "./entity-loader.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
+import {bindDiceRollers} from "./dice-roll.js";
 
 const SHOW_DELAY = 350;
 const HIDE_DELAY = 150;
@@ -89,6 +90,7 @@ async function showCard (id, plugin, doc, x, y) {
 	const panel = docEl.createElement("div");
 	panel.className = "fiveetools-hover-card";
 	panel.innerHTML = html;
+	bindDiceRollers(panel, plugin);
 	docEl.body.appendChild(panel);
 	placeCard(panel, x, y);
 	panel.addEventListener("mouseenter", () => {

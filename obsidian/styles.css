@@ -1602,7 +1602,8 @@ a.fiveetools-inline-link {
 .fiveetools-roll-results .render-roller,
 .fiveetools-rolltables__reader .render-roller,
 .fiveetools-dmscreen .render-roller,
-.fiveetools-character-card .render-roller {
+.fiveetools-character-card .render-roller,
+.fiveetools-hover-card .render-roller {
 	cursor: pointer;
 	color: var(--text-accent);
 	text-decoration: underline dotted;
