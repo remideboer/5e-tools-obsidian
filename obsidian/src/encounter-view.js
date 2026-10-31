@@ -1299,6 +1299,22 @@ function cloneCombatants (combatants) {
 	}));
 }
 
+export function appendSavedCombatants (session, saved) {
+	const existing = [...(session?.combatants || [])];
+	bumpIdCounter(existing);
+	bumpIdCounter(saved?.combatants);
+	const added = cloneCombatants(saved?.combatants).map(it => ({
+		...it,
+		id: `c${nextCombatantId++}`,
+	}));
+	if (!added.length) return session;
+	return {
+		...session,
+		combatants: finalizeRosterOrder([...existing, ...added]),
+		selectedId: added[added.length - 1].id,
+	};
+}
+
 if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.addCombatants = addCombatants;
 	globalThis.FiveEToolsObsidian.addCombatantsFromEntity = addCombatantsFromEntity;

@@ -8,8 +8,8 @@ import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
-import {getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
-import {adjustHp, listKindGroups} from "./encounter-view.js";
+import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
+import {addCombatants, adjustHp, appendSavedCombatants, listKindGroups} from "./encounter-view.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
@@ -870,67 +870,186 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 
 	const paintEncounter = (body) => {
 		body.empty();
-		const session = plugin._encounterSession || getEncounterInstance();
+		let session = plugin._encounterSession || getEncounterInstance();
 		if (!plugin._encounterSession) plugin._encounterSession = session;
-		const combatants = session?.combatants || [];
-		if (!combatants.length) {
-			body.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures in the encounter."});
-			return;
-		}
-		const setHp = (combatant, nextHp) => {
-			combatant.hpCurrent = nextHp;
-			commitEncounter(session);
-			paintEncounter(body);
-		};
-		for (const group of listKindGroups(combatants)) {
-			const headRow = body.createDiv({cls: "fiveetools-dmscreen__encgroup"});
-			const name = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
-			headRow.createEl("span", {cls: "fiveetools-dmscreen__encname", text: name});
-			headRow.createEl("span", {
-				cls: "fiveetools-dmscreen__encinit",
-				text: group.initScore != null ? String(group.initScore) : "—",
-			});
-			for (const combatant of group.members) {
-				const row = body.createDiv({cls: "fiveetools-dmscreen__encrow"});
-				row.createEl("span", {cls: "fiveetools-dmscreen__encwho", text: combatant.label || group.label});
-				const hp = row.createDiv({cls: "fiveetools-dmscreen__enchp"});
-				const minus = hp.createEl("button", {
-					text: "−",
-					cls: "fiveetools-dmscreen__countbtn",
-					attr: {type: "button", title: "−1 HP"},
-				});
-				const input = hp.createEl("input", {
-					cls: "fiveetools-dmscreen__hpinput",
-					attr: {type: "number", value: String(combatant.hpCurrent ?? 0), title: "Current HP"},
-				});
-				hp.createEl("span", {cls: "fiveetools-dmscreen__hpmax", text: `/${combatant.hpMax ?? 0}`});
-				const plus = hp.createEl("button", {
-					text: "+",
-					cls: "fiveetools-dmscreen__countbtn",
-					attr: {type: "button", title: "+1 HP"},
-				});
-				const extra = [];
-				if (Number(combatant.tempHp) > 0) extra.push(`temp ${combatant.tempHp}`);
-				const cond = conditionLabel(combatant.condition);
-				if (cond) extra.push(cond);
-				if (extra.length) row.createEl("span", {cls: "fiveetools-dmscreen__encmeta", text: extra.join("  ")});
-				minus.addEventListener("click", (evt) => {
-					evt.stopPropagation();
-					setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, -1));
-				});
-				plus.addEventListener("click", (evt) => {
-					evt.stopPropagation();
-					setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, 1));
-				});
-				input.addEventListener("click", (evt) => evt.stopPropagation());
-				input.addEventListener("change", () => {
-					const typed = Number(input.value);
-					const cap = Number(combatant.hpMax) || 0;
-					const next = Number.isFinite(typed) ? Math.max(0, Math.min(cap, typed)) : combatant.hpCurrent;
-					setHp(combatant, next);
-				});
+
+		const tools = body.createDiv({cls: "fiveetools-dmscreen__enctools"});
+		const search = tools.createEl("input", {
+			cls: "fiveetools-dmscreen__encsearch",
+			attr: {type: "search", placeholder: "Add creature", title: "Search creatures"},
+		});
+		const savedSel = tools.createEl("select", {
+			cls: "fiveetools-dmscreen__encsaved",
+			attr: {title: "Add a saved encounter"},
+		});
+		savedSel.createEl("option", {attr: {value: ""}, text: "Saved encounter"});
+		const hits = body.createDiv({cls: "fiveetools-dmscreen__enchits"});
+		const roster = body.createDiv({cls: "fiveetools-dmscreen__encroster"});
+		let hitDocs = [];
+		let hitIndex = 0;
+
+		const paintRoster = () => {
+			roster.empty();
+			const combatants = session?.combatants || [];
+			if (!combatants.length) {
+				roster.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures in the encounter."});
+				return;
 			}
-		}
+			const setHp = (combatant, nextHp) => {
+				combatant.hpCurrent = nextHp;
+				commitEncounter(session);
+				paintRoster();
+			};
+			for (const group of listKindGroups(combatants)) {
+				const headRow = roster.createDiv({cls: "fiveetools-dmscreen__encgroup"});
+				const name = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
+				headRow.createEl("span", {cls: "fiveetools-dmscreen__encname", text: name});
+				headRow.createEl("span", {
+					cls: "fiveetools-dmscreen__encinit",
+					text: group.initScore != null ? String(group.initScore) : "—",
+				});
+				for (const combatant of group.members) {
+					const row = roster.createDiv({cls: "fiveetools-dmscreen__encrow"});
+					const who = row.createEl("span", {cls: "fiveetools-dmscreen__encwho"});
+					const remove = who.createEl("button", {
+						text: "×",
+						cls: "fiveetools-dmscreen__encremove",
+						attr: {type: "button", title: `Remove ${combatant.label || group.label}`},
+					});
+					who.createEl("span", {cls: "fiveetools-dmscreen__enclabel", text: combatant.label || group.label});
+					const hp = row.createDiv({cls: "fiveetools-dmscreen__enchp"});
+					const minus = hp.createEl("button", {
+						text: "−",
+						cls: "fiveetools-dmscreen__countbtn",
+						attr: {type: "button", title: "−1 HP"},
+					});
+					const input = hp.createEl("input", {
+						cls: "fiveetools-dmscreen__hpinput",
+						attr: {type: "number", value: String(combatant.hpCurrent ?? 0), title: "Current HP"},
+					});
+					hp.createEl("span", {cls: "fiveetools-dmscreen__hpmax", text: `/${combatant.hpMax ?? 0}`});
+					const plus = hp.createEl("button", {
+						text: "+",
+						cls: "fiveetools-dmscreen__countbtn",
+						attr: {type: "button", title: "+1 HP"},
+					});
+					const extra = [];
+					if (Number(combatant.tempHp) > 0) extra.push(`temp ${combatant.tempHp}`);
+					const cond = conditionLabel(combatant.condition);
+					if (cond) extra.push(cond);
+					if (extra.length) row.createEl("span", {cls: "fiveetools-dmscreen__encmeta", text: extra.join("  ")});
+					minus.addEventListener("click", (evt) => {
+						evt.stopPropagation();
+						setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, -1));
+					});
+					plus.addEventListener("click", (evt) => {
+						evt.stopPropagation();
+						setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, 1));
+					});
+					input.addEventListener("click", (evt) => evt.stopPropagation());
+					input.addEventListener("change", () => {
+						const typed = Number(input.value);
+						const cap = Number(combatant.hpMax) || 0;
+						const next = Number.isFinite(typed) ? Math.max(0, Math.min(cap, typed)) : combatant.hpCurrent;
+						setHp(combatant, next);
+					});
+					remove.addEventListener("click", (evt) => {
+						evt.stopPropagation();
+						const combatants = (session.combatants || []).filter(it => it.id !== combatant.id);
+						let initOrderBaseline = session.initOrderBaseline;
+						if (Array.isArray(initOrderBaseline)) {
+							initOrderBaseline = initOrderBaseline.filter(id => id !== combatant.id);
+							if (!initOrderBaseline.length) initOrderBaseline = null;
+						}
+						session = {
+							...session,
+							combatants,
+							selectedId: session.selectedId === combatant.id
+								? (combatants[combatants.length - 1]?.id || null)
+								: session.selectedId,
+							initOrderBaseline,
+						};
+						commitEncounter(session);
+						paintRoster();
+					});
+				}
+			}
+		};
+
+		const markHit = () => {
+			[...hits.children].forEach((row, index) => row.classList.toggle("is-selected", index === hitIndex));
+		};
+		const paintHits = () => {
+			hits.empty();
+			hitIndex = 0;
+			const term = String(search.value || "").trim();
+			if (term.length < 2) {
+				hitDocs = [];
+				return;
+			}
+			hitDocs = searchEntities(term, {categoriesExact: ["bestiary"], limit: 8});
+			if (!hitDocs.length) {
+				hits.createEl("div", {cls: "fiveetools-modal__empty", text: "No creatures."});
+				return;
+			}
+			hitDocs.forEach((doc, index) => {
+				const row = hits.createDiv({cls: `fiveetools-dmscreen__hit${index === 0 ? " is-selected" : ""}`});
+				row.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
+				row.createEl("div", {cls: "fiveetools-modal__sub", text: [doc.sA || doc.s, doc.cf].filter(Boolean).join(" · ")});
+				row.addEventListener("click", () => { void addCreature(doc); });
+			});
+		};
+		const addCreature = async (doc) => {
+			if (!doc) return;
+			try {
+				const next = await addCombatants(session, doc, 1);
+				session = {...session, combatants: next.combatants, selectedId: next.selectedId};
+				commitEncounter(session);
+				search.value = "";
+				hitDocs = [];
+				hits.empty();
+				search.focus();
+				paintRoster();
+			} catch (e) {
+				new Notice(e.message || "Could not add that creature.");
+			}
+		};
+		search.addEventListener("input", paintHits);
+		search.addEventListener("keydown", (evt) => {
+			if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {
+				if (!hitDocs.length) return;
+				evt.preventDefault();
+				const next = evt.key === "ArrowDown" ? hitIndex + 1 : hitIndex - 1;
+				hitIndex = Math.max(0, Math.min(hitDocs.length - 1, next));
+				markHit();
+				return;
+			}
+			if (evt.key !== "Enter") return;
+			evt.preventDefault();
+			void addCreature(hitDocs[hitIndex]);
+		});
+
+		savedSel.addEventListener("change", () => {
+			const id = savedSel.value;
+			savedSel.value = "";
+			if (!id) return;
+			const saved = getSavedEncounter(id);
+			if (!saved?.combatants?.length) {
+				new Notice("That encounter has no creatures.");
+				return;
+			}
+			session = appendSavedCombatants(session, saved);
+			commitEncounter(session);
+			paintRoster();
+		});
+		void loadEncountersFromVault(plugin).then(() => {
+			if (!savedSel.isConnected) return;
+			for (const encounter of listSavedEncounters()) {
+				savedSel.createEl("option", {attr: {value: encounter.id}, text: encounter.name || "Encounter"});
+			}
+		}).catch(() => {});
+
+		paintRoster();
 	};
 
 	const paintReference = async (body, panel) => {
