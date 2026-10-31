@@ -1403,6 +1403,13 @@ a.fiveetools-inline-link {
 	margin-top: 0.2em;
 }
 
+.fiveetools-character-card__display {
+	display: block;
+	width: 100%;
+	max-width: 16em;
+	margin: 0 0 0.35em;
+}
+
 .fiveetools-character-card__identity {
 	margin: 0 0 0.35em;
 }

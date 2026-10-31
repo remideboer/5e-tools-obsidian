@@ -1,5 +1,5 @@
 import {MarkdownRenderer, Notice} from "obsidian";
-import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
+import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, rosterName, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {cardFromPdf} from "./pdf-character.js";
@@ -9,6 +9,7 @@ import {ensureSearchIndex, findEditionDoc, findEntityDoc, findNamedFeature, inde
 import {paintPackedLibraryRow} from "./library-row.js";
 import {attachHoverCard} from "./hover-card.js";
 import {getSpellMeta} from "./spell-meta.js";
+import {renameTableCharacter} from "./table-view.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 
@@ -69,6 +70,25 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost) {
 	else paintPortraitButton(header, cardHost, plugin, record);
 	const text = header.createDiv({cls: "fiveetools-character-card__header-text"});
 	text.createEl("h2", {text: characterName(record)});
+	const display = text.createEl("input", {
+		cls: "fiveetools-character-card__display",
+		attr: {type: "text", placeholder: "Display name", title: "Name on the initiative roster"},
+	});
+	const play = playState(record);
+	display.value = String(play?.displayName || "");
+	const saveDisplay = () => {
+		const next = display.value.trim();
+		if (next === String(play?.displayName || "").trim()) return;
+		if (play) play.displayName = next;
+		persistPlay(plugin, record);
+		renameTableCharacter(plugin, fields.ddb_id, rosterName(record));
+	};
+	display.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		saveDisplay();
+	});
+	display.addEventListener("blur", saveDisplay);
 	const identity = text.createDiv({cls: "fiveetools-character-card__identity"});
 	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
 	paintRefRow(identity, plugin, identityRefs, refs, edition);

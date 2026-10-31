@@ -98,6 +98,7 @@ export function passiveFromEnt (ent) {
 }
 
 export function kindKey (combatant) {
+	if (combatant?.characterId) return `pc:${combatant.characterId}`;
 	if (combatant?.doc?.u && combatant?.doc?.s) return `${combatant.doc.u}|${combatant.doc.s}`;
 	const custom = String(combatant?.ent?.name || "").trim();
 	if (custom) return `ent:${custom.toLowerCase()}`;
@@ -105,9 +106,9 @@ export function kindKey (combatant) {
 }
 
 export function groupBaseLabel (combatant) {
-	return String(combatant?.doc?.n || combatant?.ent?.name || combatant?.label || "Creature")
-		.replace(/\s+\d+$/, "")
-		.trim() || "Creature";
+	const raw = String(combatant?.doc?.n || combatant?.ent?.name || combatant?.label || "Creature").trim();
+	if (combatant?.characterId) return raw || "Character";
+	return raw.replace(/\s+\d+$/, "").trim() || "Creature";
 }
 
 /** Cluster by kind, preserving first-seen group order (no Dex re-sort). */

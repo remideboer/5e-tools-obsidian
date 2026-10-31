@@ -2,7 +2,7 @@ import {ItemView, Menu, Notice} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_TABLE, tableInitHeightPercent} from "./constants.js";
 import {acOf, avatarFrom, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
-import {characterName, listCharacters} from "./character-store.js";
+import {rosterName, listCharacters} from "./character-store.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
 import {
@@ -687,12 +687,12 @@ function addCharacter (plugin, record) {
 }
 
 function pushCharacter (session, plugin, record) {
-	const name = characterName(record);
+	const name = rosterName(record);
 	const max = hpOf(record) || 1;
 	const combatant = {
 		id: `t${nextId++}`,
 		characterId: characterId(record),
-		label: nextLabel(name, session.combatants),
+		label: name,
 		hpMax: max,
 		hpCurrent: max,
 		ac: acOf(record) || null,
@@ -712,7 +712,7 @@ export function addPlayerRecordsFrom20 (plugin, records) {
 	const session = ensureTableSession(plugin);
 	const sorted = (records || [])
 		.filter(record => characterId(record))
-		.sort((a, b) => characterName(a).localeCompare(characterName(b), undefined, {sensitivity: "base"}));
+		.sort((a, b) => rosterName(a).localeCompare(rosterName(b), undefined, {sensitivity: "base"}));
 	let score = 20;
 	let placed = 0;
 	for (const record of sorted) {
@@ -726,6 +726,22 @@ export function addPlayerRecordsFrom20 (plugin, records) {
 	}
 	if (placed) refreshTable(plugin);
 	return placed;
+}
+
+/** Update the roster label for a character already on the table. */
+export function renameTableCharacter (plugin, id, label) {
+	const key = String(id || "").trim();
+	const name = String(label || "").trim();
+	if (!key || !name) return false;
+	const session = ensureTableSession(plugin);
+	let changed = false;
+	for (const combatant of session.combatants || []) {
+		if (combatant.characterId !== key || combatant.label === name) continue;
+		combatant.label = name;
+		changed = true;
+	}
+	if (changed) refreshTable(plugin);
+	return changed;
 }
 
 function onRuler (combatant) {

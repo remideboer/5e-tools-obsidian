@@ -255,6 +255,12 @@ export function characterName (record) {
 	return String(record?.fields?.name || record?.fields?.ddb_id || "Character");
 }
 
+/** Name on the initiative roster: the display name, or the character name when that is empty. */
+export function rosterName (record) {
+	const display = String(record?.snapshot?.play?.displayName || "").trim();
+	return display || characterName(record);
+}
+
 function resolveRefs (refs) {
 	return (refs || []).map(ref => {
 		const names = [ref.name, ref.alt, ...(ref.alts || [])].map(it => String(it || "").trim()).filter(Boolean);
