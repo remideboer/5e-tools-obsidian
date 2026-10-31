@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS = {
 	dmScreenOnStart: true,
 	tableInitBackground: "#000000",
 	tableInitText: "#ffffff",
-	tableInitHeight: 4,
+	fulltextSearch: false,
 };
 
 /** Row height on the Table window, as a percentage of that window. Default is about twice the previous text size. */

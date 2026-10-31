@@ -6,6 +6,7 @@ import {docMatchesBestiaryFilters, hasBestiaryFilters, loadMonsterMeta, resetMon
 import {docMatchesSpellFilters, hasSpellFilters, loadSpellMeta, resetSpellMeta} from "./spell-meta.js";
 import {docMatchesItemFilters, hasItemFilters, loadItemMeta, resetItemMeta} from "./item-meta.js";
 import {pluginVaultDir, readPluginJson} from "./plugin-dir.js";
+import {fulltextCategories, searchFulltextIds} from "./fulltext-index.js";
 
 const CATEGORY_ALIAS = {
 	creature: ["bestiary"],
@@ -205,7 +206,19 @@ function docMatchesFilters (doc, parsed, categoriesExact = []) {
 	return true;
 }
 
-export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [], limit = MAX_SEARCH_RESULTS} = {}) {
+export function fulltextSourceDocs () {
+	if (!searchIndex) return [];
+	const want = fulltextCategories();
+	return Object.values(searchIndex.documentStore.docs).filter(doc => want.has(doc.c));
+}
+
+function docForRef (id) {
+	if (!searchIndex || id == null) return null;
+	const store = searchIndex.documentStore;
+	return store.getDoc(id) || store.getDoc(Number(id)) || store.getDoc(String(id)) || null;
+}
+
+export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [], limit = MAX_SEARCH_RESULTS, fulltext = false} = {}) {
 	if (!searchIndex) return [];
 
 	const parsed = parseQuery(rawQuery, chipAliases);
@@ -235,7 +248,19 @@ export function searchEntities (rawQuery, {chipAliases = [], categoriesExact = [
 		if (bySource) return bySource;
 		return (b.score || 0) - (a.score || 0);
 	});
-	return out.slice(0, limit).map(it => it.doc);
+	const names = out.slice(0, limit).map(it => it.doc);
+	if (!fulltext || !parsed.term) return names;
+	const seen = new Set(names.map(doc => String(doc.id)));
+	const bodyDocs = [];
+	for (const id of searchFulltextIds(parsed.term)) {
+		if (names.length + bodyDocs.length >= limit) break;
+		if (seen.has(String(id))) continue;
+		const doc = docForRef(id);
+		if (!doc || !docMatchesFilters(doc, parsed, categoriesExact)) continue;
+		seen.add(String(doc.id));
+		bodyDocs.push(doc);
+	}
+	return names.concat(bodyDocs);
 }
 
 export function listEntities ({

@@ -83,7 +83,7 @@ flowchart TB
   map --> player[Player_popout_canvas]
 ```
 
-- **Library / search** — nav from `LIBRARY_NAV`, elasticlunr index, entity render via 5etools host. JSON comes from the vault adapter.
+- **Library / search** — nav from `LIBRARY_NAV`, elasticlunr index, entity render via 5etools host. JSON comes from the vault adapter. A checkbox on the nav search also matches spell, creature, and item text; that index is cached under `{notesFolder}/_cache/fulltext.json` and is not built while the checkbox is off.
 - **HEIC paste** — optional: HEIC/HEIF pasted or dropped into notes convert to JPEG via bundled `heic/heic2any.js`, then embed as a normal attachment. A note that already embeds a HEIC or HEIF file shows that image as JPEG. The vault file stays HEIC.
 - **Map** — desktop: vault scenes, layers, fog masks, scene-level tokens, GM canvas + player bitmap draw. On mobile the map tools show a notice.
 - **Campaigns / encounters** — vault markdown and encounter store. A campaign player note can link a shared character with frontmatter `character: {ddbId}` ([ADR 0007](adr/0007-ddb-characters.md)).

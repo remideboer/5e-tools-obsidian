@@ -2,7 +2,8 @@ import {ItemView, Notice, Platform, setIcon} from "obsidian";
 import {LIBRARY_NAV, VIEW_TYPE_FIVEETOOLS_LIBRARY} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {renderEntityPanel} from "./entity-reader.js";
-import {listEntities, searchEntities} from "./search-index.js";
+import {fulltextSourceDocs, listEntities, searchEntities} from "./search-index.js";
+import {ensureFulltextIndex, fulltextReady, stopFulltextBuild} from "./fulltext-index.js";
 import {BESTIARY_FILTER_OPTIONS, emptyBestiaryFilters, habitatFilterOptions} from "./bestiary-meta.js";
 import {SPELL_FILTER_OPTIONS, emptySpellFilters} from "./spell-meta.js";
 import {ITEM_FILTER_OPTIONS, emptyItemFilters} from "./item-meta.js";
@@ -130,8 +131,22 @@ export class FiveEToolsLibraryView extends ItemView {
 			cls: "fiveetools-library__globalsearch",
 			attr: {type: "search", placeholder: "Search…"},
 		});
+		const fulltextRow = this.navEl.createEl("label", {cls: "fiveetools-library__fulltext"});
+		this.fulltextBox = fulltextRow.createEl("input", {
+			attr: {type: "checkbox", title: "Also search spell, creature, and item text"},
+		});
+		this.fulltextLabel = fulltextRow.createEl("span", {text: "Text"});
+		this.fulltextBox.checked = !!this.plugin.settings?.fulltextSearch;
 		this.globalSearchEl.addEventListener("input", () => {
 			this.globalQuery = this.globalSearchEl.value;
+			this.refreshList();
+		});
+		this.fulltextBox.addEventListener("change", () => {
+			const on = !!this.fulltextBox.checked;
+			this.plugin.settings.fulltextSearch = on;
+			void this.plugin.saveSettings?.();
+			if (on) this.startFulltext();
+			else stopFulltextBuild();
 			this.refreshList();
 		});
 		this.navGroupsEl = this.navEl.createDiv({cls: "fiveetools-library__navgroups"});
@@ -162,6 +177,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.readerEl.createEl("p", {text: "Could not load bundled 5etools data."});
 			return;
 		}
+		if (this.plugin.settings?.fulltextSearch) this.startFulltext();
 
 		if (openOnDmScreen(this.plugin)) {
 			this.navId = "dmscreen";
@@ -401,6 +417,23 @@ export class FiveEToolsLibraryView extends ItemView {
 		});
 	}
 
+	startFulltext () {
+		if (fulltextReady()) {
+			if (this.fulltextLabel) this.fulltextLabel.setText("Text");
+			return;
+		}
+		void ensureFulltextIndex(this.plugin, fulltextSourceDocs(), {
+			onProgress: () => {
+				if (this.fulltextLabel?.isConnected) this.fulltextLabel.setText("Indexing…");
+			},
+			onReady: () => {
+				if (!this.fulltextBox?.isConnected) return;
+				if (this.fulltextLabel) this.fulltextLabel.setText("Text");
+				if (this.plugin.settings?.fulltextSearch && String(this.globalQuery || "").trim().length >= 2) this.refreshList();
+			},
+		});
+	}
+
 	refreshList () {
 		const listToken = ++this._listToken;
 		const scrollTop = this.listEl?.scrollTop || 0;
@@ -442,7 +475,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
 			this.listEl.empty();
-			this.docs = searchEntities(globalTerm);
+			this.docs = searchEntities(globalTerm, {fulltext: !!this.plugin.settings?.fulltextSearch && fulltextReady()});
 			this.renderDocRows();
 			this.listEl.scrollTop = scrollTop;
 			return;

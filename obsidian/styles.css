@@ -115,7 +115,20 @@ a.fiveetools-inline-link {
 	display: block;
 	width: 100%;
 	box-sizing: border-box;
+	margin: 0 0 4px;
+}
+
+.fiveetools-library__fulltext {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 	margin: 0 0 8px;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.fiveetools-library__fulltext input {
+	margin: 0;
 }
 
 .fiveetools-library__group {
