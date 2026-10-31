@@ -1,0 +1,24 @@
+---
+description: Find the root cause of a bug before changing code
+alwaysApply: true
+---
+
+# Find the root cause
+
+A bug fix starts from the cause, not from a plausible story.
+
+**Do this:**
+
+1. Reproduce the symptom, or point at the exact code path that produces it.
+2. Name the cause in one sentence, tied to a file, a line, a stack trace, a failing check, or a log.
+3. Change only what that cause requires.
+4. Verify the original symptom is gone.
+
+**Do not do this:**
+
+- Edit before you can say why the current code produces the symptom.
+- Stack a second guess when the first change did not fix it. Go back to the evidence.
+- Add a notice, a log, or a defensive guard as a substitute for the cause.
+- Treat "it might be" as a reason to change behavior.
+
+If you cannot reproduce it and cannot point at the path, say what you still need to observe. Do not guess a fix.
