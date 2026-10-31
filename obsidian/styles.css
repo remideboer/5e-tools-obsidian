@@ -442,9 +442,7 @@ a.fiveetools-inline-link {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 4px;
-	max-height: 22em;
 	margin-top: 8px;
-	overflow: auto;
 }
 
 .fiveetools-dmscreen__timecol {
