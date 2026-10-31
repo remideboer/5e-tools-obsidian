@@ -8,18 +8,19 @@ import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
-import {allocPanelId, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
+import {allocPanelId, getDmScreenBoard, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, listKindGroups} from "./encounter-view.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {attachHoverCard} from "./hover-card.js";
+import {characterId} from "./dpr-view.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
-import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -1473,6 +1474,46 @@ async function readCampaignNote (plugin, filePath) {
 	return parseCampaignMarkdown(await vault.read(file));
 }
 
+function playerIdsOnBoard (plugin) {
+	const board = plugin?._dmScreenBoard || getDmScreenBoard();
+	const ids = [];
+	const seen = new Set();
+	for (const column of board?.columns || []) {
+		for (const panel of column.items || []) {
+			if (panel.type !== "players") continue;
+			for (const id of panel.characters || []) {
+				const key = String(id || "").trim();
+				if (!key || seen.has(key)) continue;
+				seen.add(key);
+				ids.push(key);
+			}
+		}
+	}
+	return ids;
+}
+
+async function addBoardPlayers (plugin) {
+	const ids = playerIdsOnBoard(plugin);
+	if (!ids.length) {
+		new Notice("The Players card has no characters.");
+		return;
+	}
+	let characters = [];
+	try {
+		characters = await listCharacters(plugin);
+	} catch (e) {
+		new Notice(e?.message || "Could not load characters.");
+		return;
+	}
+	const byId = new Map(characters.map(record => [characterId(record), record]));
+	const records = ids.map(id => byId.get(id)).filter(Boolean);
+	if (!records.length) {
+		new Notice("The Players card has no characters.");
+		return;
+	}
+	if (!addPlayerRecordsFrom20(plugin, records)) new Notice("Those players are already on the table.");
+}
+
 function childWithClass (host, cls) {
 	return [...host.children].find(el => el.classList.contains(cls)) || null;
 }
@@ -1503,6 +1544,15 @@ function paintInitiative (host, plugin) {
 			const live = ensureTableSession(plugin);
 			live.showRoster = live.showRoster === false;
 			refreshTable(plugin);
+		});
+		const addBtn = actions.createEl("button", {
+			text: "Add players",
+			cls: "fiveetools-btn fiveetools-btn--ghost",
+			attr: {type: "button", title: "Add the Players card from 20 downward"},
+		});
+		addBtn.addEventListener("click", (evt) => {
+			evt.stopPropagation();
+			void addBoardPlayers(plugin);
 		});
 	}
 	const session = ensureTableSession(plugin);

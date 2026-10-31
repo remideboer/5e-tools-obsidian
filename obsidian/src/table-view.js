@@ -642,11 +642,17 @@ function addCharacter (plugin, record) {
 	const session = ensureTableSession(plugin);
 	const id = characterId(record);
 	if (id && session.combatants.some(it => it.characterId === id)) return;
+	pushCharacter(session, plugin, record);
+	sortRoster(session);
+	refreshTable(plugin);
+}
+
+function pushCharacter (session, plugin, record) {
 	const name = characterName(record);
 	const max = hpOf(record) || 1;
-	session.combatants.push({
+	const combatant = {
 		id: `t${nextId++}`,
-		characterId: id,
+		characterId: characterId(record),
 		label: nextLabel(name, session.combatants),
 		hpMax: max,
 		hpCurrent: max,
@@ -657,9 +663,34 @@ function addCharacter (plugin, record) {
 		condition: "",
 		initScore: null,
 		image: avatarFrom(plugin, record.body),
-	});
-	sortRoster(session);
-	refreshTable(plugin);
+	};
+	session.combatants.push(combatant);
+	return combatant;
+}
+
+/** Place records from 20 downward in name order. Someone already on a number stays there. Returns how many were placed. */
+export function addPlayerRecordsFrom20 (plugin, records) {
+	const session = ensureTableSession(plugin);
+	const sorted = (records || [])
+		.filter(record => characterId(record))
+		.sort((a, b) => characterName(a).localeCompare(characterName(b), undefined, {sensitivity: "base"}));
+	let score = 20;
+	let placed = 0;
+	for (const record of sorted) {
+		const id = characterId(record);
+		let combatant = session.combatants.find(it => it.characterId === id);
+		if (onRuler(combatant)) continue;
+		if (!combatant) combatant = pushCharacter(session, plugin, record);
+		placeGroup(session, kindKey(combatant), Math.max(1, score));
+		if (score > 1) score -= 1;
+		placed += 1;
+	}
+	if (placed) refreshTable(plugin);
+	return placed;
+}
+
+function onRuler (combatant) {
+	return combatant?.initScore != null && Number.isFinite(Number(combatant.initScore));
 }
 
 function addName (plugin, raw) {
