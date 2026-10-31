@@ -84,6 +84,7 @@ function normalizeColumn (raw) {
 	const items = (raw?.items || []).map(normalizePanel).filter(Boolean);
 	return {
 		id: String(raw?.id || allocPanelId()),
+		collapsed: !!raw?.collapsed,
 		items,
 	};
 }
@@ -109,6 +110,7 @@ function normalizePanel (raw) {
 		ref,
 		text: String(raw.text || ""),
 		value: Number.isFinite(Number(raw.value)) ? Math.trunc(Number(raw.value)) : 0,
+		collapsed: !!raw.collapsed,
 	};
 	if (type === "players") panel.characters = characterIds(raw.characters);
 	return panel;

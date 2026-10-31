@@ -161,19 +161,41 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		}
 		state.columns.forEach((column, index) => {
 			const el = grid.createDiv({cls: "fiveetools-dmscreen__column"});
-			const grip = el.createDiv({
-				cls: "fiveetools-dmscreen__colgrip",
+			if (column.collapsed) el.addClass("is-collapsed");
+			const setCollapsed = (collapsed) => {
+				column.collapsed = !!collapsed;
+				el.toggleClass("is-collapsed", column.collapsed);
+				emit();
+			};
+			el.addEventListener("click", (evt) => {
+				if (!column.collapsed) return;
+				evt.preventDefault();
+				setCollapsed(false);
+			});
+			const grip = el.createDiv({cls: "fiveetools-dmscreen__colgrip"});
+			const colFold = grip.createEl("button", {
+				text: "‹",
+				cls: "fiveetools-dmscreen__fold",
+				attr: {type: "button", title: "Collapse column"},
+			});
+			colFold.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				setCollapsed(true);
+			});
+			const gripBar = grip.createDiv({
+				cls: "fiveetools-dmscreen__gripbar",
 				attr: {title: "Drag to move this column", draggable: "true"},
 			});
-			grip.addEventListener("dragstart", (evt) => {
+			gripBar.addEventListener("dragstart", (evt) => {
 				dragKind = "column";
 				dragId = column.id;
 				evt.dataTransfer?.setData("text/plain", column.id);
 				if (evt.dataTransfer) evt.dataTransfer.effectAllowed = "move";
 				evt.stopPropagation();
 			});
-			grip.addEventListener("dragend", endDrag);
-			for (const panel of column.items) paintCard(el, column, panel);
+			gripBar.addEventListener("dragend", endDrag);
+			for (const panel of column.items) paintCard(el, column, panel, setCollapsed);
 			el.addEventListener("dragover", (evt) => {
 				if (dragKind === "column") {
 					if (dragId === column.id) {
@@ -521,10 +543,15 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 	searchInput.addEventListener("input", paintHits);
 
-	const paintCard = (parent, column, panel) => {
+	const paintCard = (parent, column, panel, setCollapsed) => {
 		const card = parent.createDiv({cls: "fiveetools-dmscreen__card", attr: {"data-id": panel.id}});
+		if (panel.collapsed) card.addClass("is-collapsed");
 		const head = card.createDiv({cls: "fiveetools-dmscreen__head"});
 		head.addEventListener("pointerdown", (evt) => {
+			if (column.collapsed || panel.collapsed) {
+				head.draggable = false;
+				return;
+			}
 			head.draggable = !evt.target.closest("button, input, textarea");
 		});
 		head.addEventListener("dragstart", (evt) => {
@@ -540,6 +567,27 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			evt.stopPropagation();
 		});
 		head.addEventListener("dragend", endDrag);
+		const fold = head.createEl("button", {
+			text: panel.collapsed ? "▾" : "▴",
+			cls: "fiveetools-dmscreen__fold",
+			attr: {type: "button", title: panel.collapsed ? "Expand" : "Collapse"},
+		});
+		const setCardCollapsed = (collapsed) => {
+			panel.collapsed = !!collapsed;
+			card.toggleClass("is-collapsed", panel.collapsed);
+			fold.setText(panel.collapsed ? "▾" : "▴");
+			fold.setAttr("title", panel.collapsed ? "Expand" : "Collapse");
+			emit();
+		};
+		fold.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			setCardCollapsed(!panel.collapsed);
+		});
+		head.addEventListener("click", (evt) => {
+			if (!panel.collapsed || evt.target.closest("button")) return;
+			setCardCollapsed(false);
+		});
 		card.addEventListener("dragover", (evt) => {
 			if (dragKind !== "card") return;
 			evt.preventDefault();
@@ -576,6 +624,14 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			title.addEventListener("click", (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
+				if (column.collapsed) {
+					setCollapsed(false);
+					return;
+				}
+				if (panel.collapsed) {
+					setCardCollapsed(false);
+					return;
+				}
 				onOpenEncounter?.();
 			});
 		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative") {
@@ -589,7 +645,14 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				panel.title = title.value;
 				emit();
 			});
-			title.addEventListener("click", (evt) => evt.stopPropagation());
+			title.addEventListener("click", (evt) => {
+				if (!panel.collapsed) {
+					evt.stopPropagation();
+					return;
+				}
+				evt.preventDefault();
+				setCardCollapsed(false);
+			});
 		}
 		const remove = head.createEl("button", {
 			text: "×",
@@ -1141,6 +1204,7 @@ function copyColumns (board) {
 		: (board?.panels || []).map(panel => ({id: "", items: [panel]}));
 	return source.map(col => ({
 		id: col.id || allocPanelId(),
+		collapsed: !!col.collapsed,
 		items: (col.items || []).map(it => ({...it, doc: it.doc ? {...it.doc} : null})),
 	})).filter(col => col.items.length);
 }

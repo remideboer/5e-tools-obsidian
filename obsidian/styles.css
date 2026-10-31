@@ -339,18 +339,91 @@ a.fiveetools-inline-link {
 	overflow-y: auto;
 }
 
-.fiveetools-dmscreen__colgrip {
+.fiveetools-dmscreen__column.is-collapsed {
+	flex-basis: 36px;
+	width: 36px;
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__colgrip,
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__colactions,
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__body,
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__remove,
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__fold {
+	display: none;
+}
+
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__card {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__head {
+	flex: 1 1 auto;
+	min-height: 0;
+	writing-mode: vertical-rl;
+	justify-content: flex-start;
+	cursor: pointer;
+	border-bottom: 0;
+}
+
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__title,
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__titleinput,
+.fiveetools-dmscreen__column.is-collapsed .fiveetools-dmscreen__titlebtn {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.fiveetools-dmscreen__fold {
 	flex: 0 0 auto;
-	height: 8px;
-	border-radius: 4px;
-	background: var(--background-modifier-border);
-	cursor: grab;
+	width: 1.25em;
+	height: 1.25em;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	line-height: 1;
+}
+
+.fiveetools-dmscreen__fold:hover {
+	color: var(--text-normal);
+}
+
+.fiveetools-dmscreen__card.is-collapsed .fiveetools-dmscreen__body {
+	display: none;
+}
+
+.fiveetools-dmscreen__card.is-collapsed .fiveetools-dmscreen__head {
+	border-bottom: 0;
+}
+
+.fiveetools-dmscreen__colgrip {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+	height: auto;
+	border-radius: 0;
+	background: transparent;
+	cursor: default;
 	position: sticky;
 	top: 0;
 	z-index: 2;
 }
 
-.fiveetools-dmscreen__colgrip:active {
+.fiveetools-dmscreen__gripbar {
+	flex: 1 1 auto;
+	height: 8px;
+	border-radius: 4px;
+	background: var(--background-modifier-border);
+	cursor: grab;
+}
+
+.fiveetools-dmscreen__gripbar:active {
 	cursor: grabbing;
 }
 
