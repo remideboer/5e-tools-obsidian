@@ -88,7 +88,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative"]);
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative", "players"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -100,7 +100,7 @@ function normalizePanel (raw) {
 	if (type === "entity" && !doc) return null;
 	if ((type === "campaignNote" || type === "rollTable") && !path) return null;
 	if (type === "reference" && !REFERENCE_IDS.has(ref)) return null;
-	return {
+	const panel = {
 		id: String(raw.id || allocPanelId()),
 		type,
 		title: String(raw.title || defaultTitle(type, doc, ref)).trim() || defaultTitle(type, doc, ref),
@@ -110,6 +110,20 @@ function normalizePanel (raw) {
 		text: String(raw.text || ""),
 		value: Number.isFinite(Number(raw.value)) ? Math.trunc(Number(raw.value)) : 0,
 	};
+	if (type === "players") panel.characters = characterIds(raw.characters);
+	return panel;
+}
+
+function characterIds (raw) {
+	const out = [];
+	const seen = new Set();
+	for (const id of Array.isArray(raw) ? raw : []) {
+		const key = String(id || "").trim();
+		if (!key || seen.has(key)) continue;
+		seen.add(key);
+		out.push(key);
+	}
+	return out;
 }
 
 function defaultTitle (type, doc, ref) {
@@ -117,6 +131,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "counter") return "Counter";
 	if (type === "encounter") return "Encounter";
 	if (type === "initiative") return "Initiative";
+	if (type === "players") return "Players";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	if (type === "rollTable") return "Roll table";
 	return "Note";

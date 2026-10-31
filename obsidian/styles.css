@@ -525,6 +525,88 @@ a.fiveetools-inline-link {
 	min-width: 0;
 }
 
+.fiveetools-dmscreen__playermenus {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
+.fiveetools-dmscreen__playermenus select {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.fiveetools-dmscreen__playerlist {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.fiveetools-dmscreen__player {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding-top: 6px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-dmscreen__player:first-child {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.fiveetools-dmscreen__playerhead {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.fiveetools-dmscreen__playername {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-weight: 700;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-dmscreen__playercond {
+	flex: 0 1 9em;
+	min-width: 0;
+}
+
+.fiveetools-dmscreen__playerstats {
+	display: flex;
+	gap: 12px;
+}
+
+.fiveetools-dmscreen__playerstat {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+}
+
+.fiveetools-dmscreen__playerstat-label {
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.fiveetools-dmscreen__playerstat-value {
+	font-size: 1.45em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.15;
+}
+
+.fiveetools-dmscreen__playerempty {
+	margin: 0;
+	color: var(--text-muted);
+}
+
 .fiveetools-dmscreen__token {
 	display: block;
 	width: 64px;

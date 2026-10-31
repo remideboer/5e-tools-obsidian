@@ -1,5 +1,6 @@
-import {MarkdownRenderer} from "obsidian";
+import {MarkdownRenderer, Notice} from "obsidian";
 import {fileStem, listCampaigns, listEntries, parseCampaignMarkdown} from "./campaign-store.js";
+import {characterName, listCharacters, saveCharacterPlay} from "./character-store.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
@@ -107,6 +108,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Add the initiative roster"},
 	});
+	const addPlayersBtn = bar.createEl("button", {
+		text: "Players",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Add player stat cards"},
+	});
 	const refButtons = QUICK_REFS.map((spec) => {
 		const el = bar.createEl("button", {
 			text: spec.label,
@@ -131,6 +137,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	const syncBar = () => {
 		addEncounterBtn.toggleAttribute("disabled", items().some(panel => panel.type === "encounter"));
 		addInitBtn.toggleAttribute("disabled", items().some(panel => panel.type === "initiative"));
+		addPlayersBtn.toggleAttribute("disabled", items().some(panel => panel.type === "players"));
 		for (const btn of refButtons) {
 			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
 		}
@@ -502,6 +509,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (items().some(panel => panel.type === "initiative")) return;
 		addColumn(blankPanel("initiative", "Initiative"));
 	});
+	addPlayersBtn.addEventListener("click", () => {
+		if (items().some(panel => panel.type === "players")) return;
+		addColumn(blankPanel("players", "Players"));
+	});
 
 	const pinReference = (spec) => {
 		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
@@ -599,6 +610,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "counter") paintCounter(body, panel);
 		else if (panel.type === "campaignNote") void paintCampaignNote(body, panel);
 		else if (panel.type === "encounter") paintEncounter(body);
+		else if (panel.type === "players") void paintPlayers(body, panel);
 		else if (panel.type === "initiative") {
 			body.addClass("fiveetools-dmscreen__init");
 			body.setAttr("tabindex", "0");
@@ -608,6 +620,125 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "reference") void paintReference(body, panel);
 		else if (panel.type === "rollTable") void paintRollTable(body, panel);
 		else void paintEntity(body, panel);
+	};
+
+	const paintPlayers = async (body, panel) => {
+		body.empty();
+		if (!Array.isArray(panel.characters)) panel.characters = [];
+		const menus = body.createDiv({cls: "fiveetools-dmscreen__playermenus"});
+		const characterSel = menus.createEl("select", {attr: {title: "Add a character"}});
+		characterSel.createEl("option", {attr: {value: ""}, text: "Character"});
+		const campaignSel = menus.createEl("select", {attr: {title: "Add a campaign's characters"}});
+		campaignSel.createEl("option", {attr: {value: ""}, text: "Campaign"});
+		const list = body.createDiv({cls: "fiveetools-dmscreen__playerlist"});
+
+		const addIds = (nextIds) => {
+			if (!state.columns.some(col => col.items.includes(panel))) return;
+			const have = new Set(panel.characters);
+			let changed = false;
+			for (const id of nextIds) {
+				const key = String(id || "").trim();
+				if (!key || have.has(key)) continue;
+				have.add(key);
+				panel.characters.push(key);
+				changed = true;
+			}
+			if (!changed) return;
+			emit();
+			paint();
+		};
+		characterSel.addEventListener("change", () => {
+			const id = characterSel.value;
+			characterSel.value = "";
+			if (id) addIds([id]);
+		});
+		campaignSel.addEventListener("change", () => {
+			const slug = campaignSel.value;
+			campaignSel.value = "";
+			if (!slug) return;
+			void listEntries(plugin, slug, "players").then(entries => {
+				addIds((entries || []).map(it => it.fields?.character));
+			}).catch(e => {
+				new Notice(e.message || "Could not load that campaign.");
+			});
+		});
+
+		let characters = [];
+		let campaigns = [];
+		try {
+			[characters, campaigns] = await Promise.all([
+				listCharacters(plugin),
+				listCampaigns(plugin),
+			]);
+		} catch (e) {
+			if (!body.isConnected) return;
+			list.createEl("p", {text: e.message || "Could not load characters."});
+			return;
+		}
+		if (!body.isConnected) return;
+
+		const have = new Set(panel.characters);
+		for (const record of characters) {
+			const id = String(record.fields?.ddb_id || "").trim();
+			if (!id || have.has(id)) continue;
+			characterSel.createEl("option", {attr: {value: id}, text: characterName(record)});
+		}
+		for (const campaign of campaigns) {
+			campaignSel.createEl("option", {attr: {value: campaign.slug}, text: campaign.name});
+		}
+
+		if (!panel.characters.length) {
+			list.createEl("p", {cls: "fiveetools-dmscreen__playerempty", text: "No characters yet."});
+			return;
+		}
+		const byId = new Map(characters.map(record => [String(record.fields?.ddb_id || ""), record]));
+		for (const id of panel.characters) paintPlayerCard(list, panel, id, byId.get(id));
+	};
+
+	const paintPlayerCard = (list, panel, id, record) => {
+		const card = list.createDiv({cls: "fiveetools-dmscreen__player"});
+		const head = card.createDiv({cls: "fiveetools-dmscreen__playerhead"});
+		head.createEl("div", {cls: "fiveetools-dmscreen__playername", text: record ? characterName(record) : id});
+		const select = head.createEl("select", {
+			cls: "fiveetools-dmscreen__playercond",
+			attr: {title: "Condition"},
+		});
+		select.createEl("option", {attr: {value: ""}, text: "—"});
+		for (const cond of CONDITIONS) select.createEl("option", {attr: {value: cond.id}, text: cond.label});
+		const play = playFor(record);
+		const current = play?.conditions?.[0] || "";
+		if (current) select.value = current;
+		if (!record?.snapshot) select.setAttr("disabled", "true");
+		select.addEventListener("change", () => {
+			const next = playFor(record);
+			if (!next) return;
+			next.conditions = select.value ? [select.value] : [];
+			void saveCharacterPlay(plugin, id, next).catch(e => {
+				new Notice(e.message || "Could not save the condition.");
+			});
+		});
+		const remove = head.createEl("button", {
+			text: "×",
+			cls: "fiveetools-dmscreen__remove",
+			attr: {type: "button", title: "Remove from this panel"},
+		});
+		remove.addEventListener("click", () => {
+			panel.characters = (panel.characters || []).filter(it => it !== id);
+			emit();
+			paint();
+		});
+
+		const stats = card.createDiv({cls: "fiveetools-dmscreen__playerstats"});
+		const stat = (label, value) => {
+			const box = stats.createDiv({cls: "fiveetools-dmscreen__playerstat"});
+			box.createSpan({cls: "fiveetools-dmscreen__playerstat-label", text: label});
+			box.createSpan({cls: "fiveetools-dmscreen__playerstat-value", text: value});
+		};
+		const fields = record?.fields || {};
+		const hp = play?.hpMax != null && play.hpMax !== "" ? play.hpMax : fields.hp_max;
+		stat("AC", statText(fields.ac));
+		stat("HP", statText(hp));
+		stat("PP", statText(record?.snapshot?.rolls?.passivePerception));
 	};
 
 	const paintRollTable = async (body, panel) => {
@@ -912,8 +1043,42 @@ function packRoll (draw) {
 	};
 }
 
+function playFor (record) {
+	const snap = record?.snapshot;
+	if (!snap) return null;
+	if (snap.play) {
+		if (!Array.isArray(snap.play.conditions)) snap.play.conditions = [];
+		return snap.play;
+	}
+	const fields = record.fields || {};
+	const numberOrNull = (value) => {
+		if (value == null || value === "") return null;
+		const n = Number(value);
+		return Number.isFinite(n) ? n : null;
+	};
+	snap.play = {
+		hpCurrent: numberOrNull(fields.hp_current),
+		hpMax: numberOrNull(fields.hp_max),
+		tempHp: 0,
+		conditions: [],
+		deathSaves: {success: 0, fail: 0, stable: false},
+		inspiration: false,
+		xp: null,
+		prepared: [],
+		hitDiceSpent: {},
+		coins: {},
+		gear: [],
+	};
+	return snap.play;
+}
+
+function statText (value) {
+	if (value == null || value === "") return "—";
+	return String(value);
+}
+
 function blankPanel (type, title) {
-	return {
+	const panel = {
 		id: allocPanelId(),
 		type,
 		title,
@@ -923,6 +1088,8 @@ function blankPanel (type, title) {
 		text: "",
 		value: 0,
 	};
+	if (type === "players") panel.characters = [];
+	return panel;
 }
 
 function conditionLabel (id) {
