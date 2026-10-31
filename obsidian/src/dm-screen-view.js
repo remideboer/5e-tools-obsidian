@@ -20,7 +20,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
-import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, removeTableGroup, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -1546,7 +1546,7 @@ function paintInitiative (host, plugin) {
 			refreshTable(plugin);
 		});
 		const addBtn = actions.createEl("button", {
-			text: "Add players",
+			text: "Players",
 			cls: "fiveetools-btn fiveetools-btn--ghost",
 			attr: {type: "button", title: "Add the Players card from 20 downward"},
 		});
@@ -1554,11 +1554,24 @@ function paintInitiative (host, plugin) {
 			evt.stopPropagation();
 			void addBoardPlayers(plugin);
 		});
+		const nameEl = actions.createEl("input", {
+			cls: "fiveetools-dmscreen__initname",
+			attr: {type: "text", placeholder: "Name, then Enter", title: "Add this name under the players"},
+		});
+		nameEl.addEventListener("keydown", (evt) => {
+			if (evt.key !== "Enter") return;
+			evt.preventDefault();
+			evt.stopPropagation();
+			addNamedBelowPlayers(plugin, nameEl.value);
+			nameEl.value = "";
+			nameEl.focus();
+		});
+		nameEl.addEventListener("click", (evt) => evt.stopPropagation());
 	}
 	const session = ensureTableSession(plugin);
 	const shown = session.showRoster !== false;
 	const toggle = actions.querySelector("[data-role='roster-toggle']");
-	toggle.textContent = shown ? "Hide roster" : "Show roster";
+	toggle.textContent = shown ? "Hide" : "Show";
 	toggle.className = `fiveetools-btn fiveetools-btn--ghost${shown ? " is-selected" : ""}`;
 	const chips = placedChips(session);
 	let list = childWithClass(host, "fiveetools-init-list");
@@ -1573,7 +1586,10 @@ function paintInitiative (host, plugin) {
 	const done = Array.isArray(session.doneKeys) ? session.doneKeys : [];
 	const current = chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
 	const rows = [...list.children];
-	const same = rows.length === chips.length && chips.every((chip, i) => rows[i].dataset.key === chip.key && rows[i].textContent === chip.label);
+	const same = rows.length === chips.length && chips.every((chip, i) => {
+		const name = rows[i].querySelector(".fiveetools-init-list__name");
+		return rows[i].dataset.key === chip.key && name?.textContent === chip.label;
+	});
 	if (same) {
 		chips.forEach((chip, i) => { rows[i].className = initRowClass(chip, current, done); });
 		return;
@@ -1582,8 +1598,22 @@ function paintInitiative (host, plugin) {
 	for (const chip of chips) {
 		const row = list.createDiv({
 			cls: initRowClass(chip, current, done),
-			text: chip.label,
 			attr: {"data-key": chip.key, title: "Double-click to mark this turn"},
+		});
+		row.createSpan({cls: "fiveetools-init-list__name", text: chip.label});
+		const remove = row.createEl("button", {
+			text: "×",
+			cls: "fiveetools-init-list__x",
+			attr: {type: "button", title: `Remove ${chip.label}`},
+		});
+		remove.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			removeTableGroup(plugin, chip.key);
+		});
+		remove.addEventListener("dblclick", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
 		});
 		row.addEventListener("click", () => selectTableTurn(plugin, chip.key));
 		row.addEventListener("dblclick", (evt) => {

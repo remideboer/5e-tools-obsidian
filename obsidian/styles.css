@@ -2725,8 +2725,15 @@ a.fiveetools-inline-link {
 
 .fiveetools-dmscreen__initactions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 6px;
 	margin-bottom: 8px;
+	align-items: center;
+}
+
+.fiveetools-dmscreen__initname {
+	flex: 1 1 8em;
+	min-width: 6em;
 }
 
 .fiveetools-init-list {
@@ -2759,6 +2766,30 @@ a.fiveetools-inline-link {
 	object-fit: cover;
 	border-radius: 4px;
 	background: #111;
+}
+
+.fiveetools-init-list__name {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.fiveetools-init-list__x {
+	flex: 0 0 auto;
+	margin-left: auto;
+	width: 1.25em;
+	height: 1.25em;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 0.85em;
+	font-weight: 400;
+	line-height: 1;
+}
+
+.fiveetools-init-list__x:hover {
+	color: var(--text-normal);
 }
 
 .fiveetools-init-list__row.is-current {

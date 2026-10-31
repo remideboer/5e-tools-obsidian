@@ -446,7 +446,7 @@ function mountChip (parent, plugin, group) {
 	});
 	remove.addEventListener("click", (evt) => {
 		evt.stopPropagation();
-		removeGroup(plugin, group.key);
+		removeTableGroup(plugin, group.key);
 	});
 }
 
@@ -565,9 +565,10 @@ function rulerSlot (score) {
 	return Math.max(1, Math.min(25, n));
 }
 
-function removeGroup (plugin, key) {
+export function removeTableGroup (plugin, key) {
 	const session = ensureTableSession(plugin);
 	session.combatants = session.combatants.filter(combatant => kindKey(combatant) !== key);
+	if (Array.isArray(session.doneKeys)) session.doneKeys = session.doneKeys.filter(it => it !== key);
 	if (session.turnKey === key) session.turnKey = placedChips(session)[0]?.key || null;
 	refreshTable(plugin);
 }
@@ -693,6 +694,32 @@ function onRuler (combatant) {
 	return combatant?.initScore != null && Number.isFinite(Number(combatant.initScore));
 }
 
+/** Place a typed name on the next number under the players. Returns false when the name is empty. */
+export function addNamedBelowPlayers (plugin, raw) {
+	const name = String(raw || "").trim();
+	if (!name) return false;
+	const session = ensureTableSession(plugin);
+	const combatant = pushNamed(session, name, {});
+	placeGroup(session, kindKey(combatant), scoreBelowPlayers(session));
+	refreshTable(plugin);
+	return true;
+}
+
+function scoreBelowPlayers (session) {
+	const placed = (session.combatants || []).filter(onRuler);
+	const playerScores = placed.filter(combatant => combatant.characterId).map(combatant => Number(combatant.initScore));
+	let anchor = playerScores.length ? Math.min(...playerScores) : null;
+	if (anchor == null) {
+		const scores = placed.map(combatant => Number(combatant.initScore));
+		anchor = scores.length ? Math.min(...scores) : 21;
+	}
+	const under = placed
+		.filter(combatant => !combatant.characterId && !combatant.doc && Number(combatant.initScore) < anchor)
+		.map(combatant => Number(combatant.initScore));
+	const lowest = under.length ? Math.min(...under) : anchor;
+	return Math.max(1, lowest - 1);
+}
+
 function addName (plugin, raw) {
 	const name = String(raw || "").trim();
 	if (!name) return;
@@ -703,7 +730,7 @@ function addName (plugin, raw) {
 }
 
 function pushNamed (session, name, extra) {
-	session.combatants.push({
+	const combatant = {
 		id: `t${nextId++}`,
 		label: nextLabel(name, session.combatants),
 		hpMax: Number(extra.hpMax) || 0,
@@ -714,7 +741,9 @@ function pushNamed (session, name, extra) {
 		tempHp: 0,
 		condition: "",
 		initScore: extra.initScore ?? null,
-	});
+	};
+	session.combatants.push(combatant);
+	return combatant;
 }
 
 async function rollGroup (plugin, group) {
