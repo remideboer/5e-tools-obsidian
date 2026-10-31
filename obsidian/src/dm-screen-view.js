@@ -19,7 +19,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
-import {onInitiativeKey, placedChips, selectTableTurn, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
+import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
 	{ref: "conditions", label: "Conditions", name: "", categories: ["condition"]},
@@ -1473,43 +1473,74 @@ async function readCampaignNote (plugin, filePath) {
 	return parseCampaignMarkdown(await vault.read(file));
 }
 
+function childWithClass (host, cls) {
+	return [...host.children].find(el => el.classList.contains(cls)) || null;
+}
+
+function initRowClass (chip, current, done) {
+	return `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}${done.includes(chip.key) ? " is-done" : ""}`;
+}
+
 function paintInitiative (host, plugin) {
-	host.empty();
-	const actions = host.createDiv({cls: "fiveetools-dmscreen__initactions"});
-	const clearBtn = actions.createEl("button", {
-		text: "Clear",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Remove every creature, including those on the ruler"},
-	});
-	clearBtn.addEventListener("click", (evt) => {
-		evt.stopPropagation();
-		clearTableRoster(plugin);
-	});
+	let actions = childWithClass(host, "fiveetools-dmscreen__initactions");
+	if (!actions) {
+		actions = host.createDiv({cls: "fiveetools-dmscreen__initactions"});
+		const clearBtn = actions.createEl("button", {
+			text: "Clear",
+			cls: "fiveetools-btn fiveetools-btn--ghost",
+			attr: {type: "button", title: "Remove every creature, including those on the ruler"},
+		});
+		clearBtn.addEventListener("click", (evt) => {
+			evt.stopPropagation();
+			clearTableRoster(plugin);
+		});
+		const toggle = actions.createEl("button", {
+			cls: "fiveetools-btn fiveetools-btn--ghost",
+			attr: {type: "button", title: "Show or hide the initiative roster on the Table", "data-role": "roster-toggle"},
+		});
+		toggle.addEventListener("click", (evt) => {
+			evt.stopPropagation();
+			const live = ensureTableSession(plugin);
+			live.showRoster = live.showRoster === false;
+			refreshTable(plugin);
+		});
+	}
 	const session = ensureTableSession(plugin);
 	const shown = session.showRoster !== false;
-	const toggle = actions.createEl("button", {
-		text: shown ? "Hide roster" : "Show roster",
-		cls: `fiveetools-btn fiveetools-btn--ghost${shown ? " is-selected" : ""}`,
-		attr: {type: "button", title: "Show or hide the initiative roster on the Table"},
-	});
-	toggle.addEventListener("click", (evt) => {
-		evt.stopPropagation();
-		session.showRoster = session.showRoster === false;
-		refreshTable(plugin);
-	});
+	const toggle = actions.querySelector("[data-role='roster-toggle']");
+	toggle.textContent = shown ? "Hide roster" : "Show roster";
+	toggle.className = `fiveetools-btn fiveetools-btn--ghost${shown ? " is-selected" : ""}`;
 	const chips = placedChips(session);
+	let list = childWithClass(host, "fiveetools-init-list");
+	const empty = childWithClass(host, "fiveetools-view__meta");
 	if (!chips.length) {
-		host.createEl("p", {cls: "fiveetools-view__meta", text: "Drag creatures onto the Table ruler."});
+		list?.remove();
+		if (!empty) host.createEl("p", {cls: "fiveetools-view__meta", text: "Drag creatures onto the Table ruler."});
 		return;
 	}
+	empty?.remove();
+	if (!list) list = host.createDiv({cls: "fiveetools-init-list"});
 	const done = Array.isArray(session.doneKeys) ? session.doneKeys : [];
 	const current = chips.some(chip => chip.key === session.turnKey) ? session.turnKey : chips[0].key;
+	const rows = [...list.children];
+	const same = rows.length === chips.length && chips.every((chip, i) => rows[i].dataset.key === chip.key && rows[i].textContent === chip.label);
+	if (same) {
+		chips.forEach((chip, i) => { rows[i].className = initRowClass(chip, current, done); });
+		return;
+	}
+	list.empty();
 	for (const chip of chips) {
-		const row = host.createDiv({
-			cls: `fiveetools-init-list__row${chip.key === current ? " is-current" : ""}${done.includes(chip.key) ? " is-done" : ""}`,
+		const row = list.createDiv({
+			cls: initRowClass(chip, current, done),
 			text: chip.label,
+			attr: {"data-key": chip.key, title: "Double-click to mark this turn"},
 		});
 		row.addEventListener("click", () => selectTableTurn(plugin, chip.key));
+		row.addEventListener("dblclick", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			finishTableTurn(plugin, chip.key);
+		});
 	}
 }
 

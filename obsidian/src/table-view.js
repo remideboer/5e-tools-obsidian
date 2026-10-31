@@ -502,6 +502,14 @@ export function selectTableTurn (plugin, key) {
 	refreshTable(plugin);
 }
 
+/** Mark the current turn done and move to the next, the same as Enter. `key` selects that row first. */
+export function finishTableTurn (plugin, key) {
+	const session = ensureTableSession(plugin);
+	if (key) session.turnKey = key;
+	markTurnDone(session);
+	refreshTable(plugin);
+}
+
 function doneKeys (session) {
 	if (!Array.isArray(session.doneKeys)) session.doneKeys = [];
 	return session.doneKeys;
@@ -541,8 +549,7 @@ export function onInitiativeKey (plugin, evt) {
 	evt.preventDefault();
 	evt.stopPropagation();
 	if (evt.key === "Enter") {
-		markTurnDone(session);
-		refreshTable(plugin);
+		finishTableTurn(plugin);
 		return;
 	}
 	const dir = evt.key === "ArrowDown" ? 1 : -1;
