@@ -210,18 +210,54 @@ function fillNumberSelect (el, min, max, value) {
 	el.value = String(value);
 }
 
-export async function addCombatants (session, doc, count = 1) {
-	if (!doc) throw new Error("No creature to add.");
-	const n = Math.max(1, Math.min(10, Number(count) || 1));
-	const loaded = await loadEntity(doc);
-	const ent = loaded.ent;
-	if (!ent) throw new Error(`No JSON found for ${doc.n || "creature"}.`);
+export function applyTemplateToGroup (combatants, sample, ent, base = null) {
+	if (!sample || !ent || !Array.isArray(combatants)) return false;
+	const key = kindKey(sample);
 	const hpMax = hpMaxFromEnt(ent);
 	const cr = crFromEnt(ent);
 	const ac = acFromEnt(ent);
 	const initiative = initiativeFromEnt(ent);
 	const dex = dexFromEnt(ent);
 	const passive = passiveFromEnt(ent);
+	const snapshot = JSON.parse(JSON.stringify(ent));
+	const baseSnap = base ? JSON.parse(JSON.stringify(base)) : null;
+	let changed = false;
+	for (const combatant of combatants) {
+		if (kindKey(combatant) !== key) continue;
+		const oldMax = Number(combatant.hpMax);
+		const current = Number(combatant.hpCurrent);
+		const wasFull = !Number.isFinite(current) || !Number.isFinite(oldMax) || current === oldMax;
+		combatant.ent = JSON.parse(JSON.stringify(snapshot));
+		if (baseSnap) combatant.scaleBase = JSON.parse(JSON.stringify(baseSnap));
+		combatant.hpMax = hpMax;
+		combatant.ac = ac;
+		combatant.cr = cr;
+		combatant.dex = dex;
+		combatant.initiative = initiative;
+		combatant.passive = passive;
+		combatant.hpCurrent = wasFull ? hpMax : Math.min(Math.max(0, current), hpMax);
+		changed = true;
+	}
+	return changed;
+}
+
+export async function addCombatants (session, doc, count = 1) {
+	if (!doc) throw new Error("No creature to add.");
+	const n = Math.max(1, Math.min(10, Number(count) || 1));
+	const loaded = await loadEntity(doc);
+	const ent = loaded.ent;
+	if (!ent) throw new Error(`No JSON found for ${doc.n || "creature"}.`);
+	const docCopy = serializeDoc(doc);
+	const key = kindKey({doc: docCopy, label: doc.n || ent.name});
+	const prior = (session?.combatants || []).find(c => kindKey(c) === key && c.ent);
+	const useEnt = prior?.ent ? JSON.parse(JSON.stringify(prior.ent)) : JSON.parse(JSON.stringify(ent));
+	const scaleBase = prior?.scaleBase ? JSON.parse(JSON.stringify(prior.scaleBase)) : null;
+	const hpMax = hpMaxFromEnt(useEnt);
+	const cr = crFromEnt(useEnt);
+	const ac = acFromEnt(useEnt);
+	const initiative = initiativeFromEnt(useEnt);
+	const dex = dexFromEnt(useEnt);
+	const passive = passiveFromEnt(useEnt);
 	const combatants = [...(session?.combatants || [])];
 	bumpIdCounter(combatants);
 	const existingScore = sharedInitScoreForDoc(combatants, doc);
@@ -229,8 +265,10 @@ export async function addCombatants (session, doc, count = 1) {
 	for (let i = 0; i < n; i++) {
 		const combatant = {
 			id: `c${nextCombatantId++}`,
-			label: nextLabel(doc.n || ent.name, combatants),
-			doc: serializeDoc(doc),
+			label: nextLabel(doc.n || useEnt.name, combatants),
+			doc: docCopy ? {...docCopy} : null,
+			ent: JSON.parse(JSON.stringify(useEnt)),
+			...(scaleBase ? {scaleBase: JSON.parse(JSON.stringify(scaleBase))} : {}),
 			hpMax,
 			hpCurrent: hpMax,
 			tempHp: 0,
@@ -485,6 +523,20 @@ export function renderEncounterComposer (formEl, resultEl, {
 		queueSaveEncountersToVault(plugin);
 	};
 
+	const persistNamed = () => {
+		const saved = savedId ? getSavedEncounter(savedId) : null;
+		const savedName = String(name || "").trim() || saved?.name;
+		if (!saved || !savedName) return;
+		upsertSavedEncounter({
+			id: saved.id,
+			name: savedName,
+			combatants,
+			selectedId,
+			party,
+			initOrderBaseline,
+		});
+	};
+
 	const paintDifficulty = () => {
 		const info = encounterDifficulty({combatants, party});
 		diffEl.setText(info.difficulty ? `Difficulty: ${info.label}` : "Difficulty: —");
@@ -499,18 +551,34 @@ export function renderEncounterComposer (formEl, resultEl, {
 		});
 	};
 
-	const openDoc = (doc) => {
+	const openDoc = (doc, opts) => {
 		if (!doc) {
 			showPlaceholder();
 			return;
 		}
-		onOpenDoc?.(doc);
+		onOpenDoc?.(doc, opts);
 	};
 
 	const openSelected = () => {
 		const hit = combatants.find(it => it.id === selectedId);
-		if (hit?.ent) cacheEntityInDataLoader(hit.ent, "monster");
-		openDoc(hit?.doc);
+		if (!hit?.doc) {
+			showPlaceholder();
+			return;
+		}
+		if (hit.custom) {
+			const cacheEnt = hit.scaleBase || hit.ent;
+			if (cacheEnt) cacheEntityInDataLoader(cacheEnt, "monster");
+		}
+		openDoc(hit.doc, {
+			entity: hit.ent || null,
+			scaleBase: hit.scaleBase || null,
+			onApplyStats: (ent, base) => {
+				if (!applyTemplateToGroup(combatants, hit, ent, base)) return;
+				paintRoster();
+				persistNamed();
+				emit();
+			},
+		});
 	};
 
 	let blankPreviewTimer = null;
@@ -577,16 +645,12 @@ export function renderEncounterComposer (formEl, resultEl, {
 		combatants = flat;
 		if (changed) emit();
 		else syncInitToolbar();
-		const scrollTop = rosterEl.scrollTop || 0;
-		rosterEl.empty();
-		if (!combatants.length) {
-			rosterEl.createEl("p", {cls: "fiveetools-view__meta", text: "No creatures yet."});
-			syncInitToolbar();
-			return;
-		}
-		for (const group of listKindGroups(combatants)) {
-			const shell = rosterEl.createDiv({cls: "fiveetools-encounter__group"});
-			const selectGroup = () => {
+		paintKindRoster(rosterEl, combatants, {
+			app,
+			plugin,
+			selectedId: previewKey ? null : selectedId,
+			emptyText: "No creatures yet.",
+			onSelectGroup: (group) => {
 				const pick = group.members.find(m => m.id === selectedId) || group.members[0];
 				if (!pick) return;
 				previewKey = null;
@@ -595,103 +659,60 @@ export function renderEncounterComposer (formEl, resultEl, {
 				paintHits();
 				syncRosterSelection();
 				openSelected();
-			};
-			const head = shell.createDiv({cls: "fiveetools-encounter__group-head"});
-			const title = head.createDiv({cls: "fiveetools-encounter__group-title"});
-			title.createEl("span", {
-				cls: "fiveetools-encounter__group-name",
-				text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
-			});
-			const headActions = head.createDiv({cls: "fiveetools-encounter__group-actions"});
-			const initBtn = headActions.createEl("button", {
-				text: `Init ${formatBonus(group.bonus)}`,
-				cls: "fiveetools-encounter__init",
-				attr: {type: "button", title: "Roll initiative for this group"},
-			});
-			initBtn.addEventListener("click", (evt) => {
-				evt.preventDefault();
-				evt.stopPropagation();
+			},
+			onSelect: (combatant) => {
+				previewKey = null;
+				selectedId = combatant.id;
+				emit();
+				paintHits();
+				syncRosterSelection();
+				openSelected();
+			},
+			onInit: (group) => {
 				void rollGroupInitiative(group, {reorder: false});
-			});
-			headActions.createEl("span", {
-				cls: `fiveetools-encounter__init-score${group.initScore != null ? " has-score" : ""}`,
-				text: group.initScore != null ? String(group.initScore) : "—",
-				attr: {title: "Initiative score"},
-			});
-			const removeGroup = headActions.createEl("button", {
-				text: "×",
-				cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
-				attr: {type: "button", title: "Remove group"},
-			});
-			removeGroup.addEventListener("click", (evt) => {
-				evt.preventDefault();
-				evt.stopPropagation();
+			},
+			onRemoveGroup: (group) => {
 				const ids = new Set(group.members.map(member => member.id));
-				const label = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
-				confirmRemove(app, label, () => {
-					combatants = combatants.filter(it => !ids.has(it.id));
-					if (ids.has(selectedId)) selectedId = combatants[combatants.length - 1]?.id || null;
-					if (initOrderBaseline?.length) {
-						initOrderBaseline = initOrderBaseline.filter(id => !ids.has(id));
-						if (!initOrderBaseline.length) initOrderBaseline = null;
-					}
-					emit();
-					paintRoster();
-					openSelected();
-				});
-			});
-			head.addEventListener("click", (evt) => {
-				if (evt.target.closest(".fiveetools-encounter__group-actions")) return;
-				selectGroup();
-			});
-			const statsEl = paintGroupSharedStats(shell, group.members[0]);
-			statsEl?.addEventListener("click", () => selectGroup());
-			const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
-			for (const combatant of group.members) {
-				renderCombatantRow(body, combatant, {
-					app,
-					plugin,
-					selected: !previewKey && combatant.id === selectedId,
-					onSelect: () => {
-						previewKey = null;
-						selectedId = combatant.id;
-						emit();
-						paintHits();
-						syncRosterSelection();
-						openSelected();
-					},
-					onHp: (nextHp) => {
-						combatant.hpCurrent = nextHp;
-						emit();
-						paintRoster();
-					},
-					onTempHp: (nextTemp) => {
-						combatant.tempHp = nextTemp;
-						emit();
-						paintRoster();
-					},
-					onCondition: (nextCond) => {
-						combatant.condition = nextCond;
-						emit();
-						paintRoster();
-					},
-					onRemove: () => {
-						combatants = combatants.filter(it => it.id !== combatant.id);
-						if (selectedId === combatant.id) {
-							selectedId = combatants[combatants.length - 1]?.id || null;
-						}
-						if (initOrderBaseline?.length) {
-							initOrderBaseline = initOrderBaseline.filter(id => id !== combatant.id);
-							if (!initOrderBaseline.length) initOrderBaseline = null;
-						}
-						emit();
-						paintRoster();
-						openSelected();
-					},
-				});
-			}
-		}
-		rosterEl.scrollTop = scrollTop;
+				combatants = combatants.filter(it => !ids.has(it.id));
+				if (ids.has(selectedId)) selectedId = combatants[combatants.length - 1]?.id || null;
+				if (initOrderBaseline?.length) {
+					initOrderBaseline = initOrderBaseline.filter(id => !ids.has(id));
+					if (!initOrderBaseline.length) initOrderBaseline = null;
+				}
+				emit();
+				paintRoster();
+				openSelected();
+			},
+			onHp: (combatant, nextHp) => {
+				combatant.hpCurrent = nextHp;
+				emit();
+				paintRoster();
+			},
+			onTempHp: (combatant, nextTemp) => {
+				combatant.tempHp = nextTemp;
+				emit();
+				paintRoster();
+			},
+			onCondition: (combatant, nextCond) => {
+				combatant.condition = nextCond;
+				emit();
+				paintRoster();
+			},
+			onRemove: (combatant) => {
+				combatants = combatants.filter(it => it.id !== combatant.id);
+				if (selectedId === combatant.id) {
+					selectedId = combatants[combatants.length - 1]?.id || null;
+				}
+				if (initOrderBaseline?.length) {
+					initOrderBaseline = initOrderBaseline.filter(id => id !== combatant.id);
+					if (!initOrderBaseline.length) initOrderBaseline = null;
+				}
+				emit();
+				paintRoster();
+				openSelected();
+			},
+		});
+		if (!combatants.length) syncInitToolbar();
 	};
 
 	const paintHits = () => {
@@ -848,12 +869,14 @@ export function renderEncounterComposer (formEl, resultEl, {
 					indexHomebrewDocs();
 				}
 				const next = addCombatantsFromEntity({combatants, selectedId}, ent, Number(countInput.value) || 1);
+				if (next.added?.[0]) applyTemplateToGroup(next.combatants, next.added[0], ent, ent);
 				combatants = next.combatants;
 				selectedId = next.selectedId;
 				previewKey = null;
-				emit();
 				paintHits();
 				paintRoster();
+				persistNamed();
+				emit();
 				openSelected();
 			} catch (e) {
 				new Notice(e.message || "Could not add creature.");
@@ -1049,6 +1072,95 @@ export function renderEncounterComposer (formEl, resultEl, {
 	if (showBlank) previewBlank();
 	else if (selectedId) openSelected();
 	else showPlaceholder();
+}
+
+export function paintKindRoster (rosterEl, combatants, {
+	app,
+	plugin,
+	selectedId = null,
+	emptyText = "No creatures yet.",
+	onSelect,
+	onSelectGroup,
+	onInit,
+	onRemoveGroup,
+	onHp,
+	onTempHp,
+	onCondition,
+	onRemove,
+} = {}) {
+	const scrollTop = rosterEl.scrollTop || 0;
+	rosterEl.empty();
+	const list = combatants || [];
+	if (!list.length) {
+		rosterEl.createEl("p", {cls: "fiveetools-view__meta", text: emptyText});
+		rosterEl.scrollTop = scrollTop;
+		return;
+	}
+	for (const group of listKindGroups(list)) {
+		const shell = rosterEl.createDiv({cls: "fiveetools-encounter__group"});
+		const selectGroup = () => onSelectGroup?.(group);
+		const head = shell.createDiv({cls: "fiveetools-encounter__group-head"});
+		const title = head.createDiv({cls: "fiveetools-encounter__group-title"});
+		title.createEl("span", {
+			cls: "fiveetools-encounter__group-name",
+			text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
+		});
+		if (onInit || onRemoveGroup) {
+			const headActions = head.createDiv({cls: "fiveetools-encounter__group-actions"});
+			if (onInit) {
+				const initBtn = headActions.createEl("button", {
+					text: `Init ${formatBonus(group.bonus)}`,
+					cls: "fiveetools-encounter__init",
+					attr: {type: "button", title: "Roll initiative for this group"},
+				});
+				initBtn.addEventListener("click", (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					onInit(group);
+				});
+				headActions.createEl("span", {
+					cls: `fiveetools-encounter__init-score${group.initScore != null ? " has-score" : ""}`,
+					text: group.initScore != null ? String(group.initScore) : "—",
+					attr: {title: "Initiative score"},
+				});
+			}
+			if (onRemoveGroup) {
+				const removeGroup = headActions.createEl("button", {
+					text: "×",
+					cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
+					attr: {type: "button", title: "Remove group"},
+				});
+				removeGroup.addEventListener("click", (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					const label = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
+					confirmRemove(app, label, () => onRemoveGroup(group));
+				});
+			}
+		}
+		if (onSelectGroup) {
+			head.addEventListener("click", (evt) => {
+				if (evt.target.closest(".fiveetools-encounter__group-actions")) return;
+				selectGroup();
+			});
+		}
+		const statsEl = paintGroupSharedStats(shell, group.members[0]);
+		if (onSelectGroup) statsEl?.addEventListener("click", () => selectGroup());
+		const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});
+		for (const combatant of group.members) {
+			renderCombatantRow(body, combatant, {
+				app,
+				plugin,
+				selected: selectedId != null && combatant.id === selectedId,
+				onSelect: () => onSelect?.(combatant),
+				onHp: (nextHp) => onHp?.(combatant, nextHp),
+				onTempHp: (nextTemp) => onTempHp?.(combatant, nextTemp),
+				onCondition: (nextCond) => onCondition?.(combatant, nextCond),
+				onRemove: () => onRemove?.(combatant),
+			});
+		}
+	}
+	rosterEl.scrollTop = scrollTop;
 }
 
 export function paintGroupSharedStats (parent, sample) {
@@ -1321,6 +1433,7 @@ function cloneCombatants (combatants) {
 		...it,
 		doc: it.doc ? {...it.doc} : null,
 		ent: it.ent ? JSON.parse(JSON.stringify(it.ent)) : null,
+		scaleBase: it.scaleBase ? JSON.parse(JSON.stringify(it.scaleBase)) : null,
 	}));
 }
 

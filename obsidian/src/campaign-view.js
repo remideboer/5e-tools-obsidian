@@ -20,7 +20,7 @@ import {
 } from "./campaign-store.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
-import {listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
+import {applyTemplateToGroup, listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
 import {renderCharacterCard} from "./character-view.js";
 import {listCharacters} from "./character-store.js";
 
@@ -285,8 +285,20 @@ export function renderCampaignManager (formEl, resultEl, {
 				continue;
 			}
 			added.push({
-				id: String(combatant.id || `a${added.length + 1}`),
-				name: String(combatant.label || combatant.doc.n),
+				id: String(combatant.id || `c${added.length + 1}`),
+				label: String(combatant.label || combatant.doc.n),
+				hpMax: combatant.hpMax ?? null,
+				hpCurrent: combatant.hpCurrent ?? combatant.hp ?? combatant.hpMax ?? null,
+				tempHp: combatant.tempHp ?? 0,
+				condition: combatant.condition || "",
+				ac: combatant.ac ?? null,
+				cr: combatant.cr ?? "",
+				dex: combatant.dex ?? null,
+				passive: combatant.passive ?? null,
+				initiative: combatant.initiative ?? null,
+				initScore: combatant.initScore ?? null,
+				...(combatant.ent ? {ent: JSON.parse(JSON.stringify(combatant.ent))} : {}),
+				...(combatant.scaleBase ? {scaleBase: JSON.parse(JSON.stringify(combatant.scaleBase))} : {}),
 				doc: {
 					n: combatant.doc.n,
 					u: combatant.doc.u || "",
@@ -375,7 +387,15 @@ export function renderCampaignManager (formEl, resultEl, {
 				});
 				return;
 			}
-			void renderEntityPanel(bodyEl, plugin, hit.doc);
+			void renderEntityPanel(bodyEl, plugin, hit.doc, {
+				entity: hit.ent || null,
+				scaleBase: hit.scaleBase || null,
+				onApplyStats: (ent, base) => {
+					if (!applyTemplateToGroup(combatants, hit, ent, base)) return;
+					paintRoster();
+					void persist().catch((e) => new Notice(e.message || "Could not save encounter."));
+				},
+			});
 		};
 
 		const syncRosterSelection = () => {

@@ -10,8 +10,8 @@ import {docFromHref, docFromVetLink, indexHomebrewDocs} from "./search-index.js"
 import {bindDiceRollers} from "./dice-roll.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {attachHoverCard} from "./hover-card.js";
-import {addCombatants} from "./encounter-view.js";
-import {emptyInstance, getEncounterInstance, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
+import {addCombatants, applyTemplateToGroup} from "./encounter-view.js";
+import {emptyInstance, getEncounterInstance, getSavedEncounter, queueSaveEncountersToVault, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {adjustMultiattack, CR_STEPS, crLabel, crNumber, homebrewName} from "./creature-scale.js";
 import {cacheBrewInDataLoader, saveHomebrewToVault, upsertEntity} from "./homebrew-store.js";
 
@@ -70,23 +70,30 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 			body.createEl("p", {cls: "fiveetools-view__warning", text: loaded.warning});
 		}
 
-		if (loaded.ent) {
-			if (loaded.ent.__prop === "adventure") {
-				crRow.remove();
-				insertBtn.addEventListener("click", async () => {
-					insertBtn.setAttr("disabled", "true");
-					try {
-						await insertEntityNote(plugin, {doc, ent: loaded.ent});
-					} finally {
-						insertBtn.removeAttribute("disabled");
-					}
-				});
-				await renderAdventurePanel(body, plugin, loaded.ent, {bindInternalLinks});
-				bindDiceRollers(body, plugin);
-				return;
-			}
+		const bookEnt = loaded.ent || null;
+		const displayEnt = opts.entity ? JSON.parse(JSON.stringify(opts.entity)) : bookEnt;
+		const scaleSource = opts.scaleBase
+			? JSON.parse(JSON.stringify(opts.scaleBase))
+			: (bookEnt || displayEnt);
+		const shown = {ent: displayEnt, base: scaleSource};
 
-			const images = await resolveEntityImages(loaded.ent, {
+		if (bookEnt?.__prop === "adventure") {
+			crRow.remove();
+			insertBtn.addEventListener("click", async () => {
+				insertBtn.setAttr("disabled", "true");
+				try {
+					await insertEntityNote(plugin, {doc, ent: bookEnt});
+				} finally {
+					insertBtn.removeAttribute("disabled");
+				}
+			});
+			await renderAdventurePanel(body, plugin, bookEnt, {bindInternalLinks});
+			bindDiceRollers(body, plugin);
+			return;
+		}
+
+		if (displayEnt) {
+			const images = await resolveEntityImages(bookEnt || displayEnt, {
 				imageBaseUrl: plugin.settings.imageBaseUrl,
 			});
 			if (images.length) {
@@ -96,17 +103,17 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 				preview.forEach((image, i) => {
 					const src = srcs[i];
 					if (!src) return;
-					imgWrap.createEl("img", {attr: {src, alt: loaded.ent.name || doc.n || ""}});
+					imgWrap.createEl("img", {attr: {src, alt: displayEnt.name || doc.n || ""}});
 				});
 			}
 
 			let compactHtml = "";
 			if (!isCorpusPage(page)) {
-				compactHtml = renderCompactHtml(loaded.ent, page);
+				compactHtml = renderCompactHtml(displayEnt, page);
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
 				statWrap.innerHTML = compactHtml;
-				if (isCreatureEntity(loaded.ent, doc)) {
-					appendCreatureStatFooter(statWrap, loaded.ent, plugin);
+				if (isCreatureEntity(displayEnt, doc)) {
+					appendCreatureStatFooter(statWrap, displayEnt, plugin);
 					compactHtml = statWrap.innerHTML;
 				}
 				bindInternalLinks(statWrap, plugin);
@@ -116,13 +123,16 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 					plugin,
 					doc,
 					page,
-					ent: loaded.ent,
+					ent: scaleSource,
+					shownEnt: displayEnt,
 					statWrap,
 					crRow,
 					crSlider,
 					crValue,
 					saveBrewBtn,
 					setPrintHtml: (html) => { compactHtml = html; },
+					onShown: (ent) => { shown.ent = ent; },
+					onApplyStats: opts.onApplyStats,
 				});
 			} else {
 				crRow.remove();
@@ -131,7 +141,7 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 			insertBtn.addEventListener("click", async () => {
 				insertBtn.setAttr("disabled", "true");
 				try {
-					await insertEntityNote(plugin, {doc, ent: loaded.ent});
+					await insertEntityNote(plugin, {doc, ent: shown.ent || displayEnt});
 				} finally {
 					insertBtn.removeAttribute("disabled");
 				}
@@ -139,17 +149,17 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 			printBtn.removeAttribute("disabled");
 			printBtn.addEventListener("click", async () => {
 				printEntityCard({
-					html: compactHtml || `<p><strong>${escapeHtml(loaded.ent.name || doc.n || "")}</strong></p>`,
+					html: compactHtml || `<p><strong>${escapeHtml((shown.ent || displayEnt).name || doc.n || "")}</strong></p>`,
 					imageSrc: images[0] ? await cachedMediaSrc(plugin, toPreviewSrc(images[0])) : "",
 				});
 			});
-			if (addEncounterBtn && isCreatureEntity(loaded.ent, doc)) {
+			if (addEncounterBtn && isCreatureEntity(displayEnt, doc)) {
 				addEncounterBtn.removeAttribute("disabled");
 				addEncounterBtn.addEventListener("click", async () => {
 					addEncounterBtn.setAttr("disabled", "true");
 					try {
-						const next = await addCreatureToEncounter(plugin, doc);
-						new Notice(`Added ${doc.n || loaded.ent.name || "creature"} to encounter.`);
+						const next = await addCreatureToEncounter(plugin, doc, shown.ent, shown.base);
+						new Notice(`Added ${doc.n || shown.ent?.name || "creature"} to encounter.`);
 						opts.onAddedToEncounter?.(next);
 					} catch (e) {
 						new Notice(e.message || "Could not add to encounter.");
@@ -216,20 +226,25 @@ async function paintScaledStat (statWrap, ent, page, plugin, doc) {
 	await rewriteMediaUrls(plugin, statWrap);
 }
 
-function wireCrSlider ({plugin, doc, page, ent, statWrap, crRow, crSlider, crValue, saveBrewBtn, setPrintHtml}) {
-	const label = crLabel(ent?.cr);
-	const startIndex = CR_STEPS.indexOf(label);
-	if (!isCreatureEntity(ent, doc) || startIndex < 0 || crNumber(label) == null) {
+function wireCrSlider ({plugin, doc, page, ent, shownEnt, statWrap, crRow, crSlider, crValue, saveBrewBtn, setPrintHtml, onShown, onApplyStats}) {
+	const originLabel = crLabel(ent?.cr);
+	const startIndex = CR_STEPS.indexOf(originLabel);
+	const shownLabel = crLabel((shownEnt || ent)?.cr);
+	const shownIndex = CR_STEPS.indexOf(shownLabel);
+	if (!isCreatureEntity(ent, doc) || startIndex < 0 || crNumber(originLabel) == null) {
 		crRow.remove();
 		return;
 	}
+	const initialIndex = shownIndex >= 0 ? shownIndex : startIndex;
 	crRow.removeClass("is-hidden");
-	crSlider.value = String(startIndex);
-	crValue.setText(label);
+	crSlider.value = String(initialIndex);
+	crValue.setText(CR_STEPS[initialIndex]);
+	if (initialIndex === startIndex) saveBrewBtn.setAttr("disabled", "true");
+	else saveBrewBtn.removeAttribute("disabled");
 
 	const original = JSON.parse(JSON.stringify(ent));
-	let shown = original;
-	let appliedIndex = startIndex;
+	let shown = shownEnt ? JSON.parse(JSON.stringify(shownEnt)) : original;
+	let appliedIndex = initialIndex;
 	let timer = 0;
 	let token = 0;
 
@@ -245,8 +260,14 @@ function wireCrSlider ({plugin, doc, page, ent, statWrap, crRow, crSlider, crVal
 			if (myToken !== token) return;
 			setPrintHtml(statWrap.innerHTML);
 			crValue.setText(nextLabel);
+			onShown?.(shown);
 			if (index === startIndex) saveBrewBtn.setAttr("disabled", "true");
 			else saveBrewBtn.removeAttribute("disabled");
+			try {
+				onApplyStats?.(shown, original);
+			} catch (err) {
+				new Notice(err.message || "Could not update the encounter.");
+			}
 		} catch (e) {
 			if (myToken !== token) return;
 			new Notice(e.message || "Could not scale this creature.");
@@ -303,14 +324,29 @@ function encounterSessionForAdd (plugin) {
 	};
 }
 
-async function addCreatureToEncounter (plugin, doc) {
+async function addCreatureToEncounter (plugin, doc, shownEnt, scaleBase) {
 	const session = encounterSessionForAdd(plugin);
 	const added = await addCombatants(session, doc, 1);
+	const sample = added.added?.[0];
+	const scaled = !!(sample && shownEnt && scaleBase && crNumber(shownEnt.cr) !== crNumber(scaleBase.cr));
+	if (scaled) applyTemplateToGroup(added.combatants, sample, shownEnt, scaleBase);
 	const next = {
 		...session,
 		combatants: added.combatants,
 		selectedId: added.selectedId,
 	};
+	const saved = scaled && next.savedId ? getSavedEncounter(next.savedId) : null;
+	const savedName = String(next.name || "").trim() || saved?.name;
+	if (saved && savedName) {
+		upsertSavedEncounter({
+			id: saved.id,
+			name: savedName,
+			combatants: next.combatants,
+			selectedId: next.selectedId,
+			party: next.party,
+			initOrderBaseline: next.initOrderBaseline,
+		});
+	}
 	plugin._encounterSession = next;
 	setEncounterInstance(next);
 	queueSaveEncountersToVault(plugin);

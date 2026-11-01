@@ -585,7 +585,7 @@ export class FiveEToolsLibraryView extends ItemView {
 				session,
 				plugin: this.plugin,
 				app: this.app,
-				onOpenDoc: (doc) => this.openEntityPanel(doc),
+				onOpenDoc: (doc, opts) => this.openEntityPanel(doc, opts),
 				onSessionChange: (next) => { this.plugin._encounterSession = next; },
 				onSaved: async (saved) => {
 					const ret = this.plugin._campaignReturn;
@@ -829,11 +829,12 @@ export class FiveEToolsLibraryView extends ItemView {
 		await this.openEntityPanel(doc);
 	}
 
-	openEntityPanel (doc) {
+	openEntityPanel (doc, opts = {}) {
 		return renderEntityPanel(this.readerEl, this.plugin, doc, {
 			onAddedToEncounter: () => {
 				if (this.navId === "encounter") this.selectNav("encounter");
 			},
+			...opts,
 		});
 	}
 }

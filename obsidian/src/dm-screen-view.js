@@ -1148,7 +1148,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				const headRow = roster.createDiv({cls: "fiveetools-dmscreen__encgroup"});
 				const name = group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label;
 				headRow.createEl("span", {cls: "fiveetools-dmscreen__encname", text: name});
-				bindEncounterHover(headRow, plugin, group.members[0]?.doc);
+				bindEncounterHover(headRow, plugin, group.members[0]?.doc, group.members[0]?.ent);
 				headRow.createEl("span", {
 					cls: "fiveetools-dmscreen__encinit",
 					text: group.initScore != null ? String(group.initScore) : "—",
@@ -1417,9 +1417,9 @@ function packRoll (draw) {
 	};
 }
 
-function bindEncounterHover (el, plugin, doc) {
-	if (!doc || (!doc.n && !doc.u)) return;
-	attachHoverCard(el, plugin, () => doc);
+function bindEncounterHover (el, plugin, doc, ent) {
+	if ((!doc || (!doc.n && !doc.u)) && !ent) return;
+	attachHoverCard(el, plugin, () => ({doc, ent}));
 }
 
 function playFor (record) {

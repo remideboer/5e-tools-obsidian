@@ -16,9 +16,9 @@ import {
 	slotPool,
 	sourcesFor,
 } from "./dpr-view.js";
-import {listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
+import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault, saveEncountersToVault, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {encounterDifficulty} from "./encounter-difficulty.js";
-import {addCombatants, initiativeFromEnt, kindKey} from "./encounter-view.js";
+import {addCombatants, initiativeFromEnt, kindKey, listKindGroups, paintKindRoster} from "./encounter-view.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
@@ -77,7 +77,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 			cr: state.cr,
 			monsters: state.monsters,
 			encounterId: state.encounterId,
-			added: state.added.map(row => ({id: row.id, name: row.name, doc: row.doc})),
+			added: state.added.map(storedCombatant),
 			simCount: state.simCount,
 			simPace: state.simPace,
 			initStyle: initStyle(state),
@@ -111,6 +111,7 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 		}
 		const known = new Set(state.characters.map(characterId));
 		state.partyIds = new Set(savedParty(session, state.characters).filter(id => known.has(id)));
+		state.added = await upgradeAdded(plugin, state.added);
 		try {
 			state.campaigns = await listCampaigns(plugin);
 		} catch (_) { state.campaigns = []; }
@@ -149,34 +150,96 @@ export function renderSimTool (listEl, readerEl, {plugin, session = {}, onSessio
 }
 
 function foesFor (state, plugin) {
-	if (state.threat === "encounter") return encounterCreatures(plugin, state.encounterId);
+	if (state.threat === "encounter") return savedEncounterFoes(plugin, state.encounterId);
 	if (state.threat === "creatures") return loadAdded(plugin, state.added);
 	return [];
+}
+
+async function savedEncounterFoes (plugin, encounterId) {
+	const creatures = await encounterCreatures(plugin, encounterId);
+	const saved = getSavedEncounter(encounterId);
+	return creatures.map((creature, index) => {
+		const current = Number(saved?.combatants?.[index]?.hpCurrent);
+		const maxHp = creature.hp;
+		return {
+			...creature,
+			maxHp,
+			hp: Number.isFinite(current) ? current : maxHp,
+		};
+	});
+}
+
+function storedCombatant (row) {
+	return {
+		id: row.id,
+		label: row.label || row.name || row.doc?.n || "Creature",
+		doc: row.doc ? {...row.doc} : null,
+		ent: row.ent ? JSON.parse(JSON.stringify(row.ent)) : null,
+		...(row.scaleBase ? {scaleBase: JSON.parse(JSON.stringify(row.scaleBase))} : {}),
+		hpMax: row.hpMax ?? null,
+		hpCurrent: row.hpCurrent ?? row.hp ?? null,
+		tempHp: row.tempHp ?? 0,
+		condition: row.condition || "",
+		cr: row.cr ?? "",
+		ac: row.ac ?? null,
+		initiative: row.initiative ?? null,
+		dex: row.dex ?? null,
+		passive: row.passive ?? null,
+		initScore: row.initScore ?? null,
+		custom: row.custom || undefined,
+	};
+}
+
+function hasInstanceHp (row) {
+	return row?.hpMax != null || row?.hpCurrent != null || row?.hp != null;
 }
 
 function restoreAdded (session) {
 	const rows = [];
 	for (const row of session?.added || []) {
-		if (!row?.doc?.n) continue;
-		rows.push({
-			id: String(row.id || `a${rows.length + 1}`),
-			name: String(row.name || row.doc.n),
-			doc: {
-				n: row.doc.n,
-				u: row.doc.u || "",
-				s: row.doc.s || "",
-				c: row.doc.c,
-				cf: row.doc.cf,
-				sA: row.doc.sA,
-			},
-		});
+		if (!row?.doc?.n && !row?.label && !row?.name) continue;
+		if (hasInstanceHp(row)) rows.push(storedCombatant(row));
+		else if (row.doc?.n) {
+			rows.push({
+				legacy: true,
+				name: String(row.name || row.doc.n),
+				doc: {
+					n: row.doc.n,
+					u: row.doc.u || "",
+					s: row.doc.s || "",
+					c: row.doc.c,
+					cf: row.doc.cf,
+					sA: row.doc.sA,
+				},
+			});
+		}
 	}
 	return rows;
+}
+
+async function upgradeAdded (plugin, rows) {
+	const combatants = [];
+	const legacy = [];
+	for (const row of rows || []) {
+		if (row?.legacy) legacy.push(row);
+		else combatants.push(row);
+	}
+	let session = {combatants};
+	for (const row of legacy) {
+		try {
+			const next = await addCombatants(session, row.doc, 1);
+			const added = next.added?.[0];
+			if (added && row.name) added.label = String(row.name);
+			session = {combatants: next.combatants};
+		} catch (_) { /* skip a creature that will not load */ }
+	}
+	return session.combatants;
 }
 
 async function loadAdded (plugin, added) {
 	const creatures = [];
 	for (const row of added || []) {
+		let ent = row.ent || null;
 		let attacks = [];
 		let image = "";
 		let speed = 30;
@@ -184,13 +247,14 @@ async function loadAdded (plugin, added) {
 		let int = null;
 		let ac = 10;
 		let hp = 1;
+		let maxHp = 1;
 		let cr = "";
 		let saveMods = null;
 		let type = "";
 		let traits = null;
 		let initMod = null;
 		try {
-			const ent = row.doc ? (await loadEntity(row.doc))?.ent : null;
+			if (!ent && row.doc) ent = (await loadEntity(row.doc))?.ent || null;
 			attacks = creatureTurn(ent);
 			defenses = normalizeDefenses(ent);
 			saveMods = ent ? creatureSaves(ent) : null;
@@ -202,14 +266,20 @@ async function loadAdded (plugin, added) {
 			const walk = ent?.speed?.walk ?? ent?.speed;
 			speed = Number(walk) || 30;
 			int = Number.isFinite(Number(ent?.int)) ? Number(ent.int) : null;
-			ac = acFromEnt(ent);
-			hp = hpFromEnt(ent);
-			cr = crFromEnt(ent);
+			const acNum = Number(row.ac);
+			ac = Number.isFinite(acNum) && acNum > 0 ? acNum : acFromEnt(ent);
+			const current = Number(row.hpCurrent);
+			const templateMax = Number(row.hpMax);
+			const book = hpFromEnt(ent);
+			maxHp = Number.isFinite(templateMax) && templateMax > 0 ? templateMax : book;
+			hp = Number.isFinite(current) ? current : maxHp;
+			cr = row.cr || crFromEnt(ent);
 		} catch (_) { /* skip a creature that will not load */ }
 		creatures.push({
-			name: row.name || row.doc?.n || "Creature",
+			name: row.label || row.name || row.doc?.n || "Creature",
 			ac,
 			hp,
+			maxHp,
 			cr,
 			attacks,
 			image,
@@ -219,7 +289,7 @@ async function loadAdded (plugin, added) {
 			saveMods,
 			type,
 			traits,
-			kind: kindKey({doc: row.doc, label: row.name}),
+			kind: kindKey({doc: row.doc, label: row.label || row.name, ent: row.ent}),
 			initMod: Number.isFinite(initMod) ? initMod : 2,
 		});
 	}
@@ -246,29 +316,8 @@ function crFromEnt (ent) {
 	return cr == null ? "" : String(cr);
 }
 
-function addedGroups (added) {
-	const groups = [];
-	const byKey = new Map();
-	for (const row of added || []) {
-		const key = [row.doc?.u || "", row.doc?.s || "", row.doc?.n || row.name || ""].join("|");
-		let group = byKey.get(key);
-		if (!group) {
-			group = {key, name: row.doc?.n || row.name || "Creature", rows: []};
-			byKey.set(key, group);
-			groups.push(group);
-		}
-		group.rows.push(row);
-	}
-	return groups;
-}
-
-function nextCreatureName (name, added) {
-	const base = String(name || "Creature");
-	const used = new Set((added || []).map(row => row.name));
-	if (!used.has(base)) return base;
-	let n = 2;
-	while (used.has(`${base} ${n}`)) n += 1;
-	return `${base} ${n}`;
+function copyCombatants (list) {
+	return (list || []).map(storedCombatant);
 }
 
 function savedParty (session, characters) {
@@ -420,61 +469,56 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		attr: {type: "search", placeholder: "Add creature…", autocomplete: "off"},
 	});
 	const hitsEl = creatureWrap.createDiv({cls: "fiveetools-encounter__hits"});
-	const addedEl = creatureWrap.createDiv({cls: "fiveetools-sim__members"});
+	const addedEl = creatureWrap.createDiv({cls: "fiveetools-encounter__roster"});
 	const sendBtn = creatureWrap.createEl("button", {
 		text: "Send to encounter",
 		cls: "fiveetools-btn",
 		attr: {type: "button"},
 	});
-	const pushCreature = (doc) => {
-		state.added.push({
-			id: `a${Date.now().toString(36)}${state.added.length}`,
-			name: nextCreatureName(doc.n, state.added),
-			doc: {n: doc.n, u: doc.u || "", s: doc.s || "", c: doc.c, cf: doc.cf, sA: doc.sA},
-		});
-	};
 	const commitAdded = () => {
 		paintAdded();
 		onThreat();
 	};
 	const paintAdded = () => {
-		addedEl.empty();
 		sendBtn.disabled = !state.added.length;
-		const groups = addedGroups(state.added);
-		if (!groups.length) {
-			addedEl.createEl("p", {cls: "fiveetools-view__meta", text: "Search to add a creature."});
-			return;
-		}
-		for (const group of groups) {
-			const line = addedEl.createDiv({cls: "fiveetools-sim__member"});
-			line.createSpan({cls: "fiveetools-sim__member-name", text: group.name});
-			const stepper = line.createSpan({cls: "fiveetools-sim__stepper"});
-			const minus = stepper.createEl("button", {text: "−", cls: "fiveetools-btn", attr: {type: "button", "aria-label": `Remove one ${group.name}`}});
-			stepper.createSpan({cls: "fiveetools-sim__count", text: String(group.rows.length)});
-			const plus = stepper.createEl("button", {text: "+", cls: "fiveetools-btn", attr: {type: "button", "aria-label": `Add one ${group.name}`}});
-			const clear = stepper.createEl("button", {text: "×", cls: "fiveetools-btn", attr: {type: "button", "aria-label": `Remove ${group.name}`}});
-			minus.addEventListener("click", () => {
-				const last = group.rows[group.rows.length - 1];
-				state.added = state.added.filter(it => it.id !== last.id);
+		paintKindRoster(addedEl, state.added, {
+			app: plugin.app,
+			plugin,
+			emptyText: "Search to add a creature.",
+			onHp: (combatant, nextHp) => {
+				combatant.hpCurrent = nextHp;
 				commitAdded();
-			});
-			plus.addEventListener("click", () => {
-				const sample = group.rows[0];
-				pushCreature(sample.doc);
+			},
+			onTempHp: (combatant, nextTemp) => {
+				combatant.tempHp = nextTemp;
 				commitAdded();
-			});
-			clear.addEventListener("click", () => {
-				const ids = new Set(group.rows.map(row => row.id));
+			},
+			onCondition: (combatant, nextCond) => {
+				combatant.condition = nextCond;
+				commitAdded();
+			},
+			onRemove: (combatant) => {
+				state.added = state.added.filter(it => it.id !== combatant.id);
+				commitAdded();
+			},
+			onRemoveGroup: (group) => {
+				const ids = new Set(group.members.map(member => member.id));
 				state.added = state.added.filter(it => !ids.has(it.id));
 				commitAdded();
-			});
-		}
+			},
+		});
 	};
 	let hitDocs = [];
 	let hitIndex = 0;
-	const addHit = (doc) => {
+	const addHit = async (doc) => {
 		if (!doc) return;
-		pushCreature(doc);
+		try {
+			const next = await addCombatants({combatants: state.added}, doc, 1);
+			state.added = next.combatants;
+		} catch (e) {
+			new Notice(e.message || "Could not add that creature.");
+			return;
+		}
 		searchEl.value = "";
 		hitDocs = [];
 		hitIndex = 0;
@@ -507,7 +551,7 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			const meta = hit.createDiv({cls: "fiveetools-encounter__hitmeta"});
 			meta.createEl("div", {cls: "fiveetools-modal__name", text: doc.n});
 			meta.createEl("div", {cls: "fiveetools-modal__sub", text: [doc.sA || doc.s, doc.cf].filter(Boolean).join(" · ")});
-			hit.addEventListener("click", () => addHit(doc));
+			hit.addEventListener("click", () => { void addHit(doc); });
 		});
 	};
 	searchEl.addEventListener("input", paintHits);
@@ -522,40 +566,24 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		}
 		if (evt.key !== "Enter") return;
 		evt.preventDefault();
-		addHit(hitDocs[hitIndex]);
+		void addHit(hitDocs[hitIndex]);
 	});
-	const sendAddedToEncounter = async () => {
-		const groups = addedGroups(state.added);
-		if (!groups.length) return;
-		let roster = {combatants: [], selectedId: null};
-		const skipped = [];
-		const kept = [];
-		for (const group of groups) {
-			try {
-				let left = group.rows.length;
-				while (left > 0) {
-					const batch = Math.min(10, left);
-					const next = await addCombatants(roster, group.rows[0].doc, batch);
-					roster = {combatants: next.combatants, selectedId: next.selectedId};
-					left -= batch;
-				}
-				kept.push(group.name);
-			} catch (_) {
-				skipped.push(group.name);
-			}
-		}
-		if (!roster.combatants.length) {
-			new Notice(skipped.length ? `Could not load ${skipped.join(", ")}.` : "No creatures to send.");
+	const sendAddedToEncounter = () => {
+		if (!state.added.length) {
+			new Notice("No creatures to send.");
 			return;
 		}
-		if (skipped.length) new Notice(`Skipped ${skipped.join(", ")}.`);
+		const combatants = copyCombatants(state.added);
+		const name = listKindGroups(combatants).map(group => (
+			group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label
+		)).join(", ");
 		state.token += 1;
 		state.encounterGen += 1;
 		stopSimTimer(plugin);
 		plugin._encounterSession = {
-			combatants: roster.combatants,
-			selectedId: roster.selectedId,
-			name: kept.join(", "),
+			combatants,
+			selectedId: combatants[combatants.length - 1]?.id || null,
+			name,
 			savedId: null,
 			pickedId: null,
 		};
@@ -592,10 +620,78 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 		encEl.createEl("option", {text: encounter.name || "Encounter", attr: {value: encounter.id}});
 	}
 	if (saved.some(it => it.id === state.encounterId)) encEl.value = state.encounterId;
+	const encRoster = encWrap.createDiv({cls: "fiveetools-encounter__roster"});
+	const editSaved = (mutate) => {
+		const savedEncounter = getSavedEncounter(state.encounterId);
+		if (!savedEncounter) return;
+		const combatants = savedEncounter.combatants || [];
+		mutate(combatants);
+		let baseline = Array.isArray(savedEncounter.initOrderBaseline) ? savedEncounter.initOrderBaseline.map(String) : null;
+		if (baseline) {
+			const ids = new Set(combatants.map(it => it.id));
+			baseline = baseline.filter(id => ids.has(id));
+			if (!baseline.length) baseline = null;
+		}
+		const selectedId = combatants.some(it => it.id === savedEncounter.selectedId)
+			? savedEncounter.selectedId
+			: (combatants[combatants.length - 1]?.id || null);
+		const next = upsertSavedEncounter({
+			id: savedEncounter.id,
+			name: savedEncounter.name,
+			combatants,
+			selectedId,
+			party: savedEncounter.party,
+			initOrderBaseline: baseline,
+		});
+		const live = plugin._encounterSession;
+		if (live && (live.savedId === savedEncounter.id || live.pickedId === savedEncounter.id)) {
+			plugin._encounterSession = {
+				...live,
+				combatants: copyCombatants(next.combatants),
+				selectedId: next.selectedId,
+			};
+			setEncounterInstance(plugin._encounterSession);
+		}
+		void saveEncountersToVault(plugin);
+		paintSavedRoster();
+		onThreat();
+	};
+	const paintSavedRoster = () => {
+		const savedEncounter = getSavedEncounter(state.encounterId);
+		paintKindRoster(encRoster, savedEncounter?.combatants || [], {
+			app: plugin.app,
+			plugin,
+			emptyText: state.encounterId ? "No creatures in this encounter." : "Choose an encounter.",
+			onHp: (combatant, nextHp) => editSaved((combatants) => {
+				const hit = combatants.find(it => it.id === combatant.id);
+				if (hit) hit.hpCurrent = nextHp;
+			}),
+			onTempHp: (combatant, nextTemp) => editSaved((combatants) => {
+				const hit = combatants.find(it => it.id === combatant.id);
+				if (hit) hit.tempHp = nextTemp;
+			}),
+			onCondition: (combatant, nextCond) => editSaved((combatants) => {
+				const hit = combatants.find(it => it.id === combatant.id);
+				if (hit) hit.condition = nextCond;
+			}),
+			onRemove: (combatant) => editSaved((combatants) => {
+				const ix = combatants.findIndex(it => it.id === combatant.id);
+				if (ix >= 0) combatants.splice(ix, 1);
+			}),
+			onRemoveGroup: (group) => editSaved((combatants) => {
+				const ids = new Set(group.members.map(member => member.id));
+				for (let i = combatants.length - 1; i >= 0; i--) {
+					if (ids.has(combatants[i].id)) combatants.splice(i, 1);
+				}
+			}),
+		});
+	};
 	encEl.addEventListener("change", () => {
 		state.encounterId = encEl.value;
+		paintSavedRoster();
 		onThreat();
 	});
+	paintSavedRoster();
 
 	const showThreat = () => {
 		crWrap.style.display = state.threat === "cr" ? "" : "none";
@@ -833,7 +929,8 @@ function simEnemies (state) {
 		return state.creatures.map(creature => ({
 			name: creature.name,
 			ac: creature.ac || 10,
-			max: creature.hp || 1,
+			hp: Number.isFinite(Number(creature.hp)) ? Number(creature.hp) : 1,
+			max: Number(creature.maxHp) || Number(creature.hp) || 1,
 			speed: creature.speed || 30,
 			initMod: Number.isFinite(Number(creature.initMod)) ? Number(creature.initMod) : 2,
 			kind: creature.kind || kindKey({label: creature.name}),

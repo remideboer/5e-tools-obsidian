@@ -290,13 +290,17 @@ function actionRecord (list) {
 }
 
 function actorsFrom (list, side) {
-	return (list || []).map((actor, index) => ({
+	return (list || []).map((actor, index) => {
+		const max = Math.max(1, Number(actor.max ?? actor.hp) || 1);
+		const stated = Number(actor.hp);
+		const hp = Number.isFinite(stated) ? Math.max(0, Math.min(max, stated)) : max;
+		return {
 		id: `${side}-${index}-${actor.name}`,
 		name: actor.name || side,
 		side,
 		ac: Number(actor.ac) || 10,
-		hp: Math.max(1, Number(actor.max ?? actor.hp) || 1),
-		max: Math.max(1, Number(actor.max ?? actor.hp) || 1),
+		hp,
+		max,
 		speed: Math.max(5, Number(actor.speed) || 30),
 		initMod: Number.isFinite(Number(actor.initMod)) ? Number(actor.initMod) : 0,
 		kind: String(actor.kind || ""),
@@ -337,7 +341,8 @@ function actorsFrom (list, side) {
 		dealt: 0,
 		healed: 0,
 		hits: 0,
-	}));
+		};
+	});
 }
 
 function copyOption (option) {

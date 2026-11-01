@@ -89,6 +89,8 @@ export function snapshotCombatants (combatants) {
 		passive: it.passive ?? null,
 		initiative: it.initiative ?? null,
 		initScore: it.initScore ?? null,
+		...(it.ent ? {ent: JSON.parse(JSON.stringify(it.ent))} : {}),
+		...(it.scaleBase ? {scaleBase: JSON.parse(JSON.stringify(it.scaleBase))} : {}),
 		doc: it.doc ? {n: it.doc.n, u: it.doc.u, s: it.doc.s, c: it.doc.c, cf: it.doc.cf, sA: it.doc.sA} : null,
 	}));
 }

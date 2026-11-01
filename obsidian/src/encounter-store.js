@@ -199,6 +199,7 @@ function cloneCombatants (combatants) {
 		...it,
 		doc: it.doc ? {...it.doc} : null,
 		ent: it.ent ? JSON.parse(JSON.stringify(it.ent)) : null,
+		scaleBase: it.scaleBase ? JSON.parse(JSON.stringify(it.scaleBase)) : null,
 	}));
 }
 

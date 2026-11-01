@@ -17,9 +17,9 @@ export function attachHoverCard (el, plugin, getDoc, evt) {
 		el.dataset.fiveetoolsHover = "1";
 		el.removeAttribute("title");
 		el.addEventListener("mouseenter", (enterEvt) => {
-			const doc = readDoc(getDoc);
-			if (!doc) return;
-			scheduleShow(el, plugin, doc, enterEvt.clientX, enterEvt.clientY);
+			const target = readTarget(getDoc);
+			if (!target) return;
+			scheduleShow(el, plugin, target.doc, enterEvt.clientX, enterEvt.clientY, target.ent);
 		});
 		el.addEventListener("mouseleave", (leaveEvt) => {
 			if (el.contains(leaveEvt.relatedTarget)) return;
@@ -27,28 +27,34 @@ export function attachHoverCard (el, plugin, getDoc, evt) {
 		});
 	}
 	if (!evt) return;
-	const doc = readDoc(getDoc);
-	if (!doc) return;
-	scheduleShow(el, plugin, doc, evt.clientX, evt.clientY);
+	const target = readTarget(getDoc);
+	if (!target) return;
+	scheduleShow(el, plugin, target.doc, evt.clientX, evt.clientY, target.ent);
 }
 
-function readDoc (getDoc) {
+function readTarget (getDoc) {
 	try {
-		const doc = typeof getDoc === "function" ? getDoc() : getDoc;
-		if (!doc || (!doc.n && !doc.u)) return null;
-		return doc;
+		const value = typeof getDoc === "function" ? getDoc() : getDoc;
+		if (!value) return null;
+		if (value.ent || value.doc) {
+			const doc = value.doc || null;
+			if (!value.ent && doc && !doc.n && !doc.u) return null;
+			return {doc, ent: value.ent || null};
+		}
+		if (!value.n && !value.u) return null;
+		return {doc: value, ent: null};
 	} catch (_) {
 		return null;
 	}
 }
 
-function scheduleShow (el, plugin, doc, x, y) {
+function scheduleShow (el, plugin, doc, x, y, ent) {
 	clearTimers();
 	anchor = el;
 	const id = ++token;
 	showTimer = window.setTimeout(() => {
 		showTimer = null;
-		void showCard(id, plugin, doc, x, y);
+		void showCard(id, plugin, doc, x, y, ent);
 	}, SHOW_DELAY);
 }
 
@@ -77,13 +83,17 @@ function closeCard () {
 	anchor = null;
 }
 
-async function showCard (id, plugin, doc, x, y) {
+async function showCard (id, plugin, doc, x, y, ent) {
 	if (id !== token) return;
 	if (plugin?.ensureReady && !await plugin.ensureReady()) return;
 	if (id !== token) return;
-	const loaded = await loadEntity(doc);
-	if (id !== token || !loaded?.ent) return;
-	const html = renderCompactHtml(loaded.ent, loadPageForDoc(doc));
+	let creature = ent || null;
+	if (!creature && doc) {
+		const loaded = await loadEntity(doc);
+		creature = loaded?.ent || null;
+	}
+	if (id !== token || !creature) return;
+	const html = renderCompactHtml(creature, doc ? loadPageForDoc(doc) : null);
 	if (id !== token) return;
 	card?.remove();
 	const docEl = anchor?.ownerDocument || document;
