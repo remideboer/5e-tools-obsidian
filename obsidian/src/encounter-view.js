@@ -1,4 +1,4 @@
-import {Modal, Notice, setIcon} from "obsidian";
+import {Modal, Notice} from "obsidian";
 import {searchEntities, brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
 import {CONDITIONS, renderCreatureForm} from "./creature-form.js";
@@ -404,7 +404,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 
 	const composerEl = formEl.createDiv({cls: "fiveetools-encounter__composer"});
 	const composerFold = composerEl.createEl("button", {
-		cls: "fiveetools-library__fold",
+		cls: "fiveetools-library__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
 		attr: {type: "button"},
 	});
 	composerEl.createEl("h3", {text: "Encounter Composer"});
@@ -488,7 +488,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		composerFold.setAttr("aria-expanded", composerCollapsed ? "false" : "true");
 		composerFold.setAttr("title", action);
 		composerFold.setAttr("aria-label", action);
-		setIcon(composerFold, composerCollapsed ? "panel-left-open" : "panel-left-close");
+		composerFold.setText(composerCollapsed ? "›" : "‹");
 	};
 	composerFold.addEventListener("click", (evt) => {
 		evt.preventDefault();

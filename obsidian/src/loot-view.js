@@ -294,7 +294,7 @@ export function renderLootGenerator (formEl, resultEl, {
 			if (selected.has(table.id)) cb.checked = true;
 			name.createSpan({text: table.label});
 			const rollOneBtn = row.createEl("button", {
-				cls: "fiveetools-loot__roll",
+				cls: "fiveetools-loot__roll fiveetools-iconbtn fiveetools-iconbtn--roll",
 				attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
 			});
 			setIcon(rollOneBtn, "dices");
@@ -312,7 +312,7 @@ export function renderLootGenerator (formEl, resultEl, {
 				}
 			});
 			const viewBtn = row.createEl("button", {
-				cls: "fiveetools-loot__view",
+				cls: "fiveetools-loot__view fiveetools-iconbtn fiveetools-iconbtn--view",
 				attr: {type: "button", title: "View table", "aria-label": "View table"},
 			});
 			setIcon(viewBtn, "eye");

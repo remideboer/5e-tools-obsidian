@@ -1,4 +1,4 @@
-import {MarkdownRenderer, Notice} from "obsidian";
+import {MarkdownRenderer, Notice, Platform} from "obsidian";
 import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, rosterName, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
@@ -12,6 +12,12 @@ import {getSpellMeta} from "./spell-meta.js";
 import {renameTableCharacter} from "./table-view.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
+const identityExpanded = new Map();
+
+function identityIsOpen (id) {
+	if (identityExpanded.has(id)) return identityExpanded.get(id);
+	return !Platform.isMobile;
+}
 
 export async function renderCharacterCard (host, plugin, ddbId) {
 	host.empty();
@@ -69,7 +75,18 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost) {
 	if (src) header.createEl("img", {attr: {src, alt: characterName(record)}});
 	else paintPortraitButton(header, cardHost, plugin, record);
 	const text = header.createDiv({cls: "fiveetools-character-card__header-text"});
-	text.createEl("h2", {text: characterName(record)});
+	const nameRow = text.createDiv({cls: "fiveetools-character-card__name"});
+	nameRow.createEl("h2", {text: characterName(record)});
+	const characterId = String(fields.ddb_id || record.path || "").trim();
+	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
+	const level = fields.level != null && fields.level !== "" ? `Level ${fields.level}` : "";
+	const background = refs.find(ref => ref.kind === "background");
+	const fold = (identityRefs.length || level || background)
+		? nameRow.createEl("button", {
+			cls: "fiveetools-character-card__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
+			attr: {type: "button"},
+		})
+		: null;
 	const display = text.createEl("input", {
 		cls: "fiveetools-character-card__display",
 		attr: {type: "text", placeholder: "Display name", title: "Name on the initiative roster"},
@@ -90,16 +107,30 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost) {
 	});
 	display.addEventListener("blur", saveDisplay);
 	const identity = text.createDiv({cls: "fiveetools-character-card__identity"});
-	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
 	paintRefRow(identity, plugin, identityRefs, refs, edition);
-	const level = fields.level != null && fields.level !== "" ? `Level ${fields.level}` : "";
 	if (level) identity.createSpan({cls: "fiveetools-view__meta", text: identity.childNodes.length ? ` · ${level}` : level});
-	const background = refs.find(ref => ref.kind === "background");
 	if (background) {
 		const line = text.createDiv({cls: "fiveetools-character-card__identity"});
 		line.createSpan({text: "Background: "});
 		paintRefRow(line, plugin, [background], refs, edition);
 	}
+	const paintFold = (open) => {
+		header.classList.toggle("is-collapsed", !open);
+		if (!fold) return;
+		const action = open ? "Hide species and classes" : "Show species and classes";
+		fold.setAttr("aria-expanded", open ? "true" : "false");
+		fold.setAttr("title", action);
+		fold.setAttr("aria-label", action);
+		fold.setText(open ? "▴" : "▾");
+	};
+	paintFold(identityIsOpen(characterId));
+	fold?.addEventListener("click", (evt) => {
+		evt.preventDefault();
+		evt.stopPropagation();
+		const open = !identityIsOpen(characterId);
+		identityExpanded.set(characterId, open);
+		paintFold(open);
+	});
 }
 
 function paintPortraitButton (header, cardHost, plugin, record) {

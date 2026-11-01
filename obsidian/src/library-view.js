@@ -19,6 +19,7 @@ import {bindTableImageMenu, renderTableTool} from "./table-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderDprTool} from "./dpr-view.js";
+import {renderEncounterSize} from "./encounter-size-view.js";
 import {renderSimTool, stopSimTimer} from "./sim-view.js";
 import {renderDmScreen} from "./dm-screen-view.js";
 import {getDmScreenBoard} from "./dm-screen-store.js";
@@ -214,7 +215,7 @@ export class FiveEToolsLibraryView extends ItemView {
 
 	mountFold (parent, key) {
 		const button = parent.createEl("button", {
-			cls: "fiveetools-library__fold",
+			cls: "fiveetools-library__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
 			attr: {type: "button"},
 		});
 		button.addEventListener("click", (evt) => {
@@ -244,7 +245,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		button.setAttr("aria-expanded", collapsed ? "false" : "true");
 		button.setAttr("title", action);
 		button.setAttr("aria-label", action);
-		setIcon(button, collapsed ? "panel-left-open" : "panel-left-close");
+		button.setText(collapsed ? "›" : "‹");
 	}
 
 	focusGlobalSearch () {
@@ -442,6 +443,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--encounter", !globalTerm && item?.tool === "encounter");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dpr", !globalTerm && item?.tool === "dpr");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--sim", !globalTerm && item?.tool === "sim");
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--size", !globalTerm && item?.tool === "size");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--table", !globalTerm && item?.tool === "table");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dmscreen", !globalTerm && item?.tool === "dmscreen");
@@ -461,6 +463,10 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.readerEl.empty();
 		this.readerEl.removeClass("fiveetools-sim-reader");
 	}
+		if (item?.tool !== "size" && this.readerEl?.hasClass("fiveetools-size-reader")) {
+			this.readerEl.empty();
+			this.readerEl.removeClass("fiveetools-size-reader");
+		}
 	if (item?.tool !== "table") this.readerEl?.removeClass("fiveetools-table-stage");
 		if ((item?.tool !== "characters" || globalTerm.length >= 2) && this.readerEl?.hasClass("fiveetools-characters-reader")) {
 			this.readerEl.empty();
@@ -548,6 +554,17 @@ export class FiveEToolsLibraryView extends ItemView {
 				plugin: this.plugin,
 				session: this.plugin._dprSession || {},
 				onSessionChange: (next) => { this.plugin._dprSession = next; },
+			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "size") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			renderEncounterSize(this.listEl, this.readerEl, {
+				session: this.plugin._sizeSession || {},
+				onSessionChange: (next) => { this.plugin._sizeSession = next; },
 			});
 			this.docs = [];
 			return;
@@ -872,6 +889,7 @@ function clearListToolClasses (el) {
 		"fiveetools-encounter",
 		"fiveetools-dpr",
 		"fiveetools-sim",
+		"fiveetools-size",
 		"fiveetools-dmscreen",
 		"fiveetools-homebrew",
 		"fiveetools-campaign",

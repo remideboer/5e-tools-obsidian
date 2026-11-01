@@ -346,7 +346,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 			row.createSpan({cls: "fiveetools-rolltables__hitname", text: table.name});
 
 			const rollOneBtn = row.createEl("button", {
-				cls: "fiveetools-rolltables__roll",
+				cls: "fiveetools-rolltables__roll fiveetools-iconbtn fiveetools-iconbtn--roll",
 				attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
 			});
 			setIcon(rollOneBtn, "dices");
@@ -357,7 +357,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 			});
 
 			const viewBtn = row.createEl("button", {
-				cls: "fiveetools-rolltables__view",
+				cls: "fiveetools-rolltables__view fiveetools-iconbtn fiveetools-iconbtn--view",
 				attr: {type: "button", title: "View table", "aria-label": "View table"},
 			});
 			setIcon(viewBtn, "eye");
@@ -369,7 +369,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 			});
 
 			const del = row.createEl("button", {
-				cls: "fiveetools-rolltables__del",
+				cls: "fiveetools-rolltables__del fiveetools-iconbtn fiveetools-iconbtn--delete",
 				attr: {type: "button", title: "Delete", "aria-label": "Delete"},
 			});
 			setIcon(del, "trash");

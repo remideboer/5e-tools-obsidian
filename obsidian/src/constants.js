@@ -52,6 +52,7 @@ export const LIBRARY_NAV = [
 			{id: "dmscreen", label: "DM screen", tool: "dmscreen"},
 			{id: "campaign", label: "Campaigns", tool: "campaign"},
 			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
+			{id: "size", label: "Encounter size", tool: "size"},
 			{id: "table", label: "Table", tool: "table"},
 			{id: "map", label: "Map", tool: "map"},
 			{id: "dice", label: "Dice roller", tool: "dice"},

@@ -21,6 +21,7 @@ import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
+import {tableInitHeightPercent} from "./constants.js";
 import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, addNamedAtEnd, appendInitToken, removeTableGroup, reorderPlacedRoster, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
 
 const QUICK_REFS = [
@@ -199,7 +200,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			const grip = el.createDiv({cls: "fiveetools-dmscreen__colgrip"});
 			const colFold = grip.createEl("button", {
 				text: "‹",
-				cls: "fiveetools-dmscreen__fold",
+				cls: "fiveetools-dmscreen__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
 				attr: {type: "button", title: "Collapse column"},
 			});
 			colFold.addEventListener("click", (evt) => {
@@ -614,7 +615,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		head.addEventListener("dragend", endDrag);
 		const fold = head.createEl("button", {
 			text: panel.collapsed ? "▾" : "▴",
-			cls: "fiveetools-dmscreen__fold",
+			cls: "fiveetools-dmscreen__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
 			attr: {type: "button", title: panel.collapsed ? "Expand" : "Collapse"},
 		});
 		const setCardCollapsed = (collapsed) => {
@@ -1639,6 +1640,25 @@ function paintInitiative (host, plugin) {
 			nameEl.focus();
 		});
 		nameEl.addEventListener("click", (evt) => evt.stopPropagation());
+		const sizeRow = host.createDiv({cls: "fiveetools-dmscreen__initsize"});
+		sizeRow.createSpan({text: "Size"});
+		const size = sizeRow.createEl("input", {
+			attr: {type: "range", min: "1", max: "15", step: "1", title: "Table roster size"},
+		});
+		const sizeValue = sizeRow.createSpan({cls: "fiveetools-dmscreen__initsize-value"});
+		const showSize = (value) => {
+			size.value = String(value);
+			sizeValue.setText(String(value));
+		};
+		showSize(tableInitHeightPercent(plugin.settings));
+		size.addEventListener("input", () => {
+			const value = tableInitHeightPercent({tableInitHeight: size.value});
+			plugin.settings.tableInitHeight = value;
+			showSize(value);
+			void plugin.saveSettings?.();
+			refreshTable(plugin);
+		});
+		size.addEventListener("click", (evt) => evt.stopPropagation());
 	}
 	const session = ensureTableSession(plugin);
 	const shown = session.showRoster !== false;

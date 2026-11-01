@@ -69,7 +69,7 @@ export function appendCreatureStatFooter (statWrap, ent, plugin) {
 					void openTreasureTables(plugin, typ, cr);
 				});
 				const diceBtn = wrap.createEl("button", {
-					cls: "fiveetools-creature-footer__roll",
+					cls: "fiveetools-creature-footer__roll fiveetools-iconbtn fiveetools-iconbtn--roll",
 					attr: {
 						type: "button",
 						title: "Roll treasure",

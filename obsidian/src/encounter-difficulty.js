@@ -1,4 +1,4 @@
-import {getStyleHint} from "./fiveetools-host.js";
+import {getStyleHint} from "./fiveetools-globals.js";
 
 const XP_ONE = {
 	low: [0, 50, 100, 150, 250, 500, 600, 750, 1000, 1300, 1600, 1900, 2200, 2600, 2900, 3300, 3800, 4500, 5000, 5500, 6400],
@@ -125,6 +125,14 @@ export function encounterDifficulty ({combatants = [], party, style, levels} = {
 	};
 }
 
+/** Party XP budget for one difficulty tier. 2024 style is "one"; anything else is the 2014 table. */
+export function partyBudget (style, level, count, tier) {
+	const table = style === "one" ? XP_ONE : XP_CLASSIC;
+	const row = table[tier];
+	if (!row) return 0;
+	return (row[clampInt(level, 1, 20, 1)] || 0) * clampInt(count, 1, 12, 4);
+}
+
 function scaleBudgets (table, level, count) {
 	const out = {};
 	for (const [tier, arr] of Object.entries(table)) {
@@ -147,7 +155,7 @@ function scaleBudgetLevels (table, levels) {
 	return out;
 }
 
-function classicMultiplier (monsterCount, playerCount) {
+export function classicMultiplier (monsterCount, playerCount) {
 	let base = monsterCount <= 0
 		? CLASSIC_MULT[0]
 		: (monsterCount >= CLASSIC_MULT.length ? CLASSIC_MULT[CLASSIC_MULT.length - 1] : CLASSIC_MULT[monsterCount - 1]);

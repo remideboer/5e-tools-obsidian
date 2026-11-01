@@ -137,9 +137,12 @@ function paintPlayerRoster (host, session, doc, plugin) {
 	const panel = doc.createElement("div");
 	panel.className = "fiveetools-table-player__roster";
 	const settings = plugin?.settings || {};
+	const pct = tableInitHeightPercent(settings);
+	const scale = pct / 4;
 	panel.style.background = settings.tableInitBackground || "#000000";
 	panel.style.color = settings.tableInitText || "#ffffff";
-	panel.style.fontSize = `${tableInitHeightPercent(settings)}vh`;
+	panel.style.fontSize = `${pct}vh`;
+	panel.style.width = `min(${Math.round(440 * scale)}px, ${Math.min(92, 46 * scale)}vw)`;
 	const title = doc.createElement("h2");
 	title.textContent = "Initiative";
 	panel.appendChild(title);
