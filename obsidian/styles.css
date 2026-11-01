@@ -1013,6 +1013,7 @@ a.fiveetools-inline-link {
 .fiveetools-library__listcol--dpr,
 .fiveetools-library__listcol--sim,
 .fiveetools-library__listcol--size,
+.fiveetools-library__listcol--random,
 .fiveetools-library__listcol--table {
 	width: 320px;
 	min-width: 0;
@@ -1885,6 +1886,7 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 .fiveetools-view .render-roller,
 .fiveetools-roll-results .render-roller,
 .fiveetools-rolltables__reader .render-roller,
+.fiveetools-random-reader .render-roller,
 .fiveetools-dmscreen .render-roller,
 .fiveetools-character-card .render-roller,
 .fiveetools-hover-card .render-roller {
@@ -2766,9 +2768,36 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	width: 100%;
 }
 
-.fiveetools-library__reader.fiveetools-size-reader {
+.fiveetools-library__reader.fiveetools-size-reader,
+.fiveetools-library__reader.fiveetools-random-reader {
 	overflow: auto;
 	padding: 8px 10px;
+}
+
+.fiveetools-random__die {
+	margin: 0 0 8px;
+}
+
+.fiveetools-random__row {
+	display: flex;
+	gap: 8px;
+	align-items: flex-start;
+	padding: 6px 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-random__row.is-selected {
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-random__face {
+	flex: 0 0 1.5em;
+	font-weight: 600;
+}
+
+.fiveetools-random__body {
+	min-width: 0;
+	flex: 1;
 }
 
 .fiveetools-size__table {

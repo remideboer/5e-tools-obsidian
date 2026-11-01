@@ -59,6 +59,7 @@ export const LIBRARY_NAV = [
 			{id: "dpr", label: "DPR", tool: "dpr"},
 			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
 			{id: "loot", label: "Loot Generator", tool: "loot"},
+			{id: "random", label: "Random", tool: "random"},
 			{id: "rolltables", label: "Roll tables", tool: "rolltables"},
 			{id: "sim", label: "Simulation", tool: "sim"},
 		],

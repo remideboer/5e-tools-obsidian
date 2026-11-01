@@ -20,6 +20,7 @@ import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
 import {renderDprTool} from "./dpr-view.js";
 import {renderEncounterSize} from "./encounter-size-view.js";
+import {renderRandomTool} from "./random-view.js";
 import {renderSimTool, stopSimTimer} from "./sim-view.js";
 import {renderDmScreen} from "./dm-screen-view.js";
 import {getDmScreenBoard} from "./dm-screen-store.js";
@@ -444,6 +445,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dpr", !globalTerm && item?.tool === "dpr");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--sim", !globalTerm && item?.tool === "sim");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--size", !globalTerm && item?.tool === "size");
+		this.listColEl?.classList.toggle("fiveetools-library__listcol--random", !globalTerm && item?.tool === "random");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--table", !globalTerm && item?.tool === "table");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--homebrew", !globalTerm && item?.tool === "homebrew");
 		this.listColEl?.classList.toggle("fiveetools-library__listcol--dmscreen", !globalTerm && item?.tool === "dmscreen");
@@ -466,6 +468,10 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (item?.tool !== "size" && this.readerEl?.hasClass("fiveetools-size-reader")) {
 			this.readerEl.empty();
 			this.readerEl.removeClass("fiveetools-size-reader");
+		}
+		if (item?.tool !== "random" && this.readerEl?.hasClass("fiveetools-random-reader")) {
+			this.readerEl.empty();
+			this.readerEl.removeClass("fiveetools-random-reader");
 		}
 	if (item?.tool !== "table") this.readerEl?.removeClass("fiveetools-table-stage");
 		if ((item?.tool !== "characters" || globalTerm.length >= 2) && this.readerEl?.hasClass("fiveetools-characters-reader")) {
@@ -566,6 +572,14 @@ export class FiveEToolsLibraryView extends ItemView {
 				session: this.plugin._sizeSession || {},
 				onSessionChange: (next) => { this.plugin._sizeSession = next; },
 			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "random") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			void this.openRandom(this.plugin._randomSession || {}, listToken);
 			this.docs = [];
 			return;
 		}
@@ -770,6 +784,17 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listEl.createEl("p", {text});
 	}
 
+	async openRandom (session, listToken) {
+		await renderRandomTool(this.listEl, this.readerEl, {
+			plugin: this.plugin,
+			session,
+			listToken,
+			isCurrent: (token) => token === this._listToken,
+			onSessionChange: (next) => { this.plugin._randomSession = next; },
+			onOpenEncounter: () => this.selectNav("encounter"),
+		});
+	}
+
 	async openLoot (session, listToken) {
 		try {
 			await ensureLootData(this.plugin);
@@ -890,6 +915,7 @@ function clearListToolClasses (el) {
 		"fiveetools-dpr",
 		"fiveetools-sim",
 		"fiveetools-size",
+		"fiveetools-random",
 		"fiveetools-dmscreen",
 		"fiveetools-homebrew",
 		"fiveetools-campaign",
