@@ -95,7 +95,7 @@ flowchart TB
 | Random | `random-view.js`, `random-generate.js` (donjon’s 5.5 generator list, ten local rows; the 1d10 is rolled by hand to mark a row; NPCs have a name and a short description; creature, spell, and item links; a marked encounter can be added to the composer) |
 | Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
 | Library rows | `library-row.js` + `spell-meta.js` / `item-meta.js` / `bestiary-meta.js` (CR, rarity, level, type/alignment/habitat, classes; icon sort; spell/item/bestiary filters) |
-| Creature stats | `entity-reader.js` + `creature-stat-footer.js` + `creature-scale.js` (Habitat/Treasure on compact monsters; habitat → bestiary filter; treasure link/dice → Loot Generator / roll popup; CR slider scales a copy with the DMG scaler, stores it on the open encounter group, and can save it as new homebrew) |
+| Creature stats | `entity-reader.js` + `creature-stat-footer.js` + `creature-scale.js` (Habitat/Treasure on compact monsters; habitat → bestiary filter; treasure link/dice → Loot Generator / roll popup; CR slider scales a copy with the DMG scaler, stores it on the open encounter group, and can save it as new homebrew; on a narrow panel the slider and Save homebrew sit on the next line; a touch screen shows the hover card on press-and-hold, and a tap still opens the entry) |
 | Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
 
 ## Import rules of thumb

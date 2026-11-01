@@ -1,3 +1,4 @@
+import {Platform} from "obsidian";
 import {loadEntity} from "./entity-loader.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {bindDiceRollers} from "./dice-roll.js";
@@ -6,32 +7,126 @@ import {cachedMediaSrc} from "./media-cache.js";
 
 const SHOW_DELAY = 350;
 const HIDE_DELAY = 150;
+const HOLD_MS = 450;
 
 let token = 0;
 let showTimer = null;
 let hideTimer = null;
 let card = null;
 let anchor = null;
+let lastTouchAt = 0;
+let dismissBound = false;
+const holds = new WeakMap();
+
+if (typeof document !== "undefined") {
+	document.addEventListener("touchstart", () => { lastTouchAt = Date.now(); }, {capture: true, passive: true});
+}
 
 export function attachHoverCard (el, plugin, getDoc, evt) {
 	if (!el) return;
-	if (el.dataset.fiveetoolsHover !== "1") {
-		el.dataset.fiveetoolsHover = "1";
-		el.removeAttribute("title");
-		el.addEventListener("mouseenter", (enterEvt) => {
-			const target = readTarget(getDoc);
-			if (!target) return;
-			scheduleShow(el, plugin, target.doc, enterEvt.clientX, enterEvt.clientY, target.ent);
-		});
-		el.addEventListener("mouseleave", (leaveEvt) => {
-			if (el.contains(leaveEvt.relatedTarget)) return;
-			scheduleHide(el);
-		});
-	}
-	if (!evt) return;
+	const fresh = el.dataset.fiveetoolsHover !== "1";
+	ensureBound(el, plugin, getDoc);
+	if (fresh && evt?.type === "touchstart") beginHold(el, plugin, getDoc, evt);
+	if (!evt || evt.type === "touchstart" || isTouchFollowUp(evt)) return;
 	const target = readTarget(getDoc);
 	if (!target) return;
 	scheduleShow(el, plugin, target.doc, evt.clientX, evt.clientY, target.ent);
+}
+
+function ensureBound (el, plugin, getDoc) {
+	if (el.dataset.fiveetoolsHover === "1") return;
+	el.dataset.fiveetoolsHover = "1";
+	el.removeAttribute("title");
+	if (Platform.isMobile) {
+		el.addEventListener("touchstart", (evt) => beginHold(el, plugin, getDoc, evt), {passive: true});
+		el.addEventListener("touchmove", (evt) => moveHold(el, evt), {passive: true});
+		el.addEventListener("touchend", () => endHold(el));
+		el.addEventListener("touchcancel", () => endHold(el));
+		el.addEventListener("contextmenu", (evt) => evt.preventDefault());
+		ensureOutsideDismiss();
+		return;
+	}
+	el.addEventListener("mouseenter", (enterEvt) => {
+		if (isTouchFollowUp(enterEvt)) return;
+		const target = readTarget(getDoc);
+		if (!target) return;
+		scheduleShow(el, plugin, target.doc, enterEvt.clientX, enterEvt.clientY, target.ent);
+	});
+	el.addEventListener("mouseleave", (leaveEvt) => {
+		if (el.contains(leaveEvt.relatedTarget)) return;
+		scheduleHide(el);
+	});
+}
+
+function beginHold (el, plugin, getDoc, evt) {
+	if (!evt.touches || evt.touches.length !== 1) return;
+	const touch = evt.touches[0];
+	endHold(el);
+	const state = {x: touch.clientX, y: touch.clientY, timer: null, shown: false};
+	state.timer = window.setTimeout(() => {
+		state.timer = null;
+		state.shown = true;
+		const target = readTarget(getDoc);
+		if (!target) return;
+		suppressNextClick(el);
+		reveal(el, plugin, target.doc, state.x, state.y, target.ent);
+	}, HOLD_MS);
+	holds.set(el, state);
+}
+
+function moveHold (el, evt) {
+	const state = holds.get(el);
+	if (!state?.timer) return;
+	const touch = evt.touches?.[0];
+	if (!touch) return;
+	if (Math.hypot(touch.clientX - state.x, touch.clientY - state.y) > 12) {
+		window.clearTimeout(state.timer);
+		state.timer = null;
+	}
+}
+
+function endHold (el) {
+	const state = holds.get(el);
+	if (!state) return;
+	if (state.timer) window.clearTimeout(state.timer);
+	holds.delete(el);
+	if (!state.shown) closeCard();
+}
+
+function suppressNextClick (el) {
+	const stop = (evt) => {
+		document.removeEventListener("click", stop, true);
+		if (el.contains(evt.target)) {
+			evt.preventDefault();
+			evt.stopPropagation();
+		}
+	};
+	document.addEventListener("click", stop, true);
+	window.setTimeout(() => document.removeEventListener("click", stop, true), 700);
+}
+
+function ensureOutsideDismiss () {
+	if (dismissBound) return;
+	dismissBound = true;
+	document.addEventListener("touchstart", (evt) => {
+		if (!card) return;
+		const target = evt.target;
+		if (card.contains(target) || anchor?.contains(target)) return;
+		closeCard();
+	}, true);
+}
+
+function isTouchFollowUp (evt) {
+	if (!Platform.isMobile) return false;
+	if (evt?.pointerType === "touch") return true;
+	return Date.now() - lastTouchAt < 1200;
+}
+
+function reveal (el, plugin, doc, x, y, ent) {
+	clearTimers();
+	anchor = el;
+	const id = ++token;
+	void showCard(id, plugin, doc, x, y, ent);
 }
 
 function readTarget (getDoc) {

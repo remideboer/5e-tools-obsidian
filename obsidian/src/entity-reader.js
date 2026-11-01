@@ -382,13 +382,14 @@ export function bindInternalLinks (el, plugin) {
 		evt.stopPropagation();
 		plugin.openLibrary({doc: next});
 	}, true);
-	el.addEventListener("mouseover", (evt) => {
+	const bindHover = (evt) => {
 		const a = evt.target.closest?.("a, [data-vet-page]");
 		if (!a || !el.contains(a)) return;
-		const doc = docFromAnchor(a);
-		if (!doc) return;
+		if (!docFromAnchor(a)) return;
 		attachHoverCard(a, plugin, () => docFromAnchor(a), evt);
-	});
+	};
+	el.addEventListener("mouseover", bindHover);
+	el.addEventListener("touchstart", bindHover, {passive: true});
 }
 
 function docFromAnchor (a) {

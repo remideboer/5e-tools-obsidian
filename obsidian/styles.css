@@ -4298,6 +4298,7 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	flex-direction: column;
 	gap: 4px;
 	margin-bottom: 12px;
+	container-type: inline-size;
 }
 
 .fiveetools-view__header h2 {
@@ -4350,6 +4351,28 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	flex: 0 0 auto;
 	padding: 2px 8px;
 	font-size: 12px;
+}
+
+body.is-mobile .fiveetools-view__actions {
+	flex-wrap: wrap;
+}
+
+body.is-mobile .fiveetools-view__cr {
+	flex: 1 0 100%;
+}
+
+@container (max-width: 720px) {
+	.fiveetools-view__actions {
+		flex-wrap: wrap;
+	}
+
+	.fiveetools-view__cr {
+		flex: 1 0 100%;
+	}
+}
+
+body.is-mobile [data-fiveetools-hover="1"] {
+	-webkit-touch-callout: none;
 }
 
 .fiveetools-view__images {
