@@ -11,7 +11,7 @@ import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
 import {allocPanelId, getDmScreenBoard, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
-import {addCombatants, adjustHp, appendSavedCombatants, listKindGroups} from "./encounter-view.js";
+import {addCombatants, adjustHp, appendSavedCombatants, combatantTag, listKindGroups, stepAmount} from "./encounter-view.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {attachHoverCard} from "./hover-card.js";
 import {characterId} from "./dpr-view.js";
@@ -1076,12 +1076,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			cls: "fiveetools-dmscreen__countstep",
 			attr: {type: "number", title: "Amount to add or subtract"},
 		});
-		const amount = () => {
-			const raw = step.value.trim();
-			if (!raw) return 1;
-			const n = Number(raw);
-			return Number.isFinite(n) ? n : 1;
-		};
+		const amount = () => stepAmount(step.value);
 		const setValue = (next) => {
 			panel.value = next;
 			valueEl.setText(String(next));
@@ -1167,7 +1162,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 						cls: "fiveetools-dmscreen__encremove",
 						attr: {type: "button", title: `Remove ${combatant.label || group.label}`},
 					});
-					who.createEl("span", {cls: "fiveetools-dmscreen__enclabel", text: combatant.label || group.label});
+					who.createEl("span", {
+						cls: "fiveetools-dmscreen__enclabel",
+						text: combatantTag(combatant),
+						attr: {title: combatant.label || group.label},
+					});
 					const hp = row.createDiv({cls: "fiveetools-dmscreen__enchp"});
 					const minus = hp.createEl("button", {
 						text: "−",
@@ -1184,6 +1183,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 						cls: "fiveetools-dmscreen__countbtn",
 						attr: {type: "button", title: "+1 HP"},
 					});
+					const step = hp.createEl("input", {
+						cls: "fiveetools-dmscreen__countstep",
+						attr: {type: "number", title: "Amount to add or subtract"},
+					});
 					const extra = [];
 					if (Number(combatant.tempHp) > 0) extra.push(`temp ${combatant.tempHp}`);
 					const cond = conditionLabel(combatant.condition);
@@ -1191,13 +1194,14 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 					if (extra.length) row.createEl("span", {cls: "fiveetools-dmscreen__encmeta", text: extra.join("  ")});
 					minus.addEventListener("click", (evt) => {
 						evt.stopPropagation();
-						setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, -1));
+						setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, -stepAmount(step.value)));
 					});
 					plus.addEventListener("click", (evt) => {
 						evt.stopPropagation();
-						setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, 1));
+						setHp(combatant, adjustHp(combatant.hpCurrent, combatant.hpMax, stepAmount(step.value)));
 					});
 					input.addEventListener("click", (evt) => evt.stopPropagation());
+					step.addEventListener("click", (evt) => evt.stopPropagation());
 					input.addEventListener("change", () => {
 						const typed = Number(input.value);
 						const cap = Number(combatant.hpMax) || 0;

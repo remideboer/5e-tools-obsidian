@@ -395,6 +395,11 @@ function jpegWithDpi (dpi) {
 	}
 	if (host.adjustHp(expectedHp, expectedHp, 1) !== expectedHp) throw new Error("HP + should clamp to max");
 	if (host.adjustHp(0, expectedHp, -1) !== 0) throw new Error("HP - should clamp to 0");
+	if (host.adjustHp(10, 30, -host.stepAmount("5")) !== 5) throw new Error("HP step should subtract a typed amount");
+	if (host.adjustHp(10, 30, host.stepAmount("")) !== 11) throw new Error("empty HP step should add 1");
+	if (host.adjustHp(3, expectedHp, -host.stepAmount("9")) !== 0) throw new Error("HP step should clamp at 0");
+	if (host.combatantTag({label: "Goblin 2"}) !== "#2") throw new Error("combatant tag should be the trailing number");
+	if (host.combatantTag({label: "Goblin"}) !== "Goblin") throw new Error("combatant tag should keep a name with no number");
 	const encEnt = await DataLoader.pCacheAndGet(page, enc.added[0].doc.s, enc.added[0].doc.u, {isSilent: true});
 	if (!encEnt) throw new Error(`encounter combatant JSON miss via ${enc.added[0].doc.u}`);
 	console.log("encounter", {labels: enc.added.map(it => it.label), hp: expectedHp, cr: enc.added[0].cr});

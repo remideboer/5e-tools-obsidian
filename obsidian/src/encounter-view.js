@@ -322,6 +322,21 @@ export function adjustHp (current, max, delta) {
 	return Math.max(0, Math.min(cap, cur + Number(delta || 0)));
 }
 
+/** Row label: the trailing number on "Goblin 2", or the full name when it has none. */
+export function combatantTag (combatant) {
+	const label = String(combatant?.label || "").trim();
+	const tag = label.match(/(\d+)\s*$/);
+	return tag ? `#${tag[1]}` : (label || "Creature");
+}
+
+/** Empty step field means 1. A typed number is used as entered. */
+export function stepAmount (raw) {
+	const text = String(raw ?? "").trim();
+	if (!text) return 1;
+	const n = Number(text);
+	return Number.isFinite(n) ? n : 1;
+}
+
 export function renderEncounterComposer (formEl, resultEl, {
 	session,
 	plugin,
@@ -1068,7 +1083,11 @@ export function renderCombatantRow (parent, combatant, {
 		onSelect();
 	});
 
-	row.createEl("div", {cls: "fiveetools-modal__name", text: combatant.label});
+	row.createEl("div", {
+		cls: "fiveetools-modal__name",
+		text: combatantTag(combatant),
+		attr: {title: combatant.label || "Creature"},
+	});
 	const remove = row.createEl("button", {
 		text: "×",
 		cls: "fiveetools-encounter__hpbtn fiveetools-encounter__remove",
@@ -1088,6 +1107,10 @@ export function renderCombatantRow (parent, combatant, {
 	});
 	hp.createEl("span", {cls: "fiveetools-encounter__hpmax", text: `/${combatant.hpMax}`});
 	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 HP"}});
+	const step = hp.createEl("input", {
+		cls: "fiveetools-dmscreen__countstep",
+		attr: {type: "number", title: "Amount to add or subtract"},
+	});
 
 	const temp = controls.createEl("input", {
 		cls: "fiveetools-encounter__tempinput",
@@ -1111,13 +1134,14 @@ export function renderCombatantRow (parent, combatant, {
 
 	minus.addEventListener("click", (evt) => {
 		evt.stopPropagation();
-		onHp(adjustHp(combatant.hpCurrent, combatant.hpMax, -1));
+		onHp(adjustHp(combatant.hpCurrent, combatant.hpMax, -stepAmount(step.value)));
 	});
 	plus.addEventListener("click", (evt) => {
 		evt.stopPropagation();
-		onHp(adjustHp(combatant.hpCurrent, combatant.hpMax, 1));
+		onHp(adjustHp(combatant.hpCurrent, combatant.hpMax, stepAmount(step.value)));
 	});
 	input.addEventListener("click", (evt) => evt.stopPropagation());
+	step.addEventListener("click", (evt) => evt.stopPropagation());
 	input.addEventListener("change", () => {
 		const typed = Number(input.value);
 		onHp(Number.isFinite(typed) ? typed : combatant.hpCurrent);
@@ -1328,6 +1352,8 @@ if (globalThis.FiveEToolsObsidian) {
 	globalThis.FiveEToolsObsidian.listKindGroups = listKindGroups;
 	globalThis.FiveEToolsObsidian.sortGroupsByInitiative = sortGroupsByInitiative;
 	globalThis.FiveEToolsObsidian.adjustHp = adjustHp;
+	globalThis.FiveEToolsObsidian.combatantTag = combatantTag;
+	globalThis.FiveEToolsObsidian.stepAmount = stepAmount;
 	globalThis.FiveEToolsObsidian.encounterDifficulty = encounterDifficulty;
 	globalThis.FiveEToolsObsidian.normalizeParty = normalizeParty;
 }
