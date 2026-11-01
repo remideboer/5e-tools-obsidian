@@ -969,6 +969,12 @@ a.fiveetools-inline-link {
 	line-height: 1;
 }
 
+.fiveetools-dmscreen__countstep {
+	width: 3.25em;
+	padding: 0 2px;
+	text-align: center;
+}
+
 .fiveetools-library__listcol--dpr,
 .fiveetools-library__listcol--sim,
 .fiveetools-library__listcol--table {

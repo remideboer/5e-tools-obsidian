@@ -1072,13 +1072,24 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			cls: "fiveetools-dmscreen__countbtn",
 			attr: {type: "button", title: "+1"},
 		});
+		const step = row.createEl("input", {
+			cls: "fiveetools-dmscreen__countstep",
+			attr: {type: "number", title: "Amount to add or subtract"},
+		});
+		const amount = () => {
+			const raw = step.value.trim();
+			if (!raw) return 1;
+			const n = Number(raw);
+			return Number.isFinite(n) ? n : 1;
+		};
 		const setValue = (next) => {
 			panel.value = next;
 			valueEl.setText(String(next));
+			step.value = "";
 			emit();
 		};
-		minus.addEventListener("click", () => setValue((Number(panel.value) || 0) - 1));
-		plus.addEventListener("click", () => setValue((Number(panel.value) || 0) + 1));
+		minus.addEventListener("click", () => setValue((Number(panel.value) || 0) - amount()));
+		plus.addEventListener("click", () => setValue((Number(panel.value) || 0) + amount()));
 	};
 
 	const paintCampaignNote = async (body, panel) => {
