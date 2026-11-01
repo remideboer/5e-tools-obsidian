@@ -126,11 +126,13 @@ function copyBundledData () {
 		"data/trapshazards.json",
 		"data/fluff-trapshazards.json",
 		"data/cultsboons.json",
+		"data/names.json",
 		"data/generated/gendata-spell-source-lookup.json",
 		"data/generated/gendata-subclass-lookup.json",
 		"data/generated/gendata-tag-redirects.json",
 		"data/generated/gendata-variantrules.json",
 		"data/generated/gendata-maps.json",
+		"data/generated/gendata-tables.json",
 	];
 
 	for (const dir of dirs) {

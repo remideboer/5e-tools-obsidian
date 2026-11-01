@@ -3,6 +3,7 @@ import {ensureLootData, listLootTables, rollSelectedTables} from "./loot-view.js
 import {readPluginJson} from "./plugin-dir.js";
 import {ensureSearchIndex, findEntityDoc, listEntities} from "./search-index.js";
 import {getSpellMeta} from "./spell-meta.js";
+import {loadNameGroups, nameForSpecies, rollCharacterName} from "./name-generate.js";
 
 const THEME_TYPES = {
 	arcana: ["W", "WD", "RD", "RG"],
@@ -50,6 +51,7 @@ const ROW_COUNT = 10;
 
 export async function generateRandom (plugin, opts = {}) {
 	await ensureSearchIndex(plugin);
+	try { await loadNameGroups(plugin); } catch (_) { /* other generators still run */ }
 	const used = new Set();
 	const rows = [];
 	let title = "";
@@ -74,6 +76,7 @@ async function generateOne (plugin, opts) {
 	if (type === "trap") return generateTrap(plugin, opts);
 	if (type === "treasure") return generateTreasure(plugin, opts);
 	if (type === "npc") return generateNpc(opts);
+	if (type === "name") return rollCharacterName(opts, opts._used);
 	if (type === "trinket") return generateTrinket(plugin, opts);
 	if (type === "art_object") return generateArt(plugin, opts);
 	if (type === "magic_item") return generateMagicItem(opts);
@@ -171,7 +174,7 @@ function generateNpc (opts) {
 	const klass = namedDoc("class", opts.className || opts.classId);
 	if (!species && !klass) return {title: "NPCs", lines: [{text: "No species or class in the library."}]};
 	const gender = String(opts.gender || "") || pick(["Female", "Male"]);
-	const name = personName(nameSyllables(species?.n), opts._used);
+	const name = nameForSpecies(species?.n, gender, opts._used) || personName(nameSyllables(species?.n), opts._used);
 	const scores = abilityScores(klass?.n);
 	const pronoun = gender === "Female" ? "She" : "He";
 	const parts = [{text: `${name}: ${gender} `}];

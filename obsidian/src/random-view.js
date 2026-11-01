@@ -3,6 +3,7 @@ import {attachHoverCard} from "./hover-card.js";
 import {appendTextWithDiceRollers, bindDiceRollers, presentRoll, rollPacked} from "./dice-roll.js";
 import {addCombatants} from "./encounter-view.js";
 import {generateRandom, randomHabitats} from "./random-generate.js";
+import {loadNameGroups, nameFields} from "./name-generate.js";
 import {resolveCardItem} from "./roll-result-card.js";
 import {ensureSearchIndex, listEntities} from "./search-index.js";
 
@@ -12,7 +13,7 @@ const TYPES = [
 		["trap", "Traps"],
 		["treasure", "Treasure"],
 	]},
-	{group: "Characters", items: [["npc", "NPCs"]]},
+	{group: "Characters", items: [["npc", "NPCs"], ["name", "Names"]]},
 	{group: "Mundane Items", items: [
 		["trinket", "Trinkets"],
 		["art_object", "Art Objects"],
@@ -38,6 +39,7 @@ export async function renderRandomTool (listEl, readerEl, {plugin, session = {},
 	listEl.createEl("p", {cls: "fiveetools-view__meta", text: "Loading the library…"});
 	try {
 		await ensureSearchIndex(plugin);
+		try { await loadNameGroups(plugin); } catch (_) { /* other generators still run */ }
 	} catch (e) {
 		if (isCurrent && !isCurrent(listToken)) return;
 		listEl.empty();
@@ -120,8 +122,13 @@ function paint (listEl, readerEl, {plugin, session, onSessionChange, onOpenEncou
 					delete state.fields.level;
 				}
 				if (field.id === "rarity" && select.value) delete state.fields.level;
+				if (field.id === "nameGroup") {
+					delete state.fields.culture;
+					delete state.fields.nameGender;
+					delete state.fields.clan;
+				}
 				emit();
-				if (field.id === "lootType" || field.id === "rarity") paintFields();
+				if (field.id === "lootType" || field.id === "rarity" || field.id === "nameGroup") paintFields();
 			});
 		}
 	}
@@ -228,6 +235,7 @@ function fieldsFor (type, species, classes, current) {
 			{id: "classId", label: "Class", options: [["", "Any"], ...classes]},
 		];
 	}
+	if (type === "name") return nameFields(current);
 	if (type === "art_object") {
 		return [
 			{id: "quality", label: "Value", options: [["", "Any"], ["Crafted", "25 gp"], ["Fancy", "250 gp"], ["Exceptional", "750 gp"], ["Fine", "2,500 gp"], ["Superior", "7,500 gp"]]},
