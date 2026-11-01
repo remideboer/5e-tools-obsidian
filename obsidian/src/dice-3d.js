@@ -1,6 +1,4 @@
-import {Platform} from "obsidian";
-import {nodeRequire, path} from "./node-fs.js";
-import {getPluginDir} from "./plugin-dir.js";
+import {normalizePath} from "obsidian";
 
 const SUPPORTED = new Set([4, 6, 8, 10, 12, 20, 100]);
 const DIE_SCALE = 1.5;
@@ -11,7 +9,6 @@ const sessions = new Map();
 let diceRollerPromise = null;
 
 export async function showDice3d (plugin, result, doc = document) {
-	if (Platform.isMobile) return false;
 	const session = sessionFor(doc);
 	if (session.unavailable || !plugin || !doc?.body) return false;
 	const dice = (result?.dice || []).filter(it => SUPPORTED.has(Number(it.faces)));
@@ -117,12 +114,8 @@ function scaleDie (die, factor) {
 
 function loadDiceRoller (plugin) {
 	if (!diceRollerPromise) {
-		diceRollerPromise = Promise.resolve().then(() => {
-			const dir = getPluginDir(plugin);
-			if (!dir) throw new Error("3D dice need the desktop app.");
-			const file = path.join(dir, "dice", "dice-3d.js");
-			const mod = nodeRequire(file);
-			const DiceRoller = mod?.DiceRoller || mod?.default?.DiceRoller || mod?.default;
+		diceRollerPromise = injectDiceScript(plugin).then(() => {
+			const DiceRoller = globalThis.FiveEToolsDice?.DiceRoller;
 			if (typeof DiceRoller !== "function") throw new Error("open-dice-dnd DiceRoller missing");
 			return DiceRoller;
 		}).catch((e) => {
@@ -131,6 +124,40 @@ function loadDiceRoller (plugin) {
 		});
 	}
 	return diceRollerPromise;
+}
+
+function injectDiceScript (plugin) {
+	if (typeof globalThis.FiveEToolsDice?.DiceRoller === "function") return Promise.resolve();
+	const dir = plugin?.manifest?.dir;
+	if (!dir) return Promise.reject(new Error("3D dice bundle is not installed."));
+	const vaultPath = normalizePath(`${dir}/dice/dice-3d.js`);
+	const url = plugin.app.vault.adapter.getResourcePath(vaultPath);
+	return new Promise((resolve, reject) => {
+		const fail = () => reject(new Error("Could not load 3D dice. Rebuild the plugin so dice/ is installed."));
+		const existing = document.querySelector(`script[data-fiveetools-dice="1"]`);
+		if (existing) {
+			if (typeof globalThis.FiveEToolsDice?.DiceRoller === "function") {
+				resolve();
+				return;
+			}
+			existing.addEventListener("load", () => {
+				if (typeof globalThis.FiveEToolsDice?.DiceRoller === "function") resolve();
+				else fail();
+			});
+			existing.addEventListener("error", fail);
+			return;
+		}
+		const script = document.createElement("script");
+		script.src = url;
+		script.async = true;
+		script.dataset.fiveetoolsDice = "1";
+		script.onload = () => {
+			if (typeof globalThis.FiveEToolsDice?.DiceRoller === "function") resolve();
+			else fail();
+		};
+		script.onerror = fail;
+		document.head.appendChild(script);
+	});
 }
 
 function hasWebGl (doc) {

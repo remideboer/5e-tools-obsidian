@@ -23,6 +23,7 @@ Upstream 5etools (`js/`, `data/`) is only covered where the plugin depends on it
 | Mobile vault-adapter reads | [0006](adr/0006-vault-adapter-data.md) |
 | D&D Beyond character cards | [0007](adr/0007-ddb-characters.md) |
 | Table window vs map player view | [0008](adr/0008-table-window.md) |
+| 3D dice on mobile | [0009](adr/0009-mobile-3d-dice.md) |
 
 ## Build and install
 

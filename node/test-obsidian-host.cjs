@@ -148,6 +148,11 @@ function jpegWithDpi (dpi) {
 	if (!fs.existsSync(path.join(pluginDir, "data", "trapshazards.json"))) throw new Error("trapshazards.json missing from plugin");
 	if (!fs.existsSync(path.join(pluginDir, "data", "objects.json"))) throw new Error("objects.json missing from plugin");
 	if (!fs.existsSync(path.join(pluginDir, "data", "cultsboons.json"))) throw new Error("cultsboons.json missing from plugin");
+	const dice3d = path.join(pluginDir, "dice", "dice-3d.js");
+	if (!fs.existsSync(dice3d)) throw new Error("3D dice bundle missing");
+	const diceSrc = fs.readFileSync(dice3d, "utf8");
+	if (!/DiceRoller/.test(diceSrc)) throw new Error("3D dice bundle missing DiceRoller");
+	if (!/FiveEToolsDice/.test(diceSrc)) throw new Error("3D dice bundle missing FiveEToolsDice");
 
 	const traps = search("bear trap").filter(d => String(d.cf).toLowerCase() === "trap");
 	const trapDoc = traps.find(d => /^bear trap$/i.test(d.n)) || traps[0];
@@ -230,10 +235,6 @@ function jpegWithDpi (dpi) {
 	if (notice !== expectHit) throw new Error(`hit notice ${notice}`);
 	const dmgNotice = host.formatRollNotice(host.rollPacked(Renderer.utils.getTagEntry("@damage", "2d6+3")));
 	if (/d6/i.test(dmgNotice) || !/\d+ \+ 3: \d+/.test(dmgNotice)) throw new Error(`damage notice ${dmgNotice}`);
-	const dice3d = path.join(pluginDir, "dice", "dice-3d.js");
-	if (!fs.existsSync(dice3d)) throw new Error("3D dice bundle missing");
-	const diceSrc = fs.readFileSync(dice3d, "utf8");
-	if (!/DiceRoller/.test(diceSrc)) throw new Error("3D dice bundle missing DiceRoller");
 	console.log("cr", crPart);
 	const tokenUrl = Renderer.monster.getTokenUrl(ent);
 	console.log("tokenUrl", tokenUrl);

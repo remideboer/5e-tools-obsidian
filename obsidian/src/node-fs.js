@@ -1,4 +1,4 @@
-// Node builtins are loaded only when a desktop map or dice function runs.
+// Node builtins are loaded only when a desktop map function runs.
 // Obsidian passes `require` into the plugin. A direct `require("fs")` would run at
 // startup and break iPad, so the id stays a runtime value.
 
