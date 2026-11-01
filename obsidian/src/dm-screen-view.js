@@ -1155,7 +1155,6 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				});
 				for (const combatant of group.members) {
 					const row = roster.createDiv({cls: "fiveetools-dmscreen__encrow"});
-					bindEncounterHover(row, plugin, combatant.doc);
 					const who = row.createEl("span", {cls: "fiveetools-dmscreen__encwho"});
 					const remove = who.createEl("button", {
 						text: "×",
