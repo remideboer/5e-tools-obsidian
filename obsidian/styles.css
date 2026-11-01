@@ -2969,8 +2969,9 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	position: absolute;
 	top: 16px;
 	left: 16px;
-	bottom: 16px;
 	width: min(440px, 46vw);
+	height: auto;
+	max-height: calc(100% - 32px);
 	overflow: auto;
 	z-index: 2;
 	padding: 16px 18px;
