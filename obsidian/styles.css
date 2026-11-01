@@ -3555,6 +3555,20 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	font-size: 12px;
 }
 
+.fiveetools-hover-card__images {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.fiveetools-hover-card__images img {
+	width: 96px;
+	height: 96px;
+	object-fit: contain;
+	background: var(--background-secondary);
+	border-radius: 6px;
+}
+
 .fiveetools-encounter__composer {
 	position: relative;
 	flex: 1 1 50%;

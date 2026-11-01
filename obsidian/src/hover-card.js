@@ -1,6 +1,8 @@
 import {loadEntity} from "./entity-loader.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {bindDiceRollers} from "./dice-roll.js";
+import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
+import {cachedMediaSrc} from "./media-cache.js";
 
 const SHOW_DELAY = 350;
 const HIDE_DELAY = 150;
@@ -95,11 +97,25 @@ async function showCard (id, plugin, doc, x, y, ent) {
 	if (id !== token || !creature) return;
 	const html = renderCompactHtml(creature, doc ? loadPageForDoc(doc) : null);
 	if (id !== token) return;
+	const images = isBestiary(creature, doc) ? await hoverImages(plugin, creature) : [];
+	if (id !== token) return;
 	card?.remove();
 	const docEl = anchor?.ownerDocument || document;
 	const panel = docEl.createElement("div");
 	panel.className = "fiveetools-hover-card";
 	panel.innerHTML = html;
+	if (images.length) {
+		const wrap = docEl.createElement("div");
+		wrap.className = "fiveetools-hover-card__images";
+		const alt = creature.name || doc?.n || "";
+		for (const src of images) {
+			const img = docEl.createElement("img");
+			img.src = src;
+			img.alt = alt;
+			wrap.appendChild(img);
+		}
+		panel.insertBefore(wrap, panel.firstChild);
+	}
 	bindDiceRollers(panel, plugin);
 	docEl.body.appendChild(panel);
 	placeCard(panel, x, y);
@@ -111,6 +127,23 @@ async function showCard (id, plugin, doc, x, y, ent) {
 	});
 	panel.addEventListener("mouseleave", () => scheduleHide(anchor));
 	card = panel;
+}
+
+function isBestiary (ent, doc) {
+	if (ent?.__prop === "monster") return true;
+	if (Number(doc?.c) === 1) return true;
+	return String(doc?.cf || "").toLowerCase() === "bestiary";
+}
+
+async function hoverImages (plugin, ent) {
+	try {
+		const resolved = await resolveEntityImages(ent, {imageBaseUrl: plugin?.settings?.imageBaseUrl});
+		const preview = resolved.slice(0, 2);
+		const srcs = await Promise.all(preview.map(image => cachedMediaSrc(plugin, toPreviewSrc(image))));
+		return srcs.filter(Boolean);
+	} catch (_) {
+		return [];
+	}
 }
 
 function placeCard (panel, x, y) {
