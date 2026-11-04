@@ -1041,7 +1041,7 @@ a.fiveetools-inline-link {
 
 .fiveetools-table-stage__grid {
 	display: grid;
-	grid-template-columns: 240px minmax(260px, 0.7fr) minmax(320px, 1.3fr);
+	grid-template-columns: 240px 240px minmax(320px, 1fr);
 	align-items: stretch;
 	width: 100%;
 	min-width: 0;
@@ -1079,7 +1079,7 @@ a.fiveetools-inline-link {
 
 @container (max-width: 900px) {
 	.fiveetools-table-stage__grid {
-		grid-template-columns: 220px minmax(280px, 1fr);
+		grid-template-columns: 220px 220px;
 		grid-template-rows: minmax(300px, 1fr) minmax(360px, 1fr);
 		overflow: auto;
 	}
