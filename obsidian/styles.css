@@ -2942,6 +2942,15 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	min-width: 8em;
 }
 
+.fiveetools-table-mirror__zoom-label {
+	min-width: 3.25em;
+	margin-left: 4px;
+	font-size: 11px;
+	color: var(--text-muted);
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
 .fiveetools-table-mirror__surface {
 	position: relative;
 	flex: 1 1 auto;
@@ -2952,6 +2961,13 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	touch-action: none;
 }
 
+.fiveetools-table-mirror__viewport {
+	position: absolute;
+	inset: 0;
+	transform-origin: 0 0;
+	will-change: transform;
+}
+
 .fiveetools-table-mirror__empty {
 	position: absolute;
 	inset: 0;
@@ -2960,6 +2976,7 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	padding: 24px;
 	color: #bbb;
 	text-align: center;
+	z-index: 1;
 }
 
 .fiveetools-table-mirror__credit {

@@ -256,6 +256,10 @@ export function renderTableTool (listEl, readerEl, {plugin} = {}) {
 	void paintInserts(box, plugin);
 }
 
+const MIRROR_ZOOM_MIN = 1;
+const MIRROR_ZOOM_MAX = 4;
+const MIRROR_ZOOM_STEP = 0.25;
+
 function paintTableMirror (host, plugin) {
 	host.empty();
 	const session = ensureTableSession(plugin);
@@ -265,7 +269,13 @@ function paintTableMirror (host, plugin) {
 		stamp: "arrow",
 		area: "circle",
 		place: "A",
+		zoom: 1,
+		panX: 0,
+		panY: 0,
 	});
+	if (!Number.isFinite(ui.zoom)) ui.zoom = 1;
+	if (!Number.isFinite(ui.panX)) ui.panX = 0;
+	if (!Number.isFinite(ui.panY)) ui.panY = 0;
 	const toolbar = host.createDiv({cls: "fiveetools-table-mirror__toolbar"});
 	const tools = [
 		["laser", "mouse-pointer-2", "Laser"],
@@ -323,8 +333,18 @@ function paintTableMirror (host, plugin) {
 		session.marks = [];
 		repaintTableMarks(plugin);
 	});
+	const zoomLabel = toolbar.createSpan({cls: "fiveetools-table-mirror__zoom-label"});
+	mirrorButton(toolbar, "zoom-out", "Zoom out", () => setZoom(ui.zoom - MIRROR_ZOOM_STEP));
+	mirrorButton(toolbar, "zoom-in", "Zoom in", () => setZoom(ui.zoom + MIRROR_ZOOM_STEP));
+	mirrorButton(toolbar, "locate-fixed", "Reset zoom", () => {
+		ui.zoom = 1;
+		ui.panX = 0;
+		ui.panY = 0;
+		applyView();
+	});
 
 	const surface = host.createDiv({cls: "fiveetools-table-mirror__surface"});
+	const viewport = surface.createDiv({cls: "fiveetools-table-mirror__viewport"});
 	const src = mirrorImageSrc(session);
 	let objectUrl = "";
 	let image = null;
@@ -333,11 +353,11 @@ function paintTableMirror (host, plugin) {
 		src.url = objectUrl;
 	}
 	if (src.url) {
-		image = surface.createEl("img", {cls: "fiveetools-table-player__image", attr: {src: src.url, alt: ""}});
+		image = viewport.createEl("img", {cls: "fiveetools-table-player__image", attr: {src: src.url, alt: ""}});
 	} else {
 		surface.createDiv({cls: "fiveetools-table-mirror__empty", text: "Show an image on the Table to mark it."});
 	}
-	const overlay = mountTableOverlay(surface, {
+	const overlay = mountTableOverlay(viewport, {
 		plugin,
 		session,
 		imageEl: image,
@@ -365,6 +385,35 @@ function paintTableMirror (host, plugin) {
 	}
 	syncTools();
 
+	const applyView = () => {
+		ui.zoom = clampMirrorZoom(ui.zoom);
+		clampMirrorPan(ui, surface);
+		viewport.style.transform = `translate(${ui.panX}px, ${ui.panY}px) scale(${ui.zoom})`;
+		zoomLabel.setText(`${Math.round(ui.zoom * 100)}%`);
+	};
+	const setZoom = (next, focus = null) => {
+		const before = clampMirrorZoom(ui.zoom);
+		const after = clampMirrorZoom(next);
+		if (after === before && !focus) {
+			applyView();
+			return;
+		}
+		const rect = surface.getBoundingClientRect();
+		const fx = focus ? (focus.clientX - rect.left) : rect.width / 2;
+		const fy = focus ? (focus.clientY - rect.top) : rect.height / 2;
+		const worldX = (fx - ui.panX) / before;
+		const worldY = (fy - ui.panY) / before;
+		ui.zoom = after;
+		ui.panX = fx - worldX * after;
+		ui.panY = fy - worldY * after;
+		if (after === 1) {
+			ui.panX = 0;
+			ui.panY = 0;
+		}
+		applyView();
+	};
+	applyView();
+
 	const commit = (mark) => {
 		if (!mark) return;
 		mark.id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -374,6 +423,11 @@ function paintTableMirror (host, plugin) {
 	};
 	const endPointer = (evt) => {
 		if (!active || evt.pointerId !== active.pointerId) return;
+		if (active.kind === "pan") {
+			active = null;
+			try { surface.releasePointerCapture(evt.pointerId); } catch (_) { /* already released */ }
+			return;
+		}
 		if (active.tool === "laser") setTableLaser(plugin, null);
 		else if (active.mark) {
 			const dx = Number(active.mark.x2 ?? active.mark.x) - active.mark.x;
@@ -384,8 +438,33 @@ function paintTableMirror (host, plugin) {
 		active = null;
 		try { surface.releasePointerCapture(evt.pointerId); } catch (_) { /* already released */ }
 	};
+	surface.addEventListener("wheel", (evt) => {
+		if (!src.url) return;
+		evt.preventDefault();
+		const step = evt.deltaY < 0 ? MIRROR_ZOOM_STEP : -MIRROR_ZOOM_STEP;
+		setZoom(ui.zoom + step, evt);
+	}, {passive: false});
+	surface.addEventListener("auxclick", (evt) => {
+		if (evt.button === 1) evt.preventDefault();
+	});
 	surface.addEventListener("pointerdown", (evt) => {
-		if (!src.url || evt.button > 0) return;
+		if (!src.url) return;
+		const pan = evt.button === 1 || (evt.button === 0 && evt.altKey);
+		if (pan) {
+			if (ui.zoom <= 1) return;
+			evt.preventDefault();
+			active = {
+				kind: "pan",
+				pointerId: evt.pointerId,
+				x: evt.clientX,
+				y: evt.clientY,
+				panX: ui.panX,
+				panY: ui.panY,
+			};
+			surface.setPointerCapture(evt.pointerId);
+			return;
+		}
+		if (evt.button !== 0) return;
 		const point = overlay.pointFromEvent(evt);
 		if (!point) return;
 		evt.preventDefault();
@@ -423,9 +502,15 @@ function paintTableMirror (host, plugin) {
 	});
 	surface.addEventListener("pointermove", (evt) => {
 		if (!active || evt.pointerId !== active.pointerId) return;
+		evt.preventDefault();
+		if (active.kind === "pan") {
+			ui.panX = active.panX + (evt.clientX - active.x);
+			ui.panY = active.panY + (evt.clientY - active.y);
+			applyView();
+			return;
+		}
 		const point = overlay.pointFromEvent(evt);
 		if (!point) return;
-		evt.preventDefault();
 		if (active.tool === "laser") {
 			setTableLaser(plugin, point);
 			return;
@@ -457,6 +542,26 @@ function paintTableMirror (host, plugin) {
 		overlay.destroy();
 		if (objectUrl) URL.revokeObjectURL(objectUrl);
 	};
+}
+
+function clampMirrorZoom (zoom) {
+	const n = Number(zoom);
+	if (!Number.isFinite(n)) return 1;
+	return Math.max(MIRROR_ZOOM_MIN, Math.min(MIRROR_ZOOM_MAX, Math.round(n / MIRROR_ZOOM_STEP) * MIRROR_ZOOM_STEP));
+}
+
+function clampMirrorPan (ui, surface) {
+	const width = surface.clientWidth || 0;
+	const height = surface.clientHeight || 0;
+	if (!width || !height || ui.zoom <= 1) {
+		ui.panX = 0;
+		ui.panY = 0;
+		return;
+	}
+	const maxX = width * (ui.zoom - 1);
+	const maxY = height * (ui.zoom - 1);
+	ui.panX = Math.max(-maxX, Math.min(0, ui.panX));
+	ui.panY = Math.max(-maxY, Math.min(0, ui.panY));
 }
 
 function mirrorButton (parent, icon, label, onClick) {

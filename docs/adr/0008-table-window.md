@@ -13,6 +13,7 @@ The map player popout draws the battle map. The table also needs a screen for a 
 - The Table is its own popout view (`fiveetools-table`).
 - One image is the full background until it is cleared or replaced.
 - Tools → Table has a live mirror of that image. Freehand marks, text, stamps, area templates, and place markers are stored as normalized image coordinates in the in-memory Table session and painted on both surfaces. Replacing or clearing the image clears them.
+- DM-only pan and zoom on the mirror live in local UI state (`_tableMarkUi`). They do not enter the Table session and do not change the player popout, which stays at 1×.
 - The laser is transient: pointer movement updates the mirror and popout overlays directly and does not rebuild either view or enter the session.
 - The initiative overlay is the ordered names and the current turn, not the empty ruler. The initiative card on the DM screen can hide that overlay. The ruler is edited on the DM screen. Public dice sit on top of the image and do not resize it.
 - Private rolls stay on the DM screen. The map “Public rolls” switch is unchanged.
