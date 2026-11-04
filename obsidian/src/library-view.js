@@ -473,7 +473,12 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.readerEl.empty();
 			this.readerEl.removeClass("fiveetools-random-reader");
 		}
-	if (item?.tool !== "table") this.readerEl?.removeClass("fiveetools-table-stage");
+	if (item?.tool !== "table") {
+		this.plugin._tableMirrorCleanup?.();
+		this.plugin._tableToolUnsub?.();
+		this.plugin._tableToolUnsub = null;
+		this.readerEl?.removeClass("fiveetools-table-stage");
+	}
 		if ((item?.tool !== "characters" || globalTerm.length >= 2) && this.readerEl?.hasClass("fiveetools-characters-reader")) {
 			this.readerEl.empty();
 			this.readerEl.removeClass("fiveetools-characters-reader");

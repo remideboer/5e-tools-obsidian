@@ -8,10 +8,12 @@ export function ensureTableSession (plugin) {
 			image: "",
 			imageBytes: null,
 			imageType: "",
+			marks: [],
 			privateRolls: false,
 			showRoster: true,
 		};
 	}
+	if (!Array.isArray(plugin._tableSession.marks)) plugin._tableSession.marks = [];
 	return plugin._tableSession;
 }
 

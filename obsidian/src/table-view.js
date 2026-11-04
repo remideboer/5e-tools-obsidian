@@ -1,4 +1,4 @@
-import {ItemView, Menu, Notice} from "obsidian";
+import {ItemView, Menu, Notice, setIcon} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_TABLE, tableInitHeightPercent} from "./constants.js";
 import {acOf, avatarFrom, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
@@ -18,6 +18,8 @@ import {loadEntity} from "./entity-loader.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {ICON_ID} from "./icon.js";
 import {ensureTableSession, onTableChange, refreshTable, bindTableEncounterSync} from "./table-session.js";
+import {mountTableOverlay, repaintTableMarks, setTableLaser} from "./table-overlay.js";
+import {TABLE_ICON_CREDIT} from "./table-icons.js";
 
 let nextId = 1;
 
@@ -61,6 +63,8 @@ export class FiveEToolsTableView extends ItemView {
 		this._onTurnKey = null;
 		this.frame?.remove();
 		this.frame = null;
+		this.overlay?.destroy();
+		this.overlay = null;
 		markTableWindow(this, false);
 		this.revokeUrl();
 		this.contentEl.empty();
@@ -77,6 +81,8 @@ export class FiveEToolsTableView extends ItemView {
 		const session = ensureTableSession(this.plugin);
 		const frame = this.frame;
 		if (!frame) return;
+		this.overlay?.destroy();
+		this.overlay = null;
 		frame.empty?.();
 		while (frame.firstChild) frame.removeChild(frame.firstChild);
 		const src = imageSrc(this, session);
@@ -86,6 +92,11 @@ export class FiveEToolsTableView extends ItemView {
 			img.alt = "";
 			img.src = src;
 			frame.appendChild(img);
+			this.overlay = mountTableOverlay(frame, {
+				plugin: this.plugin,
+				session,
+				imageEl: img,
+			});
 		}
 		if (session.showRoster !== false && placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document, this.plugin);
 	}
@@ -133,16 +144,18 @@ function imageSrc (view, session) {
 	return session.image || "";
 }
 
-function paintPlayerRoster (host, session, doc, plugin) {
+function paintPlayerRoster (host, session, doc, plugin, {mirror = false} = {}) {
 	const panel = doc.createElement("div");
-	panel.className = "fiveetools-table-player__roster";
+	panel.className = `fiveetools-table-player__roster${mirror ? " is-mirror" : ""}`;
 	const settings = plugin?.settings || {};
 	const pct = tableInitHeightPercent(settings);
 	const scale = pct / 4;
 	panel.style.background = settings.tableInitBackground || "#000000";
 	panel.style.color = settings.tableInitText || "#ffffff";
-	panel.style.fontSize = `${pct}vh`;
-	panel.style.width = `min(${Math.round(440 * scale)}px, ${Math.min(92, 46 * scale)}vw)`;
+	if (!mirror) {
+		panel.style.fontSize = `${pct}vh`;
+		panel.style.width = `min(${Math.round(440 * scale)}px, ${Math.min(92, 46 * scale)}vw)`;
+	}
 	const title = doc.createElement("h2");
 	title.textContent = "Initiative";
 	panel.appendChild(title);
@@ -218,19 +231,262 @@ export function renderTableTool (listEl, readerEl, {plugin} = {}) {
 	listEl.addClass("fiveetools-table");
 	readerEl?.empty();
 	readerEl?.addClass("fiveetools-table-stage");
-	const sourceEl = readerEl?.createDiv({cls: "fiveetools-table__sources"}) || listEl.createDiv({cls: "fiveetools-table__sources"});
-	const rosterEl = readerEl?.createDiv({cls: "fiveetools-table__board"}) || listEl.createDiv({cls: "fiveetools-table__board"});
+	const stage = readerEl?.createDiv({cls: "fiveetools-table-stage__grid"}) || listEl.createDiv({cls: "fiveetools-table-stage__grid"});
+	const sourceEl = stage.createDiv({cls: "fiveetools-table__sources"});
+	const rosterEl = stage.createDiv({cls: "fiveetools-table__board"});
+	const mirrorEl = stage.createDiv({cls: "fiveetools-table__mirror"});
+	plugin._tableMirrorCleanup?.();
+	let mirrorCleanup = null;
 	const paint = () => {
 		paintSourceList(sourceEl, plugin);
 		paintDmRoster(rosterEl, plugin);
+		mirrorCleanup?.();
+		mirrorCleanup = paintTableMirror(mirrorEl, plugin);
 	};
 	paint();
 	plugin._tableToolUnsub?.();
 	plugin._tableToolUnsub = onTableChange(() => {
 		if (rosterEl.isConnected) paint();
 	});
+	plugin._tableMirrorCleanup = () => {
+		mirrorCleanup?.();
+		mirrorCleanup = null;
+	};
 	const box = listEl.createDiv({cls: "fiveetools-table__inserts"});
 	void paintInserts(box, plugin);
+}
+
+function paintTableMirror (host, plugin) {
+	host.empty();
+	const session = ensureTableSession(plugin);
+	const ui = plugin._tableMarkUi || (plugin._tableMarkUi = {
+		tool: "laser",
+		color: "#ff3b30",
+		stamp: "arrow",
+		area: "circle",
+		place: "A",
+	});
+	const toolbar = host.createDiv({cls: "fiveetools-table-mirror__toolbar"});
+	const tools = [
+		["laser", "mouse-pointer-2", "Laser"],
+		["draw", "pencil", "Draw"],
+		["write", "type", "Write"],
+		["stamp", "stamp", "Stamp"],
+		["area", "shapes", "Area"],
+		["place", "map-pin", "Place"],
+		["eraser", "eraser", "Eraser"],
+	];
+	const toolButtons = new Map();
+	for (const [mode, icon, label] of tools) {
+		const button = mirrorButton(toolbar, icon, label, () => activate(mode));
+		toolButtons.set(mode, button);
+	}
+	const detail = toolbar.createDiv({cls: "fiveetools-table-mirror__detail"});
+	const stampSelect = mirrorSelect(detail, "Stamp", [
+		["arrow", "Arrow"],
+		["circle", "Circle"],
+		["x", "X"],
+		["skull", "Skull"],
+		["sword", "Sword"],
+		["shield", "Shield"],
+		["question", "Question"],
+	], ui.stamp, value => { ui.stamp = value; });
+	const areaSelect = mirrorSelect(detail, "Area", [
+		["circle", "Circle"],
+		["cone", "Cone"],
+		["line", "Line"],
+		["square", "Square"],
+	], ui.area, value => { ui.area = value; });
+	const placeSelect = mirrorSelect(detail, "Place", [
+		["A", "A"], ["B", "B"], ["C", "C"], ["D", "D"],
+		["town", "Town"], ["village", "Village"], ["castle", "Castle"], ["cave", "Cave"],
+		["camp", "Camp"], ["ruins", "Ruins"], ["temple", "Temple"], ["tower", "Tower"],
+		["tavern", "Tavern"], ["dungeon", "Dungeon"], ["forest", "Forest"], ["mountain", "Mountain"],
+		["bridge", "Bridge"], ["ship", "Ship"], ["danger", "Danger"], ["treasure", "Treasure"],
+	], ui.place, value => { ui.place = value; });
+	const textInput = detail.createEl("input", {
+		cls: "fiveetools-table-mirror__text",
+		attr: {type: "text", placeholder: "Tap the image, type, Enter"},
+	});
+	const color = mirrorSelect(toolbar, "Color", [
+		["#ff3b30", "Red"],
+		["#ffd60a", "Yellow"],
+		["#ffffff", "White"],
+		["#64d2ff", "Cyan"],
+	], ui.color, value => { ui.color = value; });
+	color.addClass("fiveetools-table-mirror__color");
+	mirrorButton(toolbar, "undo-2", "Undo", () => {
+		session.marks.pop();
+		repaintTableMarks(plugin);
+	});
+	mirrorButton(toolbar, "trash-2", "Clear marks", () => {
+		session.marks = [];
+		repaintTableMarks(plugin);
+	});
+
+	const surface = host.createDiv({cls: "fiveetools-table-mirror__surface"});
+	const src = mirrorImageSrc(session);
+	let objectUrl = "";
+	let image = null;
+	if (src.bytes) {
+		objectUrl = URL.createObjectURL(new Blob([src.bytes], {type: src.type}));
+		src.url = objectUrl;
+	}
+	if (src.url) {
+		image = surface.createEl("img", {cls: "fiveetools-table-player__image", attr: {src: src.url, alt: ""}});
+	} else {
+		surface.createDiv({cls: "fiveetools-table-mirror__empty", text: "Show an image on the Table to mark it."});
+	}
+	const overlay = mountTableOverlay(surface, {
+		plugin,
+		session,
+		imageEl: image,
+		interactive: true,
+	});
+	if (session.showRoster !== false && placedChips(session).length) {
+		paintPlayerRoster(surface, session, surface.ownerDocument, plugin, {mirror: true});
+	}
+	host.createEl("p", {cls: "fiveetools-view__meta fiveetools-table-mirror__credit", text: TABLE_ICON_CREDIT});
+
+	let active = null;
+	let pendingTextPoint = null;
+	const syncTools = () => {
+		for (const [mode, button] of toolButtons) button.classList.toggle("is-selected", ui.tool === mode);
+		stampSelect.parentElement.style.display = ui.tool === "stamp" ? "" : "none";
+		areaSelect.parentElement.style.display = ui.tool === "area" ? "" : "none";
+		placeSelect.parentElement.style.display = ui.tool === "place" ? "" : "none";
+		textInput.style.display = ui.tool === "write" ? "" : "none";
+		surface.dataset.tool = ui.tool;
+	};
+	function activate (mode) {
+		ui.tool = mode;
+		pendingTextPoint = null;
+		syncTools();
+	}
+	syncTools();
+
+	const commit = (mark) => {
+		if (!mark) return;
+		mark.id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+		session.marks.push(mark);
+		overlay.setDraft(null);
+		repaintTableMarks(plugin);
+	};
+	const endPointer = (evt) => {
+		if (!active || evt.pointerId !== active.pointerId) return;
+		if (active.tool === "laser") setTableLaser(plugin, null);
+		else if (active.mark) {
+			const dx = Number(active.mark.x2 ?? active.mark.x) - active.mark.x;
+			const dy = Number(active.mark.y2 ?? active.mark.y) - active.mark.y;
+			if (active.mark.kind === "stroke" || Math.hypot(dx, dy) > 0.005) commit(active.mark);
+			else overlay.setDraft(null);
+		}
+		active = null;
+		try { surface.releasePointerCapture(evt.pointerId); } catch (_) { /* already released */ }
+	};
+	surface.addEventListener("pointerdown", (evt) => {
+		if (!src.url || evt.button > 0) return;
+		const point = overlay.pointFromEvent(evt);
+		if (!point) return;
+		evt.preventDefault();
+		if (ui.tool === "eraser") {
+			const id = overlay.markIdFromEvent(evt);
+			if (!id) return;
+			session.marks = session.marks.filter(mark => mark.id !== id);
+			repaintTableMarks(plugin);
+			return;
+		}
+		if (ui.tool === "stamp") {
+			commit({kind: "stamp", icon: ui.stamp, color: ui.color, ...point});
+			return;
+		}
+		if (ui.tool === "place") {
+			const named = /^[A-D]$/.test(ui.place);
+			commit({kind: "place", place: named ? "" : ui.place, label: named ? ui.place : titleCase(ui.place), color: ui.color, ...point});
+			return;
+		}
+		if (ui.tool === "write") {
+			pendingTextPoint = point;
+			textInput.focus();
+			return;
+		}
+		active = {pointerId: evt.pointerId, tool: ui.tool, start: point, mark: null};
+		if (ui.tool === "laser") setTableLaser(plugin, point);
+		else if (ui.tool === "draw") {
+			active.mark = {kind: "stroke", color: ui.color, points: [point]};
+			overlay.setDraft(active.mark);
+		} else if (ui.tool === "area") {
+			active.mark = {kind: ui.area, color: ui.color, ...point, x2: point.x, y2: point.y};
+			overlay.setDraft(active.mark);
+		}
+		surface.setPointerCapture(evt.pointerId);
+	});
+	surface.addEventListener("pointermove", (evt) => {
+		if (!active || evt.pointerId !== active.pointerId) return;
+		const point = overlay.pointFromEvent(evt);
+		if (!point) return;
+		evt.preventDefault();
+		if (active.tool === "laser") {
+			setTableLaser(plugin, point);
+			return;
+		}
+		if (active.tool === "draw") {
+			const previous = active.mark.points[active.mark.points.length - 1];
+			if (Math.hypot(point.x - previous.x, point.y - previous.y) > 0.002) active.mark.points.push(point);
+		} else if (active.tool === "area") {
+			active.mark.x2 = point.x;
+			active.mark.y2 = point.y;
+		}
+		overlay.setDraft(active.mark);
+	});
+	surface.addEventListener("pointerup", endPointer);
+	surface.addEventListener("pointercancel", endPointer);
+	textInput.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		const text = textInput.value.trim();
+		if (!text || !pendingTextPoint) return;
+		commit({kind: "text", text, color: ui.color, ...pendingTextPoint});
+		textInput.value = "";
+		pendingTextPoint = null;
+		textInput.focus();
+	});
+
+	return () => {
+		setTableLaser(plugin, null);
+		overlay.destroy();
+		if (objectUrl) URL.revokeObjectURL(objectUrl);
+	};
+}
+
+function mirrorButton (parent, icon, label, onClick) {
+	const button = parent.createEl("button", {
+		cls: "fiveetools-table-mirror__tool",
+		attr: {type: "button", title: label, "aria-label": label},
+	});
+	setIcon(button, icon);
+	button.addEventListener("click", onClick);
+	return button;
+}
+
+function mirrorSelect (parent, label, options, current, onChange) {
+	const wrap = parent.createEl("label", {cls: "fiveetools-table-mirror__select"});
+	wrap.createSpan({text: label});
+	const select = wrap.createEl("select");
+	for (const [value, text] of options) select.createEl("option", {text, attr: {value}});
+	select.value = current;
+	select.addEventListener("change", () => onChange(select.value));
+	return select;
+}
+
+function mirrorImageSrc (session) {
+	if (session.imageBytes) return {bytes: session.imageBytes, type: session.imageType || "image/png", url: ""};
+	return {bytes: null, type: "", url: session.image || ""};
+}
+
+function titleCase (text) {
+	const value = String(text || "");
+	return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
 }
 
 async function paintInserts (box, plugin) {
@@ -996,6 +1252,7 @@ export function clearTableImage (plugin) {
 	session.image = "";
 	session.imageBytes = null;
 	session.imageType = "";
+	session.marks = [];
 	refreshTable(plugin);
 }
 
@@ -1003,6 +1260,7 @@ export async function showOnTable (plugin, src) {
 	const text = String(src || "").trim();
 	if (!text) return;
 	const session = ensureTableSession(plugin);
+	session.marks = [];
 	if (text.startsWith("blob:")) {
 		try {
 			const res = await fetch(text);
