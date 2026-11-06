@@ -1,11 +1,10 @@
 /**
  * Move Tales of the Valiant creatures from vault homebrew into site bestiary data.
  *
- * Reads:  {vault}/5etools/_homebrew/homebrew.json + img/tov-*.png
- * Writes: data/bestiary/bestiary-tov.json
- *         data/bestiary/fluff-bestiary-tov.json
- *         obsidian/img/bestiary/ToV/{Name}.png
+ * Reads:  {vault}/5etools/_homebrew/homebrew.json
+ * Writes: data/bestiary/bestiary-tov.json (+ empty fluff stub)
  *         updates bestiary index + fluff-index
+ * Art stays in the vault at 5etools/_homebrew/img/tov-*.png (not in git).
  * Optionally strips ToV from the vault homebrew file (--strip-brew).
  *
  *   node node/import-tov-bestiary.js
@@ -18,21 +17,11 @@ import {fileURLToPath} from "url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VAULT = process.env.TOV_VAULT || "C:\\Users\\remid\\Documents\\Obsidian Vault";
 const BREW_FILE = path.join(VAULT, "5etools", "_homebrew", "homebrew.json");
-const BREW_IMG = path.join(VAULT, "5etools", "_homebrew", "img");
 const OUT_BESTIARY = path.join(root, "data", "bestiary", "bestiary-tov.json");
 const OUT_FLUFF = path.join(root, "data", "bestiary", "fluff-bestiary-tov.json");
-const OUT_IMG = path.join(root, "obsidian", "img", "bestiary", "ToV");
 const INDEX = path.join(root, "data", "bestiary", "index.json");
 const FLUFF_INDEX = path.join(root, "data", "bestiary", "fluff-index.json");
 const stripBrew = process.argv.includes("--strip-brew");
-
-function slug (name) {
-	return String(name || "")
-		.toLowerCase()
-		.replace(/['']/g, "")
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-|-$/g, "");
-}
 
 function cleanText (value) {
 	return String(value || "")
@@ -78,6 +67,7 @@ function toSiteMonster (raw) {
 	const ent = {...raw};
 	delete ent._homebrewImage;
 	delete ent.__prop;
+	delete ent.hasFluffImages;
 	ent.source = "ToV";
 	for (const key of ["trait", "action", "bonus", "reaction", "legendary", "mythic", "legendaryHeader"]) {
 		if (ent[key]) ent[key] = cleanBlock(ent[key]);
@@ -86,14 +76,6 @@ function toSiteMonster (raw) {
 		ent.languages = ent.languages.map(cleanText).filter(Boolean);
 	}
 	return ent;
-}
-
-function imageFileName (name) {
-	return `${name}.png`;
-}
-
-function fluffHrefPath (name) {
-	return `bestiary/ToV/${imageFileName(name)}`;
 }
 
 function ensureIndexEntry (filePath, key, value) {
@@ -117,68 +99,13 @@ if (!tov.length) {
 	process.exit(1);
 }
 
-fs.mkdirSync(OUT_IMG, {recursive: true});
-const monsters = [];
-const fluff = [];
-let pictures = 0;
-let missingPictures = 0;
-
-for (const raw of tov) {
-	const ent = toSiteMonster(raw);
-	monsters.push(ent);
-
-	const brewRel = String(raw._homebrewImage || "").trim();
-	const brewName = brewRel ? path.basename(brewRel) : `tov-${slug(ent.name)}.png`;
-	const srcImg = path.join(BREW_IMG, brewName);
-	const destName = imageFileName(ent.name);
-	const destImg = path.join(OUT_IMG, destName);
-
-	if (fs.existsSync(srcImg)) {
-		fs.copyFileSync(srcImg, destImg);
-		pictures += 1;
-		ent.hasFluffImages = true;
-		fluff.push({
-			name: ent.name,
-			source: "ToV",
-			images: [
-				{
-					type: "image",
-					href: {
-						type: "internal",
-						path: fluffHrefPath(ent.name),
-					},
-				},
-			],
-		});
-	} else if (fs.existsSync(destImg)) {
-		pictures += 1;
-		ent.hasFluffImages = true;
-		fluff.push({
-			name: ent.name,
-			source: "ToV",
-			images: [
-				{
-					type: "image",
-					href: {
-						type: "internal",
-						path: fluffHrefPath(ent.name),
-					},
-				},
-			],
-		});
-	} else {
-		missingPictures += 1;
-	}
-}
-
-monsters.sort((a, b) => a.name.localeCompare(b.name));
-fluff.sort((a, b) => a.name.localeCompare(b.name));
+const monsters = tov.map(toSiteMonster).sort((a, b) => a.name.localeCompare(b.name));
 
 fs.mkdirSync(path.dirname(OUT_BESTIARY), {recursive: true});
 fs.writeFileSync(OUT_BESTIARY, `${JSON.stringify({monster: monsters}, null, "\t")}\n`);
 fs.writeFileSync(OUT_FLUFF, `${JSON.stringify({
 	_meta: {internalCopies: ["monsterFluff"]},
-	monsterFluff: fluff,
+	monsterFluff: [],
 }, null, "\t")}\n`);
 
 ensureIndexEntry(INDEX, "ToV", "bestiary-tov.json");
@@ -194,5 +121,4 @@ if (stripBrew) {
 }
 
 console.log(`Wrote ${monsters.length} creatures → ${path.relative(root, OUT_BESTIARY)}`);
-console.log(`Wrote ${fluff.length} fluff entries → ${path.relative(root, OUT_FLUFF)}`);
-console.log(`Copied ${pictures} pictures → ${path.relative(root, OUT_IMG)} (${missingPictures} without art)`);
+console.log("Art stays in vault 5etools/_homebrew/img/ (not copied into the repo).");

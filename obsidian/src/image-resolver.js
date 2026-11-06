@@ -24,14 +24,14 @@ export async function resolveEntityImages (ent, {imageBaseUrl} = {}) {
 		seen.add(item.url);
 		resolved.push(item);
 	}
-	const local = homebrewPicture(ent);
+	const local = localPicture(ent);
 	if (local && !seen.has(local.url)) resolved.unshift(local);
 	return resolved;
 }
 
 /** Small bestiary/object/vehicle token, without fluff art. */
 export function resolveTokenImage (ent, {imageBaseUrl} = {}) {
-	const local = homebrewPicture(ent);
+	const local = localPicture(ent);
 	if (local) return local;
 	const Renderer = getRenderer();
 	return toRemoteUrl(getTokenUrl(ent, Renderer), imageBaseUrl);
@@ -43,15 +43,37 @@ const TOKEN_DIRS = {
 	vehicle: "vehicles/tokens",
 };
 
+function localPicture (ent) {
+	return homebrewPicture(ent) || tovVaultPicture(ent);
+}
+
 function homebrewPicture (ent) {
 	const path = String(ent?._homebrewImage || "").trim();
 	if (!path) return null;
 	if (/^(https?:|app:|data:)/i.test(path)) return {kind: "url", url: path, rel: null};
+	return vaultFilePicture(path);
+}
+
+/** ToV art stays in the vault under `_homebrew/img/`, not in the git repo. */
+function tovVaultPicture (ent) {
+	if (String(ent?.source || "") !== "ToV" || !ent?.name) return null;
+	return vaultFilePicture(`5etools/_homebrew/img/tov-${slugName(ent.name)}.png`);
+}
+
+function vaultFilePicture (vaultPath) {
 	try {
-		const url = globalThis.app?.vault?.adapter?.getResourcePath?.(path);
+		const url = globalThis.app?.vault?.adapter?.getResourcePath?.(vaultPath);
 		if (url) return {kind: "url", url, rel: null};
 	} catch (_) { /* the file may not be in this vault */ }
 	return null;
+}
+
+function slugName (name) {
+	return String(name || "")
+		.toLowerCase()
+		.replace(/['']/g, "")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "");
 }
 
 function getTokenUrl (ent, Renderer) {
@@ -88,7 +110,7 @@ function relativeImgPath (url) {
 	return match ? decodeURIComponent(match[1]) : null;
 }
 
-/** Fluff href paths are already relative to img/ (e.g. bestiary/ToV/Name.png). */
+/** Fluff href paths are already relative to img/ (e.g. bestiary/MM/Name.webp). */
 function internalImgPath (url) {
 	const clean = String(url || "").replace(/\\/g, "/").replace(/^\/+/, "");
 	if (!clean || clean.includes("://")) return null;

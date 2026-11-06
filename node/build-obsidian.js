@@ -93,7 +93,6 @@ fs.writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
 }, null, "\t")}\n`);
 
 copyBundledData();
-copyBundledImages();
 writeFilteredSearchIndex();
 installToDevVaults();
 
@@ -149,12 +148,6 @@ function copyBundledData () {
 		fs.mkdirSync(path.dirname(dest), {recursive: true});
 		fs.copyFileSync(src, dest);
 	}
-}
-
-function copyBundledImages () {
-	const src = path.join(root, "obsidian", "img");
-	if (!fs.existsSync(src)) return;
-	fs.cpSync(src, path.join(outDir, "img"), {recursive: true});
 }
 
 function writeFilteredSearchIndex () {
@@ -236,7 +229,7 @@ function installToDevVaults () {
 		for (const name of ["main.js", "manifest.json", "styles.css"]) {
 			fs.copyFileSync(path.join(outDir, name), path.join(dest, name));
 		}
-		for (const dir of ["data", "search", "dice", "heic", "img"]) {
+		for (const dir of ["data", "search", "dice", "heic"]) {
 			const src = path.join(outDir, dir);
 			if (fs.existsSync(src)) fs.cpSync(src, path.join(dest, dir), {recursive: true});
 		}
