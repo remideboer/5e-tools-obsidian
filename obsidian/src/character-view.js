@@ -1,6 +1,8 @@
 import {MarkdownRenderer, Notice, Platform} from "obsidian";
 import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, rosterName, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
 import {renderCharacterCreator} from "./character-creator-view.js";
+import {openManageSpells} from "./character-spell-modal.js";
+import {loadCasterProfile, recordToCard} from "./character-spells.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {cardFromPdf} from "./pdf-character.js";
@@ -20,9 +22,10 @@ function identityIsOpen (id) {
 	return !Platform.isMobile;
 }
 
-export async function renderCharacterCard (host, plugin, ddbId) {
+export async function renderCharacterCard (host, plugin, ddbId, {editing = false, onRecordChange} = {}) {
 	host.empty();
 	host.addClass("fiveetools-character-card");
+	if (editing) host.addClass("is-editing");
 	const record = await readCharacter(plugin, ddbId);
 	if (!record) {
 		host.createEl("p", {cls: "fiveetools-view__meta", text: "Character not found."});
@@ -36,21 +39,21 @@ export async function renderCharacterCard (host, plugin, ddbId) {
 		return record;
 	}
 	await ensureSearchIndex(plugin);
-	paintLinkedCard(host, plugin, record);
+	await paintLinkedCard(host, plugin, record, {editing, onRecordChange});
 	return record;
 }
 
-function paintLinkedCard (host, plugin, record) {
+async function paintLinkedCard (host, plugin, record, {editing = false, onRecordChange} = {}) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
 	const refs = snapshot.refs || [];
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
-	paintSheetHeader(sheet, plugin, record, refs, edition, host);
+	paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange});
 	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
 	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record);
 	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
-	paintSpellColumn(makeColumn(columns, "Spells"), plugin, record, edition);
+	await paintSpellColumn(makeColumn(columns, "Spells"), plugin, record, edition, {editing, onRecordChange});
 	if (snapshot.actions?.length) {
 		paintActions(makeColumn(columns, "Actions"), plugin, snapshot.actions, {
 			edition,
@@ -69,7 +72,7 @@ function makeColumn (parent, title) {
 	return col;
 }
 
-function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost) {
+function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {editing = false, onRecordChange} = {}) {
 	const fields = record.fields || {};
 	const header = sheet.createDiv({cls: "fiveetools-character-card__header"});
 	const src = avatarSrc(plugin, record.body);
@@ -77,8 +80,30 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost) {
 	else paintPortraitButton(header, cardHost, plugin, record);
 	const text = header.createDiv({cls: "fiveetools-character-card__header-text"});
 	const nameRow = text.createDiv({cls: "fiveetools-character-card__name"});
-	nameRow.createEl("h2", {text: characterName(record)});
 	const characterId = String(fields.ddb_id || record.path || "").trim();
+	const localCard = characterId.startsWith("local-") || characterId.startsWith("pdf-");
+	if (editing && localCard) {
+		const nameInput = nameRow.createEl("input", {
+			cls: "fiveetools-character-card__name-input",
+			attr: {type: "text", placeholder: "Character name"},
+		});
+		nameInput.value = characterName(record);
+		const saveName = () => {
+			const next = nameInput.value.trim() || "Unnamed";
+			if (next === characterName(record)) return;
+			void saveCharacterName(plugin, record, next).then((saved) => {
+				if (saved) onRecordChange?.(saved);
+			}).catch((e) => new Notice(e.message || "Could not rename."));
+		};
+		nameInput.addEventListener("keydown", (evt) => {
+			if (evt.key !== "Enter") return;
+			evt.preventDefault();
+			saveName();
+		});
+		nameInput.addEventListener("blur", saveName);
+	} else {
+		nameRow.createEl("h2", {text: characterName(record)});
+	}
 	const identityRefs = ["species", "class", "subclass"].flatMap(kind => refs.filter(ref => ref.kind === kind));
 	const level = fields.level != null && fields.level !== "" ? `Level ${fields.level}` : "";
 	const background = refs.find(ref => ref.kind === "background");
@@ -191,11 +216,31 @@ function paintAbilityColumn (col, snapshot) {
 	paintLabeledList(col, "Proficiencies", snapshot.proficiencies);
 }
 
-function paintSpellColumn (col, plugin, record, edition) {
+async function paintSpellColumn (col, plugin, record, edition, {editing = false, onRecordChange} = {}) {
 	const spells = (record.snapshot?.refs || []).filter(ref => ref.kind === "spell");
 	paintSlots(col, plugin, record);
 	paintSpellcasting(col, record.snapshot?.spellcasting);
-	if (!spells.length) return;
+	if (editing) {
+		const profile = await loadCasterProfile(plugin, record).catch(() => null);
+		if (profile || spells.length) {
+			const manage = col.createEl("button", {
+				text: "Manage Spells",
+				cls: "fiveetools-btn",
+				attr: {type: "button"},
+			});
+			manage.addEventListener("click", () => {
+				void openManageSpells(plugin, record, async () => {
+					const id = String(record.fields?.ddb_id || "");
+					const fresh = id ? await readCharacter(plugin, id) : null;
+					onRecordChange?.(fresh || record);
+				});
+			});
+		}
+	}
+	if (!spells.length) {
+		if (editing) col.createEl("p", {cls: "fiveetools-view__meta", text: "No spells yet. Use Manage Spells to add some."});
+		return;
+	}
 	const play = playState(record);
 	const preparedBox = col.createDiv();
 	const preparedTitle = preparedBox.createEl("h3", {text: "Prepared"});
@@ -866,6 +911,12 @@ function persistPlay (plugin, record) {
 	});
 }
 
+async function saveCharacterName (plugin, record, name) {
+	const card = recordToCard(record);
+	card.name = name;
+	return saveCharacter(plugin, card);
+}
+
 function spellIsPrepared (spell, play) {
 	if (spell?.alwaysPrepared) return true;
 	const name = spell?.name || spell?.label;
@@ -1201,10 +1252,11 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 
 	let selectedId = String(session?.selectedId || "");
 	let creator = session?.creator || null;
+	let editing = !!session?.editing;
 	let characters = [];
 	let busy = false;
 
-	const emit = () => onSessionChange?.({selectedId, creator});
+	const emit = () => onSessionChange?.({selectedId, creator, editing});
 
 	if (creator) {
 		formEl.addClass("fiveetools-characters--creator");
@@ -1228,7 +1280,7 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 				emit();
 				renderCharacterManager(formEl, resultEl, {
 					plugin,
-					session: {selectedId, creator: null},
+					session: {selectedId, creator: null, editing: false},
 					onSessionChange,
 				});
 			},
@@ -1237,7 +1289,7 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 				emit();
 				renderCharacterManager(formEl, resultEl, {
 					plugin,
-					session: {selectedId, creator: null},
+					session: {selectedId, creator: null, editing: false},
 					onSessionChange,
 				});
 			},
@@ -1264,6 +1316,11 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	const listEl = catalog.createDiv({cls: "fiveetools-homebrew__list"});
 
 	const actions = resultEl.createDiv({cls: "fiveetools-characters__actions"});
+	const editBtn = actions.createEl("button", {
+		text: editing ? "Done" : "Edit",
+		cls: editing ? "fiveetools-btn" : "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button"},
+	});
 	const refreshBtn = actions.createEl("button", {text: "Refresh", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const cardEl = resultEl.createDiv({cls: "fiveetools-characters__card"});
@@ -1273,6 +1330,9 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 			el.classList.toggle("is-selected", el.dataset.id === selectedId);
 		});
 		const has = characters.some(it => characterId(it) === selectedId);
+		editBtn.disabled = busy || !has;
+		editBtn.setText(editing ? "Done" : "Edit");
+		editBtn.className = editing ? "fiveetools-btn" : "fiveetools-btn fiveetools-btn--ghost";
 		refreshBtn.disabled = busy || !has;
 		deleteBtn.disabled = busy || !has;
 	};
@@ -1320,14 +1380,25 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 			syncSelection();
 			return;
 		}
-		await renderCharacterCard(cardEl, plugin, selectedId);
+		await renderCharacterCard(cardEl, plugin, selectedId, {
+			editing,
+			onRecordChange: async () => {
+				characters = await listCharacters(plugin);
+				paintList();
+				await paintCard();
+			},
+		});
 		syncSelection();
 	};
 
 	const reload = async () => {
 		characters = await listCharacters(plugin);
-		if (selectedId && !characters.some(it => characterId(it) === selectedId)) selectedId = "";
+		if (selectedId && !characters.some(it => characterId(it) === selectedId)) {
+			selectedId = "";
+			editing = false;
+		}
 		if (!selectedId && characters[0]) selectedId = characterId(characters[0]);
+		if (!selectedId) editing = false;
 		paintList();
 		await paintCard();
 		emit();
@@ -1376,12 +1447,20 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 
 	createBtn.addEventListener("click", () => {
 		creator = {step: "concept", draft: {}};
+		editing = false;
 		emit();
 		renderCharacterManager(formEl, resultEl, {
 			plugin,
-			session: {selectedId, creator},
+			session: {selectedId, creator, editing: false},
 			onSessionChange,
 		});
+	});
+	editBtn.addEventListener("click", () => {
+		if (!selectedId || busy) return;
+		editing = !editing;
+		emit();
+		syncSelection();
+		void paintCard();
 	});
 	importBtn.addEventListener("click", () => { void runImport(importInput.value); });
 	pdfBtn.addEventListener("click", () => fileInput.click());
@@ -1415,6 +1494,8 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		try {
 			await deleteCharacter(plugin, selectedId);
 			selectedId = "";
+			editing = false;
+			emit();
 			await reload();
 		} catch (e) {
 			new Notice(e.message || "Could not delete that character.");

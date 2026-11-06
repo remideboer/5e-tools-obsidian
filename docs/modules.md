@@ -82,7 +82,7 @@ flowchart TB
 | Area | Key files |
 |------|-----------|
 | Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
-| Characters | `character-view.js`, `character-store.js`, `ddb-import.js`, `character-creator-*.js` (public D&D Beyond cards, PDF import, and a level-1 2024 creator under Create with Concept name pills from `name-generate.js`, class/subclass, ability array/point-buy/roll Normal·Hero, species, background, equipment; cards live in `{notesFolder}/_characters/{id}.md`; local creator ids are `local-…`; a display name in `snapshot.play` is what the initiative roster shows; campaigns link with `character: id`) |
+| Characters | `character-view.js`, `character-store.js`, `ddb-import.js`, `character-creator-*.js`, `character-spells.js`, `character-spell-modal.js` (D&D Beyond/PDF import; level-1 2024 Create wizard; Edit mode for local name + Manage Spells with 2024 cantrip/prepared/known caps; cards in `{notesFolder}/_characters/{id}.md`; `local-…` ids; `snapshot.play` display name for initiative; campaigns link with `character: id`) |
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js`, `encounter-random.js` (Random encounter; roster kind groups + shared initiative / roll-all / reset order; a scaled or edited group stores that stat block on its copies) |
 | Encounter size | `encounter-size.js`, `encounter-size-view.js` (level-by-CR monster counts from the XP budget; attack actions set the classic multiplier; Players first discounts the attacks the party spends first) |
 | DPR | `dpr-view.js`, `dpr-calc.js` (expected damage charts; spell and attack checkboxes) |
