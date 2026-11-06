@@ -104,6 +104,9 @@ export class _CrScalerHpState {
 	/* -------------------------------------------- */
 
 	initDiceState () {
+		// Missing/empty formula (e.g. ToV average-only HP) → special-HP path in doAdjust
+		if (!this._mon.hp?.formula) return false;
+
 		const origFormula = this._mon.hp.formula.replace(/\s*/g, "");
 
 		// if it's not a well-known formula, convert our scaled "average" to a "special" and bail out
