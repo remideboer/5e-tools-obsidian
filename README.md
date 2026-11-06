@@ -35,7 +35,7 @@ The build copies the bundle to `{vault}/.obsidian/plugins/5etools`. Obsidian run
 
 To install by hand, copy `build/obsidian/` into the vault's `.obsidian/plugins/5etools` folder and enable the plugin.
 
-To refresh bundled books from the upstream mirror, run `npm run sync:upstream-data`, then build again. See [docs/adr/0005-upstream-data-sync.md](docs/adr/0005-upstream-data-sync.md).
+To refresh bundled content from the upstream mirror, run `npm run sync:upstream-obsidian`, then build again. See [docs/adr/0005-upstream-data-sync.md](docs/adr/0005-upstream-data-sync.md).
 
 ### Dependencies
 

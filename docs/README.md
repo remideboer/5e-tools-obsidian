@@ -29,15 +29,15 @@ Upstream 5etools (`js/`, `data/`) is only covered where the plugin depends on it
 
 Requirements, the build command, and install steps are in the repo root [README](../README.md#obsidian-plugin). Obsidian runs the installed vault copy (`.obsidian/plugins/5etools`), not the git checkout. Reload the plugin after each install.
 
-## Upstream data sync
+## Upstream → Obsidian sync
 
-Pull only content from the 5etools mirror (not Obsidian code):
+Pull content and Parser site-source registrations from the 5etools mirror:
 
 ```powershell
-npm run sync:upstream-data
-# review staged data/, then commit
+npm run sync:upstream-obsidian
+# review staged data/ + js/parser.js, then commit
 $env:FIVEETOOLS_DEV_VAULTS = "C:\Users\remid\Documents\Obsidian Vault"
-npm run sync:upstream-data:install
+npm run sync:upstream-obsidian:install
 ```
 
 See [ADR 0005](adr/0005-upstream-data-sync.md).

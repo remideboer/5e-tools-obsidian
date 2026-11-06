@@ -35,7 +35,39 @@
 					},
 					"headers": [
 						"Goblin Ambush",
-						"Cragmaw Hideout"
+						"Cragmaw Hideout",
+						{
+							"header": "1. Cave Mouth",
+							"depth": 1
+						},
+						{
+							"header": "2. Goblin Blind",
+							"depth": 1
+						},
+						{
+							"header": "3. Kennel",
+							"depth": 1
+						},
+						{
+							"header": "4. Steep Passage",
+							"depth": 1
+						},
+						{
+							"header": "5. Overpass",
+							"depth": 1
+						},
+						{
+							"header": "6. Goblin Den",
+							"depth": 1
+						},
+						{
+							"header": "7. Twin Pools Cave",
+							"depth": 1
+						},
+						{
+							"header": "8. Klarg's Cave",
+							"depth": 1
+						}
 					]
 				},
 				{
@@ -52,7 +84,55 @@
 							"header": "Redbrand Ruffians",
 							"index": 1
 						},
-						"Redbrand Hideout"
+						"Redbrand Hideout",
+						{
+							"header": "1. Cellar",
+							"depth": 1
+						},
+						{
+							"header": "2. Barracks",
+							"depth": 1
+						},
+						{
+							"header": "3. Trapped Hall",
+							"depth": 1
+						},
+						{
+							"header": "4. Tresendar Crypts",
+							"depth": 1
+						},
+						{
+							"header": "5. Slave Pens",
+							"depth": 1
+						},
+						{
+							"header": "6. Armory",
+							"depth": 1
+						},
+						{
+							"header": "7. Storeroom and Work Area",
+							"depth": 1
+						},
+						{
+							"header": "8. Crevasse",
+							"depth": 1
+						},
+						{
+							"header": "9. Guard Barracks",
+							"depth": 1
+						},
+						{
+							"header": "10. Common Room",
+							"depth": 1
+						},
+						{
+							"header": "11. Wizard's Workshop",
+							"depth": 1
+						},
+						{
+							"header": "12. Glasstaff's Quarters",
+							"depth": 1
+						}
 					]
 				},
 				{
@@ -66,8 +146,116 @@
 						"Conyberry and Agatha's Lair",
 						"Old Owl Well",
 						"Ruins of Thundertree",
+						{
+							"header": "1. Westernmost Cottage",
+							"depth": 1
+						},
+						{
+							"header": "2. Blighted Cottages",
+							"depth": 1
+						},
+						{
+							"header": "3. The Brown Horse",
+							"depth": 1
+						},
+						{
+							"header": "4. Druid's Watch",
+							"depth": 1
+						},
+						{
+							"header": "5. Blighted Farmhouse",
+							"depth": 1
+						},
+						{
+							"header": "6. Ruined Store",
+							"depth": 1
+						},
+						{
+							"header": "7. Dragon's Tower",
+							"depth": 1
+						},
+						{
+							"header": "8. Old Smithy",
+							"depth": 1
+						},
+						{
+							"header": "9. Herbalist's Shop",
+							"depth": 1
+						},
+						{
+							"header": "10. Town Square",
+							"depth": 1
+						},
+						{
+							"header": "11. Old Garrison",
+							"depth": 1
+						},
+						{
+							"header": "12. Weaver's Cottage",
+							"depth": 1
+						},
+						{
+							"header": "13. Dragon Cultists",
+							"depth": 1
+						},
 						"Wyvern Tor",
-						"Cragmaw Castle"
+						"Cragmaw Castle",
+						{
+							"header": "1. Castle Entrance",
+							"depth": 1
+						},
+						{
+							"header": "2. Trapped Hall",
+							"depth": 1
+						},
+						{
+							"header": "3. Archer Post",
+							"depth": 1
+						},
+						{
+							"header": "4. Ruined Barracks",
+							"depth": 1
+						},
+						{
+							"header": "5. Storeroom",
+							"depth": 1
+						},
+						{
+							"header": "6. Hobgoblin Barracks",
+							"depth": 1
+						},
+						{
+							"header": "7. Banquet Hall",
+							"depth": 1
+						},
+						{
+							"header": "8. Dark Hall",
+							"depth": 1
+						},
+						{
+							"header": "9. Goblin Shrine",
+							"depth": 1
+						},
+						{
+							"header": "10. Postern Gate",
+							"depth": 1
+						},
+						{
+							"header": "11. Ruined Tower",
+							"depth": 1
+						},
+						{
+							"header": "12. Guard Barracks",
+							"depth": 1
+						},
+						{
+							"header": "13. Owlbear Tower",
+							"depth": 1
+						},
+						{
+							"header": "14. King's Quarters",
+							"depth": 1
+						}
 					]
 				},
 				{
@@ -82,6 +270,86 @@
 						"Wandering Monsters",
 						"General Features",
 						"Keyed Encounters",
+						{
+							"header": "1. Cave Entrance",
+							"depth": 1
+						},
+						{
+							"header": "2. Mine Tunnels",
+							"depth": 1
+						},
+						{
+							"header": "3. Old Entrance",
+							"depth": 1
+						},
+						{
+							"header": "4. Old Guardroom",
+							"depth": 1
+						},
+						{
+							"header": "5. Assayers' Office",
+							"depth": 1
+						},
+						{
+							"header": "6. South Barracks",
+							"depth": 1
+						},
+						{
+							"header": "7. Ruined Storeroom",
+							"depth": 1
+						},
+						{
+							"header": "8. Fungi Cavern",
+							"depth": 1
+						},
+						{
+							"header": "9. Great Cavern",
+							"depth": 1
+						},
+						{
+							"header": "10. Dark Pool",
+							"depth": 1
+						},
+						{
+							"header": "11. North Barracks",
+							"depth": 1
+						},
+						{
+							"header": "12. Smelter Cavern",
+							"depth": 1
+						},
+						{
+							"header": "13. Starry Cavern",
+							"depth": 1
+						},
+						{
+							"header": "14. Wizards' Quarters",
+							"depth": 1
+						},
+						{
+							"header": "15. Forge of Spells",
+							"depth": 1
+						},
+						{
+							"header": "16. Booming Cavern",
+							"depth": 1
+						},
+						{
+							"header": "17. Old Streambed",
+							"depth": 1
+						},
+						{
+							"header": "18. Collapsed Cavern",
+							"depth": 1
+						},
+						{
+							"header": "19. Temple of Dumathoin",
+							"depth": 1
+						},
+						{
+							"header": "20. Priests' Quarters",
+							"depth": 1
+						},
 						"Conclusion"
 					]
 				},
@@ -34590,7 +34858,19 @@
 						"Arriving in Barovia",
 						"Death House",
 						{
+							"header": "D1a\u2013D1b: Portico and Antechamber",
+							"depth": 1
+						},
+						{
+							"header": "D2a\u2013D2b: Main Hall and Cloakroom",
+							"depth": 1
+						},
+						{
 							"header": "D3: Den of Wolves",
+							"depth": 1
+						},
+						{
+							"header": "D4a\u2013D4b: Kitchen and Pantry",
 							"depth": 1
 						},
 						{
@@ -34599,6 +34879,10 @@
 						},
 						{
 							"header": "D6: Upper Hall",
+							"depth": 1
+						},
+						{
+							"header": "D7a\u2013D7b: Servants' Room and Closet",
 							"depth": 1
 						},
 						{
@@ -34618,11 +34902,19 @@
 							"depth": 1
 						},
 						{
+							"header": "D12a\u2013D12c: Master Suite",
+							"depth": 1
+						},
+						{
 							"header": "D13: Bathroom",
 							"depth": 1
 						},
 						{
 							"header": "D14: Storage Room",
+							"depth": 1
+						},
+						{
+							"header": "D15a\u2013D15c: Nursemaid's Suite",
 							"depth": 1
 						},
 						{
@@ -34651,6 +34943,10 @@
 						},
 						{
 							"header": "D22: Dungeon Level Access",
+							"depth": 1
+						},
+						{
+							"header": "D23c\u2013D23f: Family Crypts",
 							"depth": 1
 						},
 						{
@@ -39248,6 +39544,106 @@
 			]
 		},
 		{
+			"name": "Shadows of Sithicus",
+			"id": "SoS",
+			"source": "SoS",
+			"group": "supplement-alt",
+			"cover": {
+				"type": "internal",
+				"path": "covers/SoS.webp"
+			},
+			"published": "2026-05-29",
+			"author": "Wizards RPG Team",
+			"storyline": "Ravenloft",
+			"level": {
+				"start": 3,
+				"end": 5
+			},
+			"contents": [
+				{
+					"name": "Introduction: Shadows of Sithicus",
+					"headers": [
+						"Season of Horror Schedule",
+						"Dungeon Masters Actual Play Series"
+					]
+				},
+				{
+					"name": "Grave Awakenings",
+					"headers": [
+						"D&D Celebration Event Overview",
+						"Key Plot Points",
+						"Preparation",
+						"Adventure Background",
+						"Beginning the Adventure",
+						"The Har-Thelen Cemetery",
+						{
+							"header": "Encounter 1: From the Shadows",
+							"depth": 1
+						},
+						{
+							"header": "Encounter 2: Grave Concerns",
+							"depth": 1
+						},
+						{
+							"header": "Encounter 3: In Pieces",
+							"depth": 1
+						},
+						{
+							"header": "Encounter 4: The Mausoleum Door",
+							"depth": 1
+						},
+						{
+							"header": "Encounter 5: A Final Horror",
+							"depth": 1
+						},
+						"Appendix A: Event Coordinator Guide"
+					]
+				},
+				{
+					"name": "Terror in Tepest",
+					"headers": [
+						"Adventure Background",
+						"Beginning the Adventure",
+						"Encounter 1: Full Bellies",
+						"Encounter 2: Rough Hands",
+						"Encounter 3: Death Heads"
+					]
+				},
+				{
+					"name": "Death in Darkon",
+					"headers": [
+						"Adventure Background",
+						"Beginning the Adventure",
+						"Encounter 1: Unwelcome Party",
+						"Encounter 2: Unpleasant Rest",
+						"Encounter 3: Unhappy Surprise"
+					]
+				},
+				{
+					"name": "Blood in Borca",
+					"headers": [
+						"Adventure Background",
+						"Beginning the Adventure",
+						"Encounter 1: Quick Fix",
+						"Encounter 2: Slow Burn"
+					]
+				},
+				{
+					"name": "Victory in Valachan",
+					"headers": [
+						"Adventure Background",
+						"Beginning the Adventure",
+						"Encounter 1: Run!",
+						"Encounter 2: Ambush?",
+						"Continue Your Adventures"
+					]
+				},
+				{
+					"name": "Credits"
+				}
+			]
+		},
+		{
 			"name": "Red Wizards' Gambit",
 			"id": "RWG",
 			"source": "RWG",
@@ -39993,6 +40389,549 @@
 					"name": "Credits",
 					"headers": [
 						"Arcana Unleashed: Deadfall",
+						"D&D Studio Team"
+					]
+				}
+			]
+		},
+		{
+			"name": "World of Warcraft: Icecrown Citadel",
+			"id": "ICC",
+			"source": "ICC",
+			"group": "supplement",
+			"cover": {
+				"type": "internal",
+				"path": "covers/ICC.webp"
+			},
+			"published": "2026-11-17",
+			"author": "Wizards RPG Team",
+			"storyline": "World of Warcraft",
+			"level": {
+				"start": 16,
+				"end": 20
+			},
+			"contents": [
+				{
+					"name": "Introduction: Wrath of the Lich King",
+					"headers": [
+						"Using This Adventure",
+						"Adventure Background",
+						"Light's Hammer",
+						{
+							"header": "H1: Entry Transporter",
+							"depth": 1
+						},
+						{
+							"header": "H2: Entry Chamber",
+							"depth": 1
+						},
+						{
+							"header": "H3: Alchemist's Alcove",
+							"depth": 1
+						},
+						{
+							"header": "H4: Dalaran Portal",
+							"depth": 1
+						},
+						{
+							"header": "H5: Kunz's Tent",
+							"depth": 1
+						},
+						{
+							"header": "H6: Torgo's Tent",
+							"depth": 1
+						},
+						{
+							"header": "H7: Ebon Blade Command Post",
+							"depth": 1
+						},
+						{
+							"header": "H8: Vadu's Tent",
+							"depth": 1
+						},
+						"Ashen Verdict",
+						"Shadowmourne"
+					]
+				},
+				{
+					"name": "The Lower Spire",
+					"ordinal": {
+						"type": "chapter",
+						"identifier": 1
+					},
+					"headers": [
+						"Quests and Objectives",
+						"Beginning the Chapter",
+						"The Lower Spire",
+						{
+							"header": "L2: Lower Spire Entrance",
+							"depth": 1
+						},
+						{
+							"header": "L3: The Spire",
+							"depth": 1
+						},
+						{
+							"header": "L4: Oratory Transporter",
+							"depth": 1
+						},
+						{
+							"header": "L5: Oratory of the Damned",
+							"depth": 1
+						},
+						{
+							"header": "L6: Rampart of Skulls Transporter",
+							"depth": 1
+						},
+						{
+							"header": "L7: Rampart of Skulls",
+							"depth": 1
+						},
+						"Ending the Chapter",
+						"Interlude: Airship Ascent"
+					]
+				},
+				{
+					"name": "The Plagueworks",
+					"ordinal": {
+						"type": "chapter",
+						"identifier": 2
+					},
+					"headers": [
+						"Quests and Objectives",
+						"Beginning the Chapter",
+						"The Upper Spire",
+						{
+							"header": "P1: Saurfang's Rise Transporter",
+							"depth": 1
+						},
+						{
+							"header": "P2: Saurfang's Rise",
+							"depth": 1
+						},
+						{
+							"header": "P3: The Frozen Gatehouse",
+							"depth": 1
+						},
+						{
+							"header": "P4: Upper Spire Transporter",
+							"depth": 1
+						},
+						{
+							"header": "P5: The Upper Spire",
+							"depth": 1
+						},
+						{
+							"header": "P6: Plagueworks Entrance",
+							"depth": 1
+						},
+						{
+							"header": "P7: The Gas Lab",
+							"depth": 1
+						},
+						{
+							"header": "P8: The Slime Lab",
+							"depth": 1
+						},
+						{
+							"header": "P9: Professor Putricide's Laboratory of Alchemical Horrors and Fun",
+							"depth": 1
+						},
+						"Ending the Chapter"
+					]
+				},
+				{
+					"name": "The Crimson Hall",
+					"ordinal": {
+						"type": "chapter",
+						"identifier": 3
+					},
+					"headers": [
+						"Quests and Objectives",
+						"Beginning the Chapter",
+						"Crimson Hall",
+						{
+							"header": "C1: Antechamber",
+							"depth": 1
+						},
+						{
+							"header": "C2: Hall of the Blood Prince Council",
+							"depth": 1
+						},
+						{
+							"header": "C3: The Antechamber of Blood",
+							"depth": 1
+						},
+						{
+							"header": "C4: The Sanctum of Blood",
+							"depth": 1
+						},
+						"Ending the Chapter"
+					]
+				},
+				{
+					"name": "Frostwing Hall",
+					"ordinal": {
+						"type": "chapter",
+						"identifier": 4
+					},
+					"headers": [
+						"Quests and Objectives",
+						"Beginning the Chapter",
+						"Frostwing Hall",
+						{
+							"header": "F1: Frostwing Gauntlet",
+							"depth": 1
+						},
+						{
+							"header": "F2: Frostwing Hall",
+							"depth": 1
+						},
+						{
+							"header": "F3: Frost Queen's Antechamber",
+							"depth": 1
+						},
+						{
+							"header": "F4: Frost Queen's Lair",
+							"depth": 1
+						},
+						{
+							"header": "F5: Sindragosa's Lair Transporter",
+							"depth": 1
+						},
+						"Ending the Chapter"
+					]
+				},
+				{
+					"name": "The Frozen Throne",
+					"ordinal": {
+						"type": "chapter",
+						"identifier": 5
+					},
+					"headers": [
+						"Quests and Objectives",
+						"Beginning the Chapter",
+						{
+							"header": "Leaders' Blessings",
+							"depth": 1
+						},
+						{
+							"header": "Strength of Wrynn",
+							"depth": 2,
+							"statblock": true,
+							"tag": "reward",
+							"uid": "Strength of Wrynn|ICC"
+						},
+						{
+							"header": "Hellscream's Warsong",
+							"depth": 2,
+							"statblock": true,
+							"tag": "reward",
+							"uid": "Hellscream's Warsong|ICC"
+						},
+						"The Frozen Throne",
+						"Ending the Adventure"
+					]
+				},
+				{
+					"name": "Stat Blocks",
+					"ordinal": {
+						"type": "appendix",
+						"identifier": "A"
+					},
+					"headers": [
+						"Blood-Queen Lana'thel",
+						{
+							"header": "Blood-Queen Lana'thel",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Blood-Queen Lana'thel|ICC"
+						},
+						"Darkfallen Blood Prince",
+						{
+							"header": "Prince Keleseth",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Prince Keleseth|ICC"
+						},
+						{
+							"header": "Prince Taldaram",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Prince Taldaram|ICC"
+						},
+						{
+							"header": "Prince Valanar",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Prince Valanar|ICC"
+						},
+						"Deathbringer Saurfang",
+						{
+							"header": "Deathbringer Saurfang",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Deathbringer Saurfang|ICC"
+						},
+						"Deathspeaker High Priest",
+						{
+							"header": "Deathspeaker High Priest",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Deathspeaker High Priest|ICC"
+						},
+						"Festergut",
+						{
+							"header": "Festergut",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Festergut|ICC"
+						},
+						"Frost Wyrm",
+						{
+							"header": "Frost Wyrm",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Frost Wyrm|ICC"
+						},
+						"Lady Deathwhisper",
+						{
+							"header": "Lady Deathwhisper",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Lady Deathwhisper|ICC"
+						},
+						"Lord Marrowgar",
+						{
+							"header": "Lord Marrowgar",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Lord Marrowgar|ICC"
+						},
+						"Plague-Dog",
+						{
+							"header": "Plague-Dog",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Plague-Dog|ICC"
+						},
+						"Plagueworks Ooze",
+						{
+							"header": "Plagueworks Ooze",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Plagueworks Ooze|ICC"
+						},
+						"Professor Putricide",
+						{
+							"header": "Professor Putricide, Phase 1",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Professor Putricide, Phase 1|ICC"
+						},
+						{
+							"header": "Professor Putricide, Phase 2",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Professor Putricide, Phase 2|ICC"
+						},
+						"Pustulating Horror",
+						{
+							"header": "Pustulating Horror",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Pustulating Horror|ICC"
+						},
+						"Rotface",
+						{
+							"header": "Rotface",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Rotface|ICC"
+						},
+						"Servant of the Throne",
+						{
+							"header": "Servant of the Throne",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Servant of the Throne|ICC"
+						},
+						"Sindragosa",
+						{
+							"header": "Sindragosa",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Sindragosa|ICC"
+						},
+						"Sister Svalna",
+						{
+							"header": "Sister Svalna",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Sister Svalna|ICC"
+						},
+						"The Damned",
+						{
+							"header": "The Damned",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "The Damned|ICC"
+						},
+						"Tirion Fordring",
+						{
+							"header": "Tirion Fordring",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Tirion Fordring|ICC"
+						},
+						"Val'kyr Herald",
+						{
+							"header": "Val'kyr Herald",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Val'kyr Herald|ICC"
+						},
+						"Vengeful Geist",
+						{
+							"header": "Vengeful Geist",
+							"depth": 1,
+							"statblock": true,
+							"tag": "creature",
+							"uid": "Vengeful Geist|ICC"
+						}
+					]
+				},
+				{
+					"name": "Magic Items",
+					"ordinal": {
+						"type": "appendix",
+						"identifier": "B"
+					},
+					"headers": [
+						{
+							"header": "Ashen Band of Courage",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Ashen Bands of Courage|ICC"
+						},
+						{
+							"header": "Ashen Band of Destruction",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Ashen Bands of Destruction|ICC"
+						},
+						{
+							"header": "Ashen Band of Might",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Ashen Bands of Might|ICC"
+						},
+						{
+							"header": "Ashen Band of Vengeance",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Ashen Bands of Vengeance|ICC"
+						},
+						{
+							"header": "Ashen Band of Wisdom",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Ashen Bands of Wisdom|ICC"
+						},
+						{
+							"header": "Bauble of True Blood",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Bauble of True Blood|ICC"
+						},
+						{
+							"header": "Bloodvenom Blade",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Bloodvenom Blade|ICC"
+						},
+						{
+							"header": "Fragment of Frozen Bone",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Fragment of Frozen Bone|ICC"
+						},
+						{
+							"header": "Invincible's Reins",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Invincible's Reins|ICC"
+						},
+						{
+							"header": "Light's Vengeance",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Light's Vengeance|ICC"
+						},
+						{
+							"header": "Ring of Maddening Whispers",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Ring of Maddening Whispers|ICC"
+						},
+						{
+							"header": "Shadow's Edge",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Shadow's Edge|ICC"
+						},
+						{
+							"header": "Shadowmourne",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Shadowmourne|ICC"
+						},
+						{
+							"header": "Sundial of Eternal Dusk",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Sundial of Eternal Dusk|ICC"
+						},
+						{
+							"header": "Thrice Fanged Signet",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Thrice Fanged Signet|ICC"
+						},
+						{
+							"header": "Tiny Abomination in a Jar",
+							"statblock": true,
+							"tag": "item",
+							"uid": "Tiny Abomination in a Jar|ICC"
+						}
+					]
+				},
+				{
+					"name": "Credits",
+					"headers": [
+						"World of Warcraft: Icecrown Citadel",
 						"D&D Studio Team"
 					]
 				}
