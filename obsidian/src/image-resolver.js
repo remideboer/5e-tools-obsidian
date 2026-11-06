@@ -77,23 +77,14 @@ export function toRemoteUrl (url, imageBaseUrl) {
 		return {kind: "url", url: normalized, rel: relativeImgPath(normalized)};
 	}
 
-	const rel = relativeImgPath(normalized) || internalImgPath(normalized);
-	if (!rel) return null;
-	const clean = rel.replace(/\\/g, "/");
-	return {kind: "url", url: `${imageBase}/img/${clean}`, rel: clean};
+	const rel = relativeImgPath(normalized);
+	if (rel) return {kind: "url", url: `${imageBase}/img/${rel.replace(/\\/g, "/")}`, rel};
+	return null;
 }
 
 function relativeImgPath (url) {
 	const match = String(url).replace(/\\/g, "/").match(/\/img\/(.+)$/i);
 	return match ? decodeURIComponent(match[1]) : null;
-}
-
-/** Fluff href paths are already relative to img/ (e.g. bestiary/ToV/Name.png). */
-function internalImgPath (url) {
-	const clean = String(url || "").replace(/\\/g, "/").replace(/^\/+/, "");
-	if (!clean || clean.includes("://")) return null;
-	if (clean.startsWith("bestiary/") || clean.startsWith("objects/") || clean.startsWith("vehicles/")) return clean;
-	return null;
 }
 
 export function toPreviewSrc (resolved) {
