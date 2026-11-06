@@ -1,5 +1,6 @@
 import {MarkdownRenderer, Notice, Platform} from "obsidian";
 import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, rosterName, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
+import {renderCharacterCreator} from "./character-creator-view.js";
 import {CONDITIONS} from "./creature-form.js";
 import {importDdbCharacter} from "./ddb-import.js";
 import {cardFromPdf} from "./pdf-character.js";
@@ -1199,16 +1200,59 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	resultEl.addClass("fiveetools-characters-reader");
 
 	let selectedId = String(session?.selectedId || "");
+	let creator = session?.creator || null;
 	let characters = [];
 	let busy = false;
+
+	const emit = () => onSessionChange?.({selectedId, creator});
+
+	if (creator) {
+		formEl.addClass("fiveetools-characters--creator");
+		resultEl.addClass("fiveetools-characters-reader--creator");
+		const host = resultEl.createDiv({cls: "fiveetools-characters__creator"});
+		formEl.createEl("h3", {text: "Create character"});
+		formEl.createEl("p", {
+			cls: "fiveetools-view__meta",
+			text: "2024 Player’s Handbook · level 1. Cancel returns to the character list without saving.",
+		});
+		void renderCharacterCreator(host, {
+			plugin,
+			session: creator,
+			onSessionChange: (next) => {
+				creator = next;
+				emit();
+			},
+			onDone: async ({ddbId}) => {
+				selectedId = String(ddbId || "");
+				creator = null;
+				emit();
+				renderCharacterManager(formEl, resultEl, {
+					plugin,
+					session: {selectedId, creator: null},
+					onSessionChange,
+				});
+			},
+			onCancel: () => {
+				creator = null;
+				emit();
+				renderCharacterManager(formEl, resultEl, {
+					plugin,
+					session: {selectedId, creator: null},
+					onSessionChange,
+				});
+			},
+		});
+		return;
+	}
 
 	const catalog = formEl.createDiv({cls: "fiveetools-characters__catalog"});
 	catalog.createEl("h3", {text: "Characters"});
 	catalog.createEl("p", {
 		cls: "fiveetools-view__meta",
-		text: "Paste a public D&D Beyond character URL or id, or choose a character-sheet PDF.",
+		text: "Create a level-1 2024 character, paste a public D&D Beyond URL or id, or choose a character-sheet PDF.",
 	});
 	const importRow = catalog.createDiv({cls: "fiveetools-homebrew__row"});
+	const createBtn = importRow.createEl("button", {text: "Create", cls: "fiveetools-btn", attr: {type: "button"}});
 	const importInput = importRow.createEl("input", {
 		cls: "fiveetools-campaign__select",
 		attr: {type: "text", placeholder: "https://www.dndbeyond.com/characters/12345678"},
@@ -1223,8 +1267,6 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	const refreshBtn = actions.createEl("button", {text: "Refresh", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const cardEl = resultEl.createDiv({cls: "fiveetools-characters__card"});
-
-	const emit = () => onSessionChange?.({selectedId});
 
 	const syncSelection = () => {
 		listEl.querySelectorAll(".fiveetools-library__row").forEach((el) => {
@@ -1332,6 +1374,15 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		}
 	};
 
+	createBtn.addEventListener("click", () => {
+		creator = {step: "concept", draft: {}};
+		emit();
+		renderCharacterManager(formEl, resultEl, {
+			plugin,
+			session: {selectedId, creator},
+			onSessionChange,
+		});
+	});
 	importBtn.addEventListener("click", () => { void runImport(importInput.value); });
 	pdfBtn.addEventListener("click", () => fileInput.click());
 	fileInput.addEventListener("change", () => {
@@ -1349,6 +1400,10 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		if (!selectedId) return;
 		if (selectedId.startsWith("pdf-")) {
 			new Notice("This character came from a PDF. Import the file again to update it.");
+			return;
+		}
+		if (selectedId.startsWith("local-")) {
+			new Notice("This character was created here. Edit the card or create a new one.");
 			return;
 		}
 		void runImport(selectedId);

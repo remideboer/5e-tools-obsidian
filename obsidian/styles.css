@@ -5025,3 +5025,307 @@ body.fiveetools-map-player-window .mod-top-right-space {
 	pointer-events: auto;
 	-webkit-app-region: drag;
 }
+
+/* Character creator */
+.fiveetools-characters--creator {
+	padding: 8px 12px;
+}
+.fiveetools-library__reader.fiveetools-characters-reader--creator {
+	overflow: auto;
+}
+.fiveetools-characters__creator {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 8px 12px 16px;
+}
+.fiveetools-cc__shell {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 100%;
+}
+.fiveetools-cc__progress {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.fiveetools-cc__step {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 12px;
+}
+.fiveetools-cc__step.is-current {
+	color: var(--text-normal);
+	border-color: var(--interactive-accent);
+	background: var(--background-primary);
+	font-weight: 600;
+}
+.fiveetools-cc__step.is-done {
+	color: var(--text-normal);
+}
+.fiveetools-cc__step-num {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.4em;
+	height: 1.4em;
+	border-radius: 50%;
+	background: var(--background-modifier-border);
+	font-size: 11px;
+}
+.fiveetools-cc__step.is-current .fiveetools-cc__step-num {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent, #fff);
+}
+.fiveetools-cc__summary {
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+}
+.fiveetools-cc__summary-list {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 2px 12px;
+	margin: 0;
+}
+.fiveetools-cc__summary-list dt {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.fiveetools-cc__summary-list dd {
+	margin: 0;
+	font-size: 12px;
+}
+.fiveetools-cc__stage {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(200px, 1fr);
+	gap: 12px;
+	align-items: start;
+}
+.fiveetools-cc__options {
+	min-width: 0;
+}
+.fiveetools-cc__sidebar {
+	position: sticky;
+	top: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+}
+.fiveetools-cc__kicker {
+	font-size: 11px;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.fiveetools-cc__title {
+	margin: 0;
+	font-size: 16px;
+}
+.fiveetools-cc__desc {
+	margin: 0;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.fiveetools-cc__detail {
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	min-height: 80px;
+}
+.fiveetools-cc__detail-title {
+	margin: 0 0 6px;
+	font-size: 13px;
+}
+.fiveetools-cc__detail-body {
+	margin: 0;
+	white-space: pre-wrap;
+	font-family: inherit;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.fiveetools-cc__nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	justify-content: flex-end;
+}
+.fiveetools-cc__label {
+	display: block;
+	margin: 10px 0 4px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.fiveetools-cc__notes {
+	width: 100%;
+	resize: vertical;
+	min-height: 4.5em;
+}
+.fiveetools-cc__chips,
+.fiveetools-cc__methods {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 8px 0 12px;
+}
+.fiveetools-cc__chip {
+	padding: 4px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-secondary);
+	cursor: pointer;
+	font-size: 12px;
+}
+.fiveetools-cc__chip.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent, #fff);
+}
+.fiveetools-cc__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	gap: 8px;
+}
+.fiveetools-cc__grid--packages {
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.fiveetools-cc__card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	padding: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-secondary);
+	text-align: left;
+	cursor: pointer;
+}
+.fiveetools-cc__card:hover {
+	border-color: var(--interactive-accent);
+}
+.fiveetools-cc__card.is-selected {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+.fiveetools-cc__card-title {
+	font-weight: 600;
+	font-size: 13px;
+}
+.fiveetools-cc__card-teaser {
+	font-size: 11px;
+	color: var(--text-muted);
+	line-height: 1.35;
+}
+.fiveetools-cc__tag {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	font-size: 10px;
+	padding: 1px 6px;
+	border-radius: 999px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent, #fff);
+}
+.fiveetools-cc__ability-table {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 8px 0;
+}
+.fiveetools-cc__ability-row {
+	display: grid;
+	grid-template-columns: 1fr auto auto auto auto;
+	gap: 8px;
+	align-items: center;
+}
+.fiveetools-cc__ability-name {
+	font-size: 13px;
+}
+.fiveetools-cc__ability-score {
+	min-width: 2em;
+	text-align: center;
+	font-weight: 600;
+}
+.fiveetools-cc__ability-mod {
+	min-width: 2.5em;
+	text-align: right;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.fiveetools-cc__asi {
+	margin-top: 14px;
+	padding-top: 10px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+.fiveetools-cc__asi-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 6px 0;
+}
+.fiveetools-cc__error {
+	min-height: 1.2em;
+	margin-top: 8px;
+	font-size: 12px;
+	color: var(--text-error, #c0392b);
+}
+@media (max-width: 900px) {
+	.fiveetools-cc__stage {
+		grid-template-columns: 1fr;
+	}
+	.fiveetools-cc__sidebar {
+		position: static;
+		order: -1;
+	}
+}
+
+.fiveetools-cc__ability-row--roll {
+	grid-template-columns: minmax(5.5em, 1fr) auto auto auto auto minmax(0, 1.4fr);
+	gap: 6px;
+}
+.fiveetools-cc__roll-toggles {
+	display: inline-flex;
+	gap: 4px;
+}
+.fiveetools-cc__chip--tiny {
+	padding: 2px 7px;
+	font-size: 11px;
+}
+.fiveetools-cc__roll-detail {
+	font-size: 11px;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-cc__name-gen {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin: 8px 0 4px;
+}
+.fiveetools-cc__name-gen .fiveetools-campaign__select {
+	flex: 1 1 12em;
+	min-width: 10em;
+}
+.fiveetools-cc__name-pills {
+	margin: 6px 0 10px;
+}
