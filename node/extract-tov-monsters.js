@@ -1,13 +1,16 @@
 import fs from "fs";
 import path from "path";
+import {fileURLToPath} from "url";
 import {getDocument, OPS} from "pdfjs-dist/legacy/build/pdf.mjs";
 import sharp from "sharp";
 
-const PDF = path.resolve("obsidian/docs/monster_vault_2_final_2025_08_22.pdf");
-const VAULT = process.env.TOV_VAULT || "C:\\Users\\remid\\Documents\\Obsidian Vault";
-const BREW_DIR = path.join(VAULT, "5etools", "_homebrew");
-const BREW_FILE = path.join(BREW_DIR, "homebrew.json");
-const IMG_DIR = path.join(BREW_DIR, "img");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const PDF = path.resolve(ROOT, "obsidian/docs/monster_vault_2_final_2025_08_22.pdf");
+const OUT_BESTIARY = path.join(ROOT, "data", "bestiary", "bestiary-tov.json");
+const OUT_FLUFF = path.join(ROOT, "data", "bestiary", "fluff-bestiary-tov.json");
+const IMG_DIR = path.join(ROOT, "obsidian", "img", "bestiary", "ToV");
+const INDEX = path.join(ROOT, "data", "bestiary", "index.json");
+const FLUFF_INDEX = path.join(ROOT, "data", "bestiary", "fluff-index.json");
 const FIRST_PAGE = 56;
 const LAST_PAGE = 342;
 
@@ -58,6 +61,7 @@ const suspicious = monsters.filter(monster => !/^[A-Z]/.test(monster.name) || mo
 if (suspicious.length) console.log("Suspicious", suspicious.slice(0, 20).map(monster => monster.name).join(" | "));
 fs.mkdirSync(IMG_DIR, {recursive: true});
 let pictures = 0;
+const fluff = [];
 const byPage = new Map();
 for (const monster of monsters) {
 	if (!byPage.has(monster.page)) byPage.set(monster.page, []);
@@ -66,11 +70,11 @@ for (const monster of monsters) {
 for (const [pageNo, group] of byPage) {
 	const files = group.map(monster => ({
 		monster,
-		file: `tov-${slug(monster.name)}.png`,
+		file: `${monster.name}.png`,
 	}));
 	if (files.every(item => fs.existsSync(path.join(IMG_DIR, item.file)))) {
 		for (const item of files) {
-			item.monster.ent._homebrewImage = `5etools/_homebrew/img/${item.file}`;
+			fluff.push(fluffEntry(item.monster.name));
 			pictures += 1;
 		}
 		continue;
@@ -80,24 +84,38 @@ for (const [pageNo, group] of byPage) {
 		const image = images[index] || (index === 0 ? images[0] : null);
 		if (!image) return;
 		fs.writeFileSync(path.join(IMG_DIR, item.file), image);
-		item.monster.ent._homebrewImage = `5etools/_homebrew/img/${item.file}`;
+		fluff.push(fluffEntry(item.monster.name));
 		pictures += 1;
 	});
 }
 
-const brew = fs.existsSync(BREW_FILE)
-	? JSON.parse(fs.readFileSync(BREW_FILE, "utf8"))
-	: {_meta: {sources: []}, spell: [], item: [], monster: [], background: [], race: []};
-const sources = brew._meta?.sources || [];
-if (!sources.some(source => source.json === "ToV")) {
-	sources.push({json: "ToV", abbreviation: "ToV", full: "Tales of the Valiant", version: "1.0.0"});
+const ents = monsters.map(monster => monster.ent).sort((a, b) => a.name.localeCompare(b.name));
+fluff.sort((a, b) => a.name.localeCompare(b.name));
+fs.mkdirSync(path.dirname(OUT_BESTIARY), {recursive: true});
+fs.writeFileSync(OUT_BESTIARY, `${JSON.stringify({monster: ents}, null, "\t")}\n`);
+fs.writeFileSync(OUT_FLUFF, `${JSON.stringify({
+	_meta: {internalCopies: ["monsterFluff"]},
+	monsterFluff: fluff,
+}, null, "\t")}\n`);
+patchIndex(INDEX, "ToV", "bestiary-tov.json");
+patchIndex(FLUFF_INDEX, "ToV", "fluff-bestiary-tov.json");
+console.log(`Wrote ${ents.length} creatures → ${path.relative(ROOT, OUT_BESTIARY)}`);
+console.log(`Wrote ${fluff.length} fluff + ${pictures} pictures → ${path.relative(ROOT, IMG_DIR)}`);
+
+function fluffEntry (name) {
+	return {
+		name,
+		source: "ToV",
+		images: [{type: "image", href: {type: "internal", path: `bestiary/ToV/${name}.png`}}],
+	};
 }
-brew._meta = {sources};
-const kept = (brew.monster || []).filter(monster => monster.source !== "ToV");
-brew.monster = kept.concat(monsters.map(monster => monster.ent));
-fs.mkdirSync(BREW_DIR, {recursive: true});
-fs.writeFileSync(BREW_FILE, `${JSON.stringify(brew, null, "\t")}\n`);
-console.log(`Wrote ${monsters.length} creatures, ${pictures} pictures`);
+
+function patchIndex (filePath, key, value) {
+	const json = JSON.parse(fs.readFileSync(filePath, "utf8"));
+	json[key] = value;
+	const ordered = Object.fromEntries(Object.keys(json).sort((a, b) => a.localeCompare(b)).map(k => [k, json[k]]));
+	fs.writeFileSync(filePath, `${JSON.stringify(ordered, null, "\t")}\n`);
+}
 
 function columnTexts (content) {
 	const rows = new Map();
