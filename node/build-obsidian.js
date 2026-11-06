@@ -93,6 +93,7 @@ fs.writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
 }, null, "\t")}\n`);
 
 copyBundledData();
+copyBundledImages();
 writeFilteredSearchIndex();
 installToDevVaults();
 
@@ -150,6 +151,12 @@ function copyBundledData () {
 	}
 }
 
+function copyBundledImages () {
+	const src = path.join(root, "obsidian", "img");
+	if (!fs.existsSync(src)) return;
+	fs.cpSync(src, path.join(outDir, "img"), {recursive: true});
+}
+
 function writeFilteredSearchIndex () {
 	const src = path.join(root, "search", "index.json");
 	if (!fs.existsSync(src)) {
@@ -162,10 +169,32 @@ function writeFilteredSearchIndex () {
 	]);
 	const docs = decompressIndex(JSON.parse(fs.readFileSync(src, "utf8")))
 		.filter(doc => doc && categoryIds.has(doc.c));
+	docs.push(...tovSearchDocs());
 
 	const dest = path.join(outDir, "search", "index.json");
 	fs.mkdirSync(path.dirname(dest), {recursive: true});
 	fs.writeFileSync(dest, JSON.stringify({x: docs, m: {}}));
+}
+
+function tovSearchDocs () {
+	const file = path.join(root, "data", "bestiary", "bestiary-tov.json");
+	if (!fs.existsSync(file)) return [];
+	const monsters = JSON.parse(fs.readFileSync(file, "utf8")).monster || [];
+	return monsters
+		.filter(monster => monster?.name)
+		.map((monster, i) => {
+			const nameHash = encodeURIComponent(String(monster.name).trim().toLowerCase()).replace(/'/g, "%27");
+			return {
+				id: `tov:${i}:${nameHash}`,
+				c: 1,
+				n: monster.name,
+				s: "ToV",
+				sA: "ToV",
+				cf: "Bestiary",
+				u: `${nameHash}_tov`,
+				h: 1,
+			};
+		});
 }
 
 function decompressIndex (indexGroup) {
@@ -207,7 +236,7 @@ function installToDevVaults () {
 		for (const name of ["main.js", "manifest.json", "styles.css"]) {
 			fs.copyFileSync(path.join(outDir, name), path.join(dest, name));
 		}
-		for (const dir of ["data", "search", "dice", "heic"]) {
+		for (const dir of ["data", "search", "dice", "heic", "img"]) {
 			const src = path.join(outDir, dir);
 			if (fs.existsSync(src)) fs.cpSync(src, path.join(dest, dir), {recursive: true});
 		}

@@ -3363,6 +3363,7 @@ Parser.SRC_RWG = "RWG";
 Parser.SRC_PL = "PL";
 Parser.SRC_WoW = "WoW";
 Parser.SRC_ICC = "ICC";
+Parser.SRC_ToV = "ToV";
 
 Parser.SRC_PS_PREFIX = "PS";
 
@@ -3590,6 +3591,7 @@ Parser.SOURCE_JSON_TO_FULL[Parser.SRC_RWG] = "Red Wizards' Gambit";
 Parser.SOURCE_JSON_TO_FULL[Parser.SRC_PL] = "Project_Lamordia";
 Parser.SOURCE_JSON_TO_FULL[Parser.SRC_WoW] = "D&D: World of Warcraft";
 Parser.SOURCE_JSON_TO_FULL[Parser.SRC_ICC] = "World of Warcraft: Icecrown Citadel";
+Parser.SOURCE_JSON_TO_FULL[Parser.SRC_ToV] = "Tales of the Valiant";
 
 Parser.SOURCE_JSON_TO_ABV = {};
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_PHB] = "PHB'14";
@@ -3781,6 +3783,7 @@ Parser.SOURCE_JSON_TO_ABV[Parser.SRC_RWG] = "RWG";
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_PL] = "PL";
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_WoW] = "WoW";
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_ICC] = "ICC";
+Parser.SOURCE_JSON_TO_ABV[Parser.SRC_ToV] = "ToV";
 
 Parser.SOURCE_JSON_TO_DATE = {};
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_PHB] = "2014-08-19";
@@ -3971,6 +3974,7 @@ Parser.SOURCE_JSON_TO_DATE[Parser.SRC_RWG] = "2026-09-15";
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_PL] = "2026-10-13";
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_WoW] = "2026-11-17";
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_ICC] = "2026-11-17";
+Parser.SOURCE_JSON_TO_DATE[Parser.SRC_ToV] = "2023-01-01";
 
 // region Source categories
 Parser.SOURCES_ADVENTURES = new Set([
@@ -4131,6 +4135,7 @@ Parser.SOURCES_NON_STANDARD_WOTC = new Set([
 	Parser.SRC_SoS,
 	Parser.SRC_RWG,
 	Parser.SRC_PL,
+	Parser.SRC_ToV,
 ]);
 Parser.SOURCES_PARTNERED_WOTC = new Set([
 	/*

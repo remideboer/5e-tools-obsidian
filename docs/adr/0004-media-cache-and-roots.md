@@ -11,6 +11,7 @@ Entity fluff, tokens, and adventure maps are hosted remotely (`settings.imageBas
 ## Decision
 
 - Cache downloads under the plugin install dir: `cache/img/…` for URLs on the image host whose path contains `/img/`.
+- Bundled plugin art under `img/bestiary/ToV/` (from `obsidian/img/…`) is preferred over the remote host when that path exists.
 - `cachedMediaFile` checks disk without download; `cachedMediaPath` downloads if missing.
 - Reference catalog loads from `getConfiguredRoot()/data/generated/gendata-maps.json` (installed plugin).
 - Adventure menu click loads maps with cache-first fetch and limited concurrency; abandon stale UI updates with a generation token.

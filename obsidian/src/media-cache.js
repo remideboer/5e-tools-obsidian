@@ -7,11 +7,33 @@ const inFlight = new Map();
 export async function cachedMediaSrc (plugin, url) {
 	if (!url) return "";
 	try {
+		const bundled = await bundledImgSrc(plugin, url);
+		if (bundled) return bundled;
 		const cached = await ensureCachedFile(plugin, url);
 		if (!cached) return url;
 		return plugin.app.vault.adapter.getResourcePath(cached.vaultPath);
 	} catch (_) {
 		return url;
+	}
+}
+
+/** Local plugin art (e.g. img/bestiary/ToV/…) preferred over the remote image host. */
+async function bundledImgSrc (plugin, url) {
+	const rel = cacheRel(plugin, url) || pluginImgRel(url);
+	if (!rel || !rel.startsWith("bestiary/ToV/")) return "";
+	const vaultPath = pluginVaultPath(plugin, "img", ...rel.split("/"));
+	const adapter = plugin.app.vault.adapter;
+	if (!(await adapter.exists(vaultPath))) return "";
+	return adapter.getResourcePath(vaultPath);
+}
+
+function pluginImgRel (url) {
+	const match = String(url || "").replace(/\\/g, "/").match(/(?:^|\/)img\/(.+)$/i);
+	if (!match) return null;
+	try {
+		return decodeURIComponent(match[1]).replace(/\\/g, "/");
+	} catch (_) {
+		return match[1].replace(/\\/g, "/");
 	}
 }
 
