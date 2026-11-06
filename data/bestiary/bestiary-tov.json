@@ -214,7 +214,8 @@
 						"While restrained, a creature takes 3 (1d6) bludgeoning damage at the start of each of its turnw. A creature can repeat the save at the end of each of its turns, ending the effect on itself on a success."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Adult Adamantine Dragon",
@@ -345,7 +346,8 @@
 						"The dragon beats its wings. Each creature within 10 feet of the dragon must succeed on a DC 22 DEX save or take 15 (2d6 + 8) bludgeoning damage and be knocked prone. The dragon can then fly up to half its flying speed without provoking opportunity attacks."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Adult Coruscine Dragon",
@@ -602,7 +604,8 @@
 						"The dragon beats its wings. Each creature within 10 feet of the dragon must succeed on a DC 19 DEX save or take 13 (2d6 + 6) bludgeoning damage and be knocked prone. The dragon can then fly up to half its flying speed without provoking opportunity attacks."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Ancient Adamantine Dragon",
@@ -1068,7 +1071,8 @@
 						"Greater pseudodragons treasure knowledge above all else. Their hoards typically consist of rare books and ancient scrolls gathered over the course of decades. On rare occasions, they might take up residence in a library, school, abandoned mage’s tower, or similar place of knowledge, claiming the space as their own—though perhaps begrudgingly allowing others continued access, such as with a library, but always under observation. They guard their personal collections jealously but will permit access to petitioners bearing suitable offerings of rare or obscure knowledge."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Arachnoth",
@@ -1190,7 +1194,8 @@
 						"Darhask makes deals with those who imagine themselves master manipulators— with con artists, spymasters, scheming nobles—offering the service of his venom and his arachnoths to those who enmesh their schemes within his own. Unlike many demon lords, Darhask always offers those bound to him an out: if you succeed, realize all your desires while keeping your schemes intact, the Lord of Spiders will acknowledge your skill and refrain from claiming your soul when you die. Of course, such an alluring offer is more perilous than it seems, for Darhask is all too willing to cut an ambitious underling free to preserve his own schemes. DARHASK'S LAIR Darhask’s lair, the Silk Demesne, is an ever-shifting palace of webs that he builds, deconstructs, and rebuilds constantly. When he takes personal interest in the schemes of a subordinate, he extrudes strands of the Silk Demesne into that conspirator’s own lair. This enables direct support from the demon lord—at least until he loses interest or, after some slight, withdraws his support. While so linked to the strands of the Silk Demesne, lairs are warped by Darhask’s power, which creates one or more of the following regional effects: • Arachnid Surveillance. Spiders, scorpions, and other arachnids are a constant presence within 1 mile of the lair, and Darhask can perceive through the senses of any such creatures. • Sow Laxity. Humanoids near the lair are lax in personal defenses, becoming more susceptible to lies and less likely to raise questions. A creature has advantage on CHA (Deception) and CHA (Persuasion) checks against a Humanoid that has spent at least 24 hours within 10 miles of the lair. • Watcher’s Protection. Darhask knows when the subordinate or its underlings have been harmed within 5 miles of the lair and can summon a swarm of spiders to attack creatures in that area no more than once every 8 hours. If Darhask withdraws this connection or if the subordinate connected to the lair dies, these effects fade in 1d10 days."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Arbalest Crab",
@@ -1350,7 +1355,8 @@
 						"When a creature the arcane grenadier can see hits it with a melee attack while within 5 feet of it, the grenadier can clap two alchemical substances between its hands, blending them together and creating a blast of concussive energy. Each creature in a 10-foot cube originating from the grenadier must make a DC 13 STR save. On a failure, a creature is pushed up to 10 feet away from the grenadier and knocked prone. On a success, a creature is pushed up to 10 feet away from the grenadier but isn’t knocked prone."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Automata Devil",
@@ -1566,7 +1572,8 @@
 						"When on land, the axolotl moves up to 30 feet. Opportunity attacks made against it during this movement have disadvantage."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Ballista Sentinel",
@@ -1658,7 +1665,8 @@
 						"The ballista sentinel extends its shield-like arms out from either side of its body. These shields provide three-quarters cover to creatures within 10 feet of the sentinel’s sides and to creatures no more than 5 feet behind it. The sentinel and its shields have arrow slits and similar holes to allow creatures to launch ranged attacks from these protected positions. While protected in this way, creatures making ranged attacks don’t suffer disadvantage from attacking while within 5 feet of a hostile creature, provided the hostile creature is on the other side of the sentinel’s shield arm. While its shield arms are extended, the ballista sentinel’s speed is halved, and it has disadvantage on ranged weapon attack rolls."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Band of Myrmekes",
@@ -1812,7 +1820,8 @@
 						"The bar brawl imbibes nearby alcohol to gain access to a hidden reservoir of audacity and grit. The bar brawl gains 7 (2d6) temporary HP that last for 1 minute. 55 B B"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Bard Maestro",
@@ -2028,7 +2037,8 @@
 						"When the barquil’s ward takes damage from an attack or effect the barquil can see, the barquil can teleport up to 30 feet toward the ward into an unoccupied space. If it ends up in a space within 5 feet of its ward, it can reduce the damage the ward takes by 7 (2d6)."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Batonabi",
@@ -2115,7 +2125,8 @@
 						"The batonabi exhales a sooty wind in a 15-foot cone. Each creature in that area must make a DC 13 CON save. On a failure, a creature takes 21 (6d6) necrotic damage and contracts the graveplague disease (see the Graveplague trait). On a success, a creature takes half the damage and doesn’t contract a disease. 57 B B"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Blight Devil",
@@ -2237,7 +2248,8 @@
 						"Jurist devils are among the least overtly violent of devils, serving primarily as historians and record-keepers. They are frequently sought by mortals for their extensive knowledge—their knowledge of the planes is second to few—and they have a greater than passing familiarity with matters of magic and nature. Jurist devils rarely trade in souls like other devils and are instead more interested in bartering to gain permission to remain on the Material Plane for extended periods of time. They are especially fond of libraries."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Blueshroom",
@@ -2340,7 +2352,8 @@
 						"When the blueshroom is the target of an attack, it can release a lattice of ice crystals to protect itself. Until the start of its next turn or until the blueshroom takes fire damage, it has a +2 bonus to AC, including against the triggering attack."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Bog Bounder",
@@ -2438,7 +2451,8 @@
 						"A spray of stench erupts from a point on a surface the bog bounder can see within 60 feet of it. Each creature within 5 feet of that point must succeed on a DC 14 CON save or be poisoned until the end of its next turn. 59 B B"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Bog Ogre",
@@ -2659,7 +2673,8 @@
 						"A creature within 5 feet of the bone whale can take its action to free a caged target by succeeding on a DC 18 STR check."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Bone-Brewer Gnoll",
@@ -2757,7 +2772,8 @@
 						"Hoard golems can’t speak and are typically 25 feet tall, weighing 20,000 pounds. A hoard golem’s body is composed of various items—copper, silver, gold, works of art, armor, weapons, and magical items— and worth at least 5,000 gp."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Bonebrash",
@@ -2854,7 +2870,8 @@
 						"The bonebrash takes the Dash action but has disadvantage on the next attack roll it makes before the start of its next turn. CREATING A BONEBRASH A spellcaster can cast the animate dead spell to create a bonebrash. Instead of a pile of bones or a corpse, the caster must instead have the remains of at least four skeletons that were once animated then reduced to 0 HP. When you cast the animate dead spell in this way, the casting time is 10 minutes. 61 B B"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Border Sentinel",
@@ -3070,7 +3087,8 @@
 						"The brachysnatch detaches one of its vise claws. A creature grappled by the claw remains grappled after this detaching. The brachysnatch can use its bonus action to reattach its claw while within 5 feet of the claw. Otherwise, it regrows a detached vise claw after it finishes a long rest. 63 B B"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Broken Fixer",
@@ -3169,7 +3187,8 @@
 						"The broken fixer makes adjustments to a friendly construct it can see within 5 feet of it, enhancing the target’s performance. Until the end of the target’s next turn, the target’s speed is doubled, it gains a +2 bonus to AC, it has advantage on DEX saves, and it gains an additional action. This extra action can be used only to take the Attack (one weapon attack only), Dash, Disengage, Hide, or Use an Object action. When this effect ends, the target can only take an action or bonus action on its next turn, not both, and can’t make more than one melee or ranged attack during its turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Broodlings",
@@ -3275,7 +3294,8 @@
 						"After its metamorphosis, a potentate gathers any nearby wandering chuul into a warband and sets about conquering any coastal settlements in their path, attempting to reclaim past glory."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Candlecorpse",
@@ -3378,7 +3398,8 @@
 						"The candlecorpse lobs a wad of hot wax at one creature it can see within 30 feet of it. The target must succeed on a DC 14 DEX save or be restrained by wax. While restrained in this way, the creature takes 2 (1d4) fire damage at the start of each of its turns. This damage ends after 1 minute or if the creature takes cold damage. A creature, including the restrained target, can take its action to free the creature by succeeding on a DC 14 STR check. If the restrained target has taken cold damage, this check is made with advantage. 65 C C"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Carrion Nightmare",
@@ -3486,7 +3507,8 @@
 						"If the target of Harvest Organ failed its save, the carrion nightmare can eat the harvested organ and regains HP equal to the necrotic damage taken by the target."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Cavalry Camel",
@@ -3556,7 +3578,8 @@
 						"When a creature the camel can see within 5 feet of it deals damage to the camel or its rider, the camel can kick the creature. The attacker must succeed on a DC 13 STR save or be pushed up to 10 feet away from the camel and knocked prone."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Celebrant Shade",
@@ -3662,7 +3685,8 @@
 						"When a creature the shade can see within 30 feet of it succeeds on an ability check or save, the shade fills the creature’s mind with unearned gregariousness. The creature must succeed on a DC 13 CHA save or be charmed by every creature it can see until the end of its next turn. 67 C C"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Cerulean Slime",
@@ -3776,7 +3800,8 @@
 						"The cerulean slime blasts a creature it can see within 30 feet of it with a stream of pressurized water. The target must succeed on a DC 16 STR save or be pushed up to 15 feet away from the slime."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Chaos-Touched Rakshasa",
@@ -3890,7 +3915,8 @@
 						"A frightened creature can repeat the save at the end of each of its turns, ending the effect on itself on a success. The rakshasa can have up to two creatures frightened in this way at a time."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Chasmal Horror",
@@ -3991,7 +4017,8 @@
 						"The chasmal horror feeds on the fear of one frightened creature it can see within 60 feet of it. The target must succeed on a DC 15 INT save or be frozen with fear until the end of its next turn. While frozen with fear, a creature’s speed is reduced to 0, and the chasmal horror has advantage on attack rolls against it. If the target fails the save by 5 or more, its INT is reduced by 1d4. The target becomes a mindless thrall of the chasmal horror if this reduces its INT to 0. Otherwise, the reduction lasts until the target finishes a long rest. 69 C C"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Chilldeath Grass",
@@ -4189,7 +4216,8 @@
 						"The clockwork assassin takes the Hide action."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Clockwork Constructor",
@@ -4299,7 +4327,8 @@
 						"The constructor sprays quick-setting mortar at a Large or smaller creature it can see within 30 feet of it. That creature must succeed on a DC 16 DEX save or be restrained by the mortar. A creature, including the restrained target, can take its action to free the target by succeeding on a DC 16 STR check."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Clockwork Scorpion",
@@ -4490,7 +4519,8 @@
 						"The clockwork watchman pulls a creature restrained by its net up to 15 feet straight toward it."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Cloth Flitkith",
@@ -4577,7 +4607,8 @@
 						"The cloth flitkith magically manipulates a piece of cloth worn by a creature within 60 feet of it, causing one of the following effects: • Strangle. The target must succeed on a DC 13 CON save or be unable to breathe, speak, or cast spells with verbal components until the end of its next turn. • Tangle Limb. The target must succeed on a DC 13 STR save or have disadvantage on weapon attacks until the end of its next turn. • Trip. The target must succeed on a DC 13 DEX save or fall prone."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Coastal Marauder",
@@ -4937,7 +4968,8 @@
 						"(Recharge 5–6). The dragon exhales a 15-foot cone of sparkling blue fog. Each creature in the area must make a DC 10 CON save, taking 21 (6d6) psychic damage on a failed save, or half as much damage on a successful one."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Crimson Mist",
@@ -5040,7 +5072,8 @@
 						"When a creature in the crimson mist’s space moves out of that space, the crimson mist can fly up to half its speed, moving with the creature and remaining in the creature’s space, provided it has the movement. This movement doesn’t provoke opportunity attacks from the moving target, but it can provoke opportunity attacks from other creatures. 81 C C"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Crypt Lurcher",
@@ -5135,7 +5168,8 @@
 						"When a creature the crypt lurcher can see hits it with an attack, the crypt lurcher can make one Claw attack against the attacker."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Crystalline Servitor",
@@ -5243,7 +5277,8 @@
 						"When a creature the crystalline servitor can see within 120 feet of it deals damage to it, the servitor can send a flurry of snow at the creature. That creature must succeed on a DC 17 DEX save or take 3 (1d6) cold damage. 83 C C"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Cultist, Necrograft",
@@ -5582,7 +5617,8 @@
 						"Akin to druids, dolmen giants tend to live in harmony with the land, entwining their traditions with the thrum of power inherent in the stone and dirt. They call on the magic embedded within the land, singing it to the surface. Their deep, sonorous melodies move and shape the stone, creating teleportation circles, star-aligned dolmens for divination, various monuments that draw the power of ley lines or attract mythical creatures, and other structures related to divination and conjuration."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Death Butterfly Swarm",
@@ -5664,7 +5700,8 @@
 						"Melee Weapon Attack: +4 to hit, reach 0 ft., one creature in the swarm’s space. Hit: 28 (8d6) piercing damage, or 14 (4d6) piercing damage if the swarm has half of its HP or fewer. The target must make a DC 12 CON save. On a failure, it takes 10 (3d6) poison damage and is poisoned until the end of its next turn. On a success, it takes half the damage and isn’t poisoned."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Decatrine",
@@ -5874,7 +5911,8 @@
 						"When the diviner makes a save or when a creature it can see within 60 feet of it attacks it, the diviner can have advantage on the save or impose disadvantage on the attacker’s attack roll."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Dolmen Giant",
@@ -5978,7 +6016,8 @@
 						"Fire giant commanders are chosen from the ranks based on their victories, might, and talent. Their innate, fiery power allows them to easily dominate average foes, setting them alight with burning blades and launching exploding boulders behind enemy lines."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Doomwing",
@@ -6361,7 +6400,8 @@
 						"Icerift demons can create small chasms filled with ice and withdraw spears of ice from their flesh. Those wounded by such demons often suffer a terrible, lingering hunger that taints the souls of those that die from it."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Drow Mystic",
@@ -6466,7 +6506,8 @@
 						"Each confidante keeps a chatelaine—a piece of jewelry comprised of a series of fine chains, each linked to a charm. Each of the charms can be imbued with unique properties, ensuring the confidante is prepared for a wide variety of situations."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Duergar Warformer",
@@ -6558,7 +6599,8 @@
 						"The duergar warformer enhances one or more nearby friendly duergar, which can include the warformer, in one of the following ways: • Augment Growth. One enlarged duergar the warformer can see within 30 feet of it becomes Huge instead of Large and triples its damage dice on weapon attacks. This effect lasts until the target uses Reduce, the target dies, the warformer dies, or the target starts its turn more than 60 feet away from the warformer. • Enduring Invisibility. Up to four duergar within 30 feet of the warformer have enhanced invisibility. Until the start of the warformer’s next turn, attacking doesn’t end Invisibility. • Forced March. Up to four duergar within 30 feet of the warformer have enhanced speed, increasing each target’s speed by 10 feet until the start of the warformer’s next turn. • Swift Assault. Up to two duergar the warformer can see within 30 feet of it have enhanced attacks. Each target can make one extra attack on its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Duodekadron",
@@ -6672,7 +6714,8 @@
 						"When a creature the duodekadron can see deals damage to it while within 10 feet of it, the duodekadron can release a repulsor beam. The target must succeed on a DC 18 STR save or be pushed up to 20 feet away from the duodekadron and be knocked prone."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Dustcloak",
@@ -6782,7 +6825,8 @@
 						"Warformers can be dangerous foes individually, but they are most effective when leading and supporting a group. With a warformer at their backs, a duergar force’s martial prowess and natural magical abilities are enhanced, giving them a greater chance of overcoming foes."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Eldritch Ooze",
@@ -6984,7 +7028,8 @@
 						"Drow mystics have a connection with their chosen deity that allows them to channel divine powers to protect, heal, and defend their congregations and to coat their weapons in a magical poison. They wield that power against threats from without, but zealous mystics have no qualms with turning their gaze on threats from within. Such mystics that get any hint of rebellion quickly eliminate such threats to preserve the stability of the community."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Empty Soul",
@@ -7103,7 +7148,8 @@
 						"Some ettercaps experiment with the arcane, seeking to enhance their natural abilities. These spellweavers conduct dark rituals on prisoners and other creatures, deep in the caves dotting their territories of ancient forest—the goals of which are known only to themselves. Any sizable ettercap raiding party often has at least one spellweaver among them."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Enlightened Naga",
@@ -7243,7 +7289,8 @@
 						"When an unnatural storm or monster sinks a ship, a sea naga might appear to a survivor, offering to save as many souls as they wish. Once complete, it demands that survivor complete a task for each soul saved. These are generally heroic feats related to some prophecy or danger known only to the naga."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Eye Coral",
@@ -7324,7 +7371,8 @@
 						"When the eye coral takes damage while underwater, it can secrete a 10-foot-radius cloud of poison into the water around it. The area is lightly obscured, and the cloud remains for 1 minute. A creature that enters the cloud’s area for the first time on a turn or starts its turn there must succeed on a DC 12 CON save or be poisoned until the start of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Facefetch",
@@ -7430,7 +7478,8 @@
 						"If this effect ends while the creature with the stolen face is still alive, the stolen face is destroyed. 129 F F"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Fen Lurcher",
@@ -7536,7 +7585,8 @@
 						"The fen lurcher magically teleports up to 30 feet to an unoccupied space within 5 feet of a creature it can see. The target must succeed on a DC 15 WIS save or be frightened until the end of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Fenrosk",
@@ -8147,7 +8197,8 @@
 						"Toadstool trolls have a reputation for friendliness and can often be found in the company of forest creatures, fey, and even other trolls. Though they are easier to get along with than their more mundane cousins, they retain their ferocity, and once angered, they are difficult to calm once again. A toadstool troll can be a lifesaving ally to those it trusts however, sharing the rejuvenating magic of its mushrooms."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Fir Beast",
@@ -8253,7 +8304,8 @@
 						"The fir beast stomps its foot, causing roots and vegetation to erupt from the ground around it in a 20-foot radius. That area becomes difficult terrain for all creatures except the fir beast until the start of its next turn. 139 F F"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Fire Cat",
@@ -8345,7 +8397,8 @@
 						"The most common flitkith appear as cloth, metal, and wooden dolls and toys. They can come in other forms, such as folded-paper sculptures or porcelain dolls, but an individual’s form never seems to change. They are driven to hoard more of that material. A cloth flitkith, for example, might see gingham for the first time and feel compelled to cut a swatch of it for their collection."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Fire Giant Commander",
@@ -8440,7 +8493,8 @@
 						"Since frost giants prefer smaller clan groups, their armies are almost always ephemeral, typically lasting only long enough to complete their mission or avert the immediate threat. Once the army disbands, the jarl retains the power but has no place among their clan. They instead withdraw from society, becoming willing outcasts—loners that continue to stand against threats to their kin."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Firedrop Fungus",
@@ -8511,7 +8565,8 @@
 						"A creature that deals slashing damage to the firedrop fungus while within 5 feet of it must succeed on a DC 13 DEX save or have disadvantage on attack rolls until the end of its next turn. F F 146"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "First Servant",
@@ -8611,7 +8666,8 @@
 						"The first servant channels divine energy through it toward up to three creatures it can see within 30 feet of it. Each target must succeed on a DC 17 WIS save or be unable to use bonus actions or reactions until the start of the first servant’s next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Flamescale Salamander",
@@ -8916,7 +8972,8 @@
 						"The flotsam guardian shifts from its terrestrial form to its aquatic form or back."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Forgotten Smith",
@@ -9188,7 +9245,8 @@
 						"Firedrop fungi are commonly found in areas of volcanic activity, where the heat and ash can feed their growth cycles. Some dwarf and duergar settlements keep gardens of the fungus, growing it near their forges and similar sites. Mushroom tenders in these settlements are well-regarded and compensated for their dangerous job. The fungus is considered a delicacy among many subterranean cultures, but surface dwellers tend to find its sulfurous taste unpleasant."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Forsaken Genie",
@@ -9464,7 +9522,8 @@
 						"When a creature within 5 feet of the fractidron hits it with an attack, the fractidron can send a short jolt of electricity at the creature. The attacker must succeed on a DC 13 DEX save or take 2 (1d4) lightning damage."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Frost Giant Jarl",
@@ -9585,7 +9644,8 @@
 						"Chieftains often sport bushy beards, bind their hair into tall mounds, wear large shoulder pads, or otherwise attempt to enlarge their profile in an effort to intimidate underlings and rivals. They wield massive clubs carved from ancient trees and studded with jagged pieces of stone or metal."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Ghostweed",
@@ -9673,7 +9733,8 @@
 						"The ghostweed emits a 10-foot-radius cloud of sparkling, ghostly pollen around itself. The cloud’s area is lightly obscured until the end of the ghostweed’s next turn. Each creature in the area must succeed on a DC 13 CON save or be poisoned until the end of its next turn. A creature that dies within 24 hours of failing this save rises as a specter 1d4 hours later."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Ghoul Lord",
@@ -9810,7 +9871,8 @@
 						"The ghoul lord goads up to three hostile creatures it can see within 30 feet of it. Each target must succeed on a DC 15 CHA save or use its reaction to move up to half its speed in a straight line toward Undead the lord chooses. Targets don’t ignore opportunity attacks or damaging terrain when moving in this way."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Girtablilu",
@@ -10009,7 +10071,8 @@
 						"The mephit casts the faerie fire spell (spell save DC 11), using WIS as the spellcasting ability. they are within 1 mile of each other. While the mephit is within 10 feet of its companion, the companion is resistant to two conditions or effects, depending on the type of mephit: blinded and charmed (glass), prone and restrained (sludge), or deafened and effects that would push or pull it (storm). At any time and for any reason, the mephit can end its service as a familiar, ending the telepathic bond."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Glass Ooze",
@@ -10122,7 +10185,8 @@
 						"During the dry season, the mudflow ooze lies dormant, resembling dry, cracked mud. When the rainy season comes, it awakens and skulks along riverbanks and lakesides in search of prey."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Glittermaw",
@@ -10222,7 +10286,8 @@
 						"One creature grappled by the glittermaw is pulled up to 10 feet toward its maw. If this effect pulls the creature to within 5 feet of the glittermaw, the creature must make a DC 16 DEX save, taking 14 (4d6) piercing damage on a failed save, or half as much damage on a successful one."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Gluckshund",
@@ -10322,7 +10387,8 @@
 						"Bone- brewers draw their magic from the ritually prepared bones of dead animals. They carve runes into the bones to trap magic within the marrow and then shatter them to release that magic. The bones of more impressive and magical creatures, such as bulettes or dragons, can store more magic, driving the gnolls to embrace regular, ritualistic hunts to better prepare for the ever- looming battles with their neighbors."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Goreling",
@@ -10381,7 +10447,8 @@
 						"Melee Weapon Attack: +3 to hit, reach 5 ft., one creature. Hit: 3 (1d4 + 1) bludgeoning damage plus 2 (1d4) necrotic damage, and the target must succeed on a DC 12 CON save or be poisoned until the end of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Goreling Swarm",
@@ -10562,7 +10629,8 @@
 						"The gorus unrolls its body and teleports, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see or up to 120 feet to an unoccupied space within 5 feet of a chunk of its flesh. Each creature in the gorus’s space or grappled by it must succeed on a DC 13 STR save or be teleported with it. Each creature within 10 feet of the origin and destination spaces that can see the gorus must succeed on a DC 13 WIS save or be frightened until the end of its next turn. 167 G G"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Graack",
@@ -10649,7 +10717,8 @@
 						"If the graack succeeds on a check or save to avoid falling prone, it can fly up to its flying speed. This movement doesn’t provoke opportunity attacks."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Grain Vika",
@@ -10942,7 +11011,8 @@
 						"Groups of spellbane gremlins quickly grow into narcissistic cults of personality with the most charismatic and successful of them—or more often, the one having stolen the largest hat—declaring themselves “archmagus” and forcing the others into line. These leaders claim ruins as their “arcane towers,” and they spend their days feeding on any lingering magical energies and tormenting those who defile the sanctity of their domains without the appropriate tribute and praise. Like the arcane communities they mimic, these groups are inherently unstable and prone to factionalism and infighting over minor disagreements and clashes in personality."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Greater Death Butterfly Swarm",
@@ -11159,7 +11229,8 @@
 						"A pelagic dragonette has small venom sacs at the base of their spines used to deter predators, and in times of extreme duress, they can expel the venom in a burst."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hammerbill Goose",
@@ -11216,7 +11287,8 @@
 						"When a creature moves into a space within 10 feet of the hammerbill goose, the goose can hiss a warning. The creature must succeed on a DC 13 WIS save or be frightened until the end of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hammergeist",
@@ -11319,7 +11391,8 @@
 						"When a creature within 30 feet of the hammergeist that it can see casts a spell or uses a feature that inflicts force damage or radiant damage, the hammergeist can absorb the energy. The creature must succeed on a DC 15 CHA save or lose the spell or use of the feature. The hammergeist can then choose to regain 9 (2d8) HP or deal an extra 4 (1d8) force or radiant damage (whichever type was absorbed) with the next Ghostly Hammer attack it makes before the end of its next turn. 175 H H"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hatchling Owlbear",
@@ -11399,7 +11472,8 @@
 						"If the owlbear’s caretaker can hear the cry, that creature can Dash on its next turn as a bonus action."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hedgehog, Giant",
@@ -11484,7 +11558,8 @@
 						"When a creature the giant hedgehog can see within 30 feet of it targets it with an attack, the hedgehog can quickly curl up, making itself a smaller target. The attacker has disadvantage on the attack roll."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hellworm",
@@ -11556,7 +11631,8 @@
 						"When a creature attempts to remove the hellworm while it is attached to a creature, the hellworm can burrow deeper into the creature’s flesh. If it does so, the creature attempting to remove the hellworm must succeed on a DC 11 STR check or the hellworm remains attached."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "High Mechanist",
@@ -11767,7 +11843,8 @@
 						"Mud giants have sympathy for those they view as similarly imperfect, and many develop a coterie of such rejects. The kindest take in orphans, exiles, and wounded animals, forming an ersatz family, and the cruelest build a following of bandits, outcasts, and brutes who also disdain the world."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hippalektryon",
@@ -11844,7 +11921,8 @@
 						"The hippalektryon tosses its head back and crows. Each creature within 30 feet of the hippalektryon that can hear it must make a WIS save. On a failure, a creature is deafened and frightened until the end of its next turn. On a success, a creature is only deafened until the end of its next turn. 177 H H"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hoard Golem",
@@ -11968,7 +12046,8 @@
 						"These constructs are often used on long journeys, ensuring a mug of ale is always close at hand. When its master is threatened, the golem can also help to incapacitate foes with its powerful ale blast. Enterprising non-dwarves have taken to using refurbished keg golems at their taverns: for security but also to attract customers."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Hobfoot",
@@ -12053,7 +12132,8 @@
 						"The hobfoot whistles to issue one of the following commands to one Beast or creature with the Animal tag it can see within 60 feet of it. The target must succeed on a DC 12 WIS save or obey the command. • Attack. The target uses its reaction to make one melee or ranged attack (the hobfoot’s choice) against one creature the target can see within its weapon’s range. • Come. The target uses its reaction to move up to its speed toward the hobfoot. It doesn’t avoid opportunity attacks or damaging terrain when moving. • Go. The target uses its reaction to move up to its speed directly away from the hobfoot. It doesn’t avoid opportunity attacks or damaging terrain when moving."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Honey Bee, Giant",
@@ -12495,7 +12575,8 @@
 						"When a creature the huntmaster can see targets it with an attack, the huntmaster can move up to 10 feet away from the attacker without provoking opportunity attacks. If this movement moves it out of range of the attack, the attack misses."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Ice Sila",
@@ -12625,7 +12706,8 @@
 						"Samums lair in deserts, badlands, and remote wastes where they hunt for stranded travelers, especially after sandstorms or near local hazards, where the desperate are more readily found. Then, playing the role of a helpful genie, it will offer the travelers just what they need to survive—but only if they betray their companions. If a traveler rejects the offer, the genie leaves the person to die but offers their companions the same deal. If they accept, the genie rescues them from their predicament and claims their soul as payment. Unlike many other fiends, samums sometimes offer to relinquish their hold on a soul if the victim is able and willing to further the genie’s schemes."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Icerift Demon",
@@ -12738,7 +12820,8 @@
 						"Shanlayus serve demon lords and deities of chaos and storms. They are often sent on missions where quick and decisive victories are critical—or else are first strikers in larger-scale conflicts. Their ability to teleport allows them to hit multiple targets hard and fast, sowing confusion and panic on the battlefield."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Iceskitter",
@@ -12833,7 +12916,8 @@
 						"The iceskitter vents extremely cold air at one creature it can see within 10 feet of it. The target must succeed on a DC 15 CON save or its speed is halved until the end of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Infernal Dreg",
@@ -13105,7 +13189,8 @@
 						"Composed of the lightning, precipitation, and thunder of a raging storm, storm mephits are more energetic and livelier than other mephits, speaking quickly and jumping between topics."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Isazix",
@@ -13201,7 +13286,8 @@
 						"The isazix releases a wail generated by the souls it has captured in a 30-foot cone. Each creature in the area must succeed on a DC 17 WIS save or be stunned until the end of its next turn. A creature that fails the save by 5 or more is stunned for 1 minute. It can repeat the save at the end of each of its turns, ending the effect on itself on a success."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Isherrar",
@@ -13313,7 +13399,8 @@
 						"When a creature the isherrar can see targets it with an attack, the isherrar can temporarily liquefy itself, imposing disadvantage on the attack roll. 183 I I"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Issgandr",
@@ -13414,7 +13501,8 @@
 						"When the issgandr takes damage from a creature within 10 feet of it, it can release a jet of super-chilled water. That creature must succeed on a DC 13 STR save or be pushed up to 15 feet away from the issgandr, and its speed is reduced by 10 feet."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Joy Thief",
@@ -13493,7 +13581,8 @@
 						"The joy thief tries to consume an emotion from one creature it can see within 30 feet of it. The target must succeed on a DC 13 CHA save or suffer one of the following effects, based on the chosen emotion: • Anger. For 1 minute, the target has disadvantage on the first attack roll it makes each round, and the thief has advantage on the first attack roll it makes each round. Until this emotion is restored, the target has disadvantage on initiative checks and on saves against being frightened. • Joy. For 1 minute, the target’s speed is reduced by 10 feet, and the thief’s speed is increased by 10 feet. Until this emotion is restored, the target can’t benefit from Bardic Inspiration or spells that bolster the target’s ability checks, attack rolls, or speed, such as bless , enhance ability , or haste . • Love. For 1 minute, the target can’t use the Help action, and spells the target casts that restore HP restore 3 (1d6) fewer HP. For the duration, the thief takes 2 (1d4) less damage from all sources, as it magically evokes affection from enemies. Until this emotion is restored, the target’s allies are considered hostile creatures for the purposes of determining how the target’s spells, class features, and other effects interact with the target’s allies. Until it finishes a long rest, the target can’t feel the stolen emotion, and the joy thief can’t steal that emotion from the target again. 185 J J"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Jurist Devil",
@@ -13612,7 +13701,8 @@
 						"Using a long and taxing ritual, waxworker devils sometimes animate figures from their collection, whether as laborers or soldiers or something else. These figures become loyal and obedient wax golems (also in this book), though they retain their distorted and warped appearances."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Juvenile Owlbear",
@@ -13828,7 +13918,8 @@
 						"Each pebble golem is infused with a drop of blood from its creator, tying it intrinsically to a specific arcane practitioner."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Kel Essuf",
@@ -13920,7 +14011,8 @@
 						"When a creature the kel essuf can see within 30 feet of it, which can include itself, is attacked, the kel essuf can release a flare of silvery fire from its ears. Roll a d4 and subtract the number rolled from the attack roll."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Kelp Wight",
@@ -14036,7 +14128,8 @@
 						"The wrath wight’s rage spills over into its strikes, flooding its victims’ psyche with the anger and pain the wrath wight feels at the injustice done to it. This flood can sometimes fill victims with rage and cause them to go on their own rampages."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Killsward",
@@ -14131,7 +14224,8 @@
 						"The killsward burrows up to 20 feet. The next time it rolls a die to recharge Dirt Blast, it can roll two dice and take the better result. 187 K K"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Kineater",
@@ -14223,7 +14317,8 @@
 						"Kobold chieftains and hooded ones rarely see eye to eye about matters of leadership, for as the mouthpiece of a greater power, the hooded one expects all their clan mates, including the clan leader, to heed their urgings. Clever and calculating, they use flattery and persuasion to become the power behind thrones, leading communities along their patron’s goals in secret. Those who become overzealous are usually killed before they can make too much trouble for local leaders."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Lamentine Shrike",
@@ -14310,7 +14405,8 @@
 						"When a creature within 30 feet of the shrike is reduced to 0 HP, the shrike can consume a small portion of the creature’s fleeing soul, regaining 5 (2d4) HP. 191 L L"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Lava Sprite",
@@ -14419,7 +14515,8 @@
 						"The ground cracks on a point the lava sprite can see within 60 feet of it, and a 10-foot-radius cloud of reeking sulfur appears centered on that point. The cloud spreads around corners, and its area is heavily obscured. A creature that enters the cloud’s area for the first time on a turn or starts its turn there must succeed on a DC 14 CON save or be poisoned until the start of its next turn. The cloud lasts for 1 minute, until the sprite dies, or until the sprite uses this bonus action again."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Least Drake",
@@ -14725,7 +14822,8 @@
 						"When the leshnydukh takes damage, the owl face on its shoulder can let out a piercing screech. Each hostile creature within 15 feet of the leshnydukh that can hear the screech must succeed on a DC 19 CON save or be stunned until the end of the leshnydukh’s next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Lethbloom Swarm",
@@ -15012,7 +15110,8 @@
 						"When a creature within 30 feet of the lingering shade makes a death save, the shade can pull at that creature’s soul, imposing disadvantage on the save. If the creature fails the save, the shade regains 7 (2d6) HP. 195 L L"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Living Loam",
@@ -15114,7 +15213,8 @@
 						"When a Beast, creature with the Animal tag, or Plant is reduced to 0 HP within 30 feet of the living loam, the loam can cause the earth around the creature to welcome it, burying the body and creating a burst of life. The area within 20 feet of that creature becomes difficult terrain."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Living Quicksand",
@@ -15330,7 +15430,8 @@
 						"When a creature within 15 feet of the luciva hits it with an attack, the luciva can call down radiant retribution. The attacker must succeed on a DC 16 DEX save or take 4 (1d8) radiant damage."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Luminous Lord",
@@ -15445,7 +15546,8 @@
 						"When a creature the Luminous Lord can see targets him with an attack, he can send a blinding beam at the creature. The attacker must succeed on a DC 17 CON save or be blinded until the start of the Luminous Lord’s next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Lustralichen Spider",
@@ -15727,7 +15829,8 @@
 						"When a creature the manax can see within 30 feet of it attacks it, the manax can curl up, exposing only its stony back. The attack’s damage is reduced by 4 (1d8). 199 M M"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Maroq",
@@ -16559,7 +16662,8 @@
 						"On occasion, certain humanoids might have need of a razor drake and enter into a bargain with one. Typically, such a deal would have the drake fight on behalf of said humanoids in exchange for metals. Given D D 118 the appetite and tastes of the razor drake, however, this can be an expensive arrangement and is usually only made by wealthy individuals or communities rich in such resources."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Monarch",
@@ -16772,7 +16876,8 @@
 						"The monster hunter moves up to its speed toward a hostile creature it can see."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Montarr",
@@ -16875,7 +16980,8 @@
 						"The montarr climbs up to half its climbing speed. This movement doesn’t provoke opportunity attacks."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Mothman",
@@ -16981,7 +17087,8 @@
 						"Each creature within 15 feet of the mothman must succeed on a DC 17 CHA save or take 18 (4d8) psychic damage and be cursed (as per Cursed Gaze). A creature within range that is already cursed automatically fails this save and the curse’s die increases by one step, from a d4 to a d6, a d6 to a d8, and so on (to a maximum of d12). 209 M M"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Mud Giant",
@@ -17368,7 +17475,8 @@
 						"When a creature the musculi can see misses it with an attack, the musculi can move up to half its speed without provoking opportunity attacks. 211 M M"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Mycoptyx",
@@ -17410,7 +17518,8 @@
 			],
 			"senses": [
 				"keensense 60 ft. (can’t sense beyond this radius)"
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Myrmeke",
@@ -17483,7 +17592,8 @@
 						"The myrmeke steals an object from one creature it can see within 5 feet of it. The target must succeed on a DC 12 DEX save or lose one object it is wearing or carrying of the myrmeke’s choice. The object must weigh no more than 10 pounds, can’t be a weapon, and can’t be wrapped around or firmly attached to the target."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Naavlashuk",
@@ -17593,7 +17703,8 @@
 						"They often take their duties too seriously, interpreting even the smallest disruptions, like pausing an acolyte’s meditation, as a threat to spiritual progression."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Nanuq",
@@ -17726,7 +17837,8 @@
 						"The nanuq teleports, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see. The origin and destination spaces must contain snow. 217 N N"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Negalzyn",
@@ -17909,7 +18021,8 @@
 						"While flying, the nightwing reaches down with its claws at one Medium or smaller creature it can see within 5 feet of it. The target must succeed on a DC 13 DEX save or be knocked prone and pinned beneath the nightwing. While pinned, the target is prone and restrained until the nightwing moves or until a creature takes an action to free the restrained creature by succeeding on a DC 13 STR check. A freed creature is freed into an unoccupied space within 5 feet of where it was pinned if the nightwing still occupies that space."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Nullifier",
@@ -18006,7 +18119,8 @@
 						"When a creature successfully casts a spell while within the nullifier’s Limited Antimagic Aura, the nullifier can cause arcane feedback to explode on the spellcaster. The spellcaster must succeed on a DC 14 DEX save or take 4 (1d8) force damage. 219 N N"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Nullphidian",
@@ -18130,7 +18244,8 @@
 						"Observers were originally created by ancient magic users to be spies, interrogators, and advisors. The creatures chafed under their masters’ yoke, however, and ultimately threw off their chains, using their powers to discover their masters’ weaknesses. Old grudges die hard, and today, observers innately distrust those who wield magic. Despite this, they often hire themselves out as spies, lead secret spy organizations, and sell information to the highest bidders—often to those bidders with the juiciest information to offer in return. AN OBSERVER’S LAIR Observers prefer lairs in dark, underground locations near humanoid settlements, such as abandoned mines or sewers. Their lairs typically play with light, shadows, and reflections, incorporating mirrors and similar reflective surfaces to visually disorient and confuse visitors, allowing the observer to watch or communicate with visitors from afar or while cleverly “hidden” within a reflection. LAIR ACTIONS On initiative count 20 (losing initiative ties), the observer can take a lair action to cause one of the following effects; the observer can’t use the same effect two rounds in a row: • Disorienting Reflections. Reflective surfaces within 15 feet of a point the observer can see within 120 feet of it shift subtly, bending reflected shapes and disrupting depth perception. Each creature in that area must succeed on a DC 17 INT save or have its speed halved until the end of its next turn. • Eye Vortex. Tiny eyes fly around and study up to two creatures the observer can see within 120 feet of it. The observer has advantage on the next attack roll it makes against each target or on the next save it makes against each target’s spells or other effects. • Nauseating Overload. Light and shadows rapidly blink and twist around up to three creatures the observer can see within 120 feet of it, overstimulating each creature’s vision. Each target must succeed on a DC 17 INT save or be incapacitated until the end of its next turn. REGIONAL EFFECTS An observer’s lair is warped by its psychic power, which creates one or more of the following effects: • Exposed Secrets. Secrets regularly come to light through random happenstance within 1 mile of the lair, from a dancer stumbling into a hidden assassin just before it strikes to a local dog playfully snatching a secret message from a messenger. 221 O O • Eyes Everywhere. The observer can choose to see through the eyes of any Beast or Humanoid within 1 mile of the lair. The affected creature experiences a brief bout of dizziness or double vision when it does so. • Observant Observers. Creatures within 3 miles of the lair that are actively seeking hidden information or details, such as a guard on a watchtower or a detective on a case, have advantage on the first INT (Investigation) or WIS (Perception) check they make each hour. If the observer dies, these effects fade in 1d10 days."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Observer",
@@ -18367,7 +18482,8 @@
 						"Bog ogres often fight with trolls over choice territory, but they tolerate green hags (see Monster Vault for both), occasionally working as guards, mercenaries, or other hired muscle for the fey. They distrust most other sentient creatures, though they aren’t immediately aggressive unless their home is threatened. Bog ogres can often be hired as guides if given an offering of fresh meat or mead."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Oliphaunt Warbeast",
@@ -18718,7 +18834,8 @@
 						"Young owlbears are rarely without a parent keeping watching nearby, but that doesn’t stop them from getting into mischief, like climbing through barn windows to feast on small livestock."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Patternmaster Minotaur",
@@ -18833,7 +18950,8 @@
 						"The patternmaster calls on the power of its maze and projects the maze’s confusing pattern into the mind of a creature it can see within 30 feet of it. The target must succeed on a DC 16 WIS save or become dizzy until the end of its next turn. While dizzy, the target has disadvantage on attack rolls, and its speed is halved. 207 M M"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Peak Warden",
@@ -19025,7 +19143,8 @@
 						"The golem hums toward one target it can see within 30 feet of it. The target must succeed on a DC 10 WIS save or be incapacitated until the end of its next turn. Each magic item within 5 feet of the target glows blue until the start of the golem’s next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Pelagic Dragonette",
@@ -19136,7 +19255,8 @@
 						"In the least drake’s stomach, the mélange of scavenged foods is purified into a highly flammable slurry, which it can exhale through its nose in a plume of noxious flame that propels the drake in the opposite direction and sickens surviving victims. This unstable concoction is prone to spontaneous detonation, especially when a drake is slain, and territorial displays between least drakes occasionally devolve into a chain of explosions and small brushfires. D D 116"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Phantasmid",
@@ -19230,7 +19350,8 @@
 						"The phantasmid teleports, along with any equipment it is wearing or carrying, up to 60 feet to an unoccupied space it can see and takes the Hide action. The origin and destination must be in dim light or darkness. 233 P P"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Phibbit",
@@ -19759,7 +19880,8 @@
 						"Psylocite colonies are rigidly hierarchical: each is led by a single star, who is served directly by no more than one hundred shards, each of which is in turn served by no more than one hundred splinters. If a shard becomes a star through its advancement, it breaks away from the colony and travels to form a new colony elsewhere in the Astral Plane, opening a connection to a different humanoid settlement on any of the countless possible worlds. In rare cases, multiple colonies will cooperate in a loose network led by a council composed of each colony’s star. Experiential Growth. Psylocite advancement is based on the knowledge and complex experiences gained through the telepathic bonds they create with humanoids. A splinter grows and advances to become a shard after it spends sixty full days bonded to at least ten different humanoids. A shard advances into a star after it spends three years bonded to at least one thousand different humanoids. Once a psylocite reaches the apex of its evolution as a star, it ceases growing and instead can choose to break off a new splinter after every hundred days of being bonded to at least one humanoid, provided its colony has fewer than ten thousand splinters. While stars can regularly create splinters, many splinters and stars can go years connected to only a handful of humanoids, experiencing all they can with those humanoids before moving on. This tendency keeps most colonies relatively small and slow growing, and it often endears those humanoids to the psylocites, viewing the aberrations less as mental invaders and more as close friends who share in their deepest secrets."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Potentate",
@@ -19996,7 +20118,8 @@
 						"When the shard takes damage, it can fly up to half its flying speed without provoking opportunity attacks."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Psylocite Splinter",
@@ -20086,7 +20209,8 @@
 						"When the splinter takes damage, it can fly up to half its flying speed without provoking opportunity attacks."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Psylocite Star",
@@ -20221,7 +20345,8 @@
 						"When the star takes damage, it can magically teleport, along with any equipment it is wearing or carrying, up to 120 feet to an unoccupied space it can see. 245 P P"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Pumpkin King",
@@ -20333,7 +20458,8 @@
 						"Each creature on the ground and grappled by the Pumpkin King must succeed on a DC 16 STR save or be restrained in place by roots, ending the grapple. A creature, including the target, can take its action to free the restrained creature by succeeding on a DC 16 STR check."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Pyroclasm",
@@ -20431,7 +20557,8 @@
 						"When a creature the pyroclasm can see attacks it with a weapon, the pyroclasm can shift the molten rocks in its body to absorb some of the blow, reducing the damage by 7 (2d6). 247 P P"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Quimbus",
@@ -20544,7 +20671,8 @@
 						"When the quimbus takes damage that isn’t necrotic, psychic, or radiant, it can use the force of the blow to spread its oil. Each creature within 10 feet of the quimbus is subjected to the quimbus’s Hallucinogenic Oil trait."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Raiju",
@@ -20770,7 +20898,8 @@
 						"The rampede can add 2 to its AC against one melee attack that would hit it, swinging its armored head in the way of the blow. To do so, it must see the attacker. 251 R R"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Rattus Eel",
@@ -20854,7 +20983,8 @@
 						"When the rattus eel takes damage, it can cough up an old meal. Each creature within 10 feet of the eel that can smell must succeed on a DC 10 CON save or be incapacitated until the end of its next turn. Rattus eels automatically succeed."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Razor Drake",
@@ -21258,7 +21388,8 @@
 						"Perhaps due to their time among the fey or as a side effect of their ancestors’ adaptation to shadow, umbral ogres have a taste for the memories of other sentient beings. Though they can subsist on more traditional foods, meals incorporating memories are a particular delight. These memories typically come from willing participants, but a desperate ogre addicted to particular memories might resort to forcibly extracting them from whomever they can catch. A victim of such violence is dazed and disoriented for hours or days afterward and often has no awareness of what was taken— or that anything was taken at all."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Rosetta",
@@ -21341,7 +21472,8 @@
 						"When a creature the rosetta can see moves to a space within 15 feet of the rosetta, it can cause tough brambles to grow and tangle around the creature’s legs. The creature must succeed on a DC 12 DEX save or be restrained until the end of its next turn. 255 R R"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Rune Lindwurm",
@@ -21472,7 +21604,8 @@
 						"Flamescale salamanders radiate heat, not only burning those who touch them but setting the very landscape alight. More than one village has been destroyed by one’s presence. While on the Material Plane, they are drawn to locales of volcanic activity, basking on the heated rocks and soaking in the lava pools."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Salvager",
@@ -21578,7 +21711,8 @@
 						"The salvager magically pulls one Medium or smaller metal object, Construct made primarily of metal, or creature wearing metal armor that it can see within 15 feet of it. If the target metal object is being worn or carried, the creature wearing or carrying the object is pulled if it doesn’t use a reaction to release the object. A metal object that isn’t being worn or carried is pulled up to 15 feet and into the salvager’s compartment. A pulled creature must succeed on a DC 15 STR save or be pulled up to 15 feet toward the salvager and grappled (escape DC 15) by the Grabbing Pincer, if the salvager isn’t already grappling a creature."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Samum",
@@ -21697,7 +21831,8 @@
 						"Deadeye giants revere something they call the Divine Pattern. They believe they work toward one true future—one in which they will be elevated and reign over others—and they believe their glimpses of the future are but small portions of this cosmic pattern. Those infected by the Thread of Chaos are driven out so that their disorder can’t disrupt the Pattern."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Sargassum Stalker",
@@ -21905,7 +22040,8 @@
 						"When the sawblade zephyr is the target of a ranged attack, it can cause swirling wind to redirect that attack toward another creature or point on the ground the zephyr can see within 30 feet of it, provided that target is within the attack’s range. The attacker must succeed on a DC 15 DEX save or the attack is redirected."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Scaled War Weasel",
@@ -22030,7 +22166,8 @@
 						"When a creature the scaled war weasel can see attacks a creature riding it, the weasel can curl around its rider, exposing its armored hide to the attack, and the weasel becomes the target of the attack instead. 261 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Scavenger",
@@ -22202,7 +22339,8 @@
 						"When a friendly scouring cicada uses Dust Storm within 10 feet of this scouring cicada, this cicada can enhance the storm. The dust storm’s radius increases by 5 feet, and its duration increases by 1 round for each cicada enhancing it, to a maximum of 60 feet and 1 minute. If a cicada used this reaction to enhance another cicada’s storm, it can’t use its Dust Storm bonus action while that storm is active."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Scuttleweb",
@@ -22316,7 +22454,8 @@
 						"The scuttleweb pulls one creature restrained by its Web Shot up to 30 feet toward it. Alternatively, the scuttleweb pulls itself up to 30 feet toward a creature restrained by its Web Shot. 263 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Sea Naga",
@@ -22426,7 +22565,8 @@
 						"While partially or wholly submerged in water, the sea naga dissolves into water and teleports, along with any equipment it is wearing or carrying, up to 120 feet to an unoccupied space it can see that is partially or wholly submerged in water."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Sea Snare",
@@ -22620,7 +22760,8 @@
 						"When a creature the searsprite can see attacks it, the searsprite can flare solar energy, and the attacker must succeed on a DC 12 DEX save or be blinded until the start of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Selkolla",
@@ -22747,7 +22888,8 @@
 						"Cats, deer, foxes, and rabbits proliferate in the wild glades around the halls, and bats and owls flit silently through the trees, whose long shadows crisscross a landscape painted in the flickers of eternal twilight. LAIR ACTIONS On initiative count 20 (losing initiative ties), Tynan can take a lair action to cause one of the following effects; she can’t use the same effect two rounds in a row: • Beast Parade. Bats, deer, foxes, owls, and other crepuscular animals come streaming through the area, a brief tide of frantic motion. The animals sweep through the area in a 60-foot line that is 15 feet wide before disappearing. Each hostile creature in the line must succeed on a DC 17 F F 134 DEX save or it has disadvantage on the next attack roll it makes and its speed is halved until initiative count 20 on the next round. • Long Shadows Linger. Up to three shadows stretch across the area, each a 60-foot line that is 10 feet wide, starting on points Tynan can see within 120 feet of her. Each line of shadow is 10 feet high and is magical darkness. The shadows last for 1 minute, until Tynan uses this lair action again, or until Tynan dies. • Twilight Orbs. Twilight falls on up to two points Tynan can see within 120 feet of her. The areas within 15 feet of each point change to magical dim light, brightening dark areas or darkening bright areas. Effects that create light or darkness, other than those created by Tynan or her lair, are suppressed while in this area. These areas of twilight last for 1 minute, until Tynan uses this lair action again, or until Tynan dies. REGIONAL EFFECTS The region containing Tynan’s lair is warped by her magic, which creates one or more of the following effects: • Emboldened Beasts. Crepuscular animals, those most active at dawn or dusk (such as bats, owls, nighthawks, deer, rabbits, and foxes), are more common within 5 miles of the lair, and they are bold, showing little to no fear toward humanoids. • Heightened Emotional States. Within 10 miles of the lair, creatures with an INT of −2 or higher have strong feelings of anticipation—whether this expresses itself as anxiousness or hopefulness depends on the individual—especially in liminal locations (passing through doorways or cave entrances, standing on the shore between land and sea, and similar) or at liminal moments (births, deaths, the end of an endeavor, the start of a new project, and similar). • Lingering Twilight. Within 10 miles of the lair, sunrises and sunsets seem to last for an unsettling amount of time, and within 1 mile of the lair, the land is shrouded in perpetual twilight. In this twilight, the position of the sun seems to switch from east to west and back again whenever one’s attention is distracted. If Tynan dies, these effects fade in 1d10 days."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Servitor of Abizeth",
@@ -22977,7 +23119,8 @@
 						"While in shadows, dim light, or darkness, the shadow fey confidante disappears into the darkness and reappears in an unoccupied space it can see within 30 feet. A tendril of inky smoke appears at the origin and destination when it uses this bonus action. 125 E E"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Shadow Hag",
@@ -23080,7 +23223,8 @@
 						"The shadow hag teleports, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see. The origin and destination spaces must be in dim light or darkness."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Shadowcaller",
@@ -23177,7 +23321,8 @@
 						"When the shadowcaller is attacked, it can teleport into the space of one of its duplicates, and the duplicate teleports into the space it left, becoming the new target of the attack."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Shanlayu",
@@ -23398,7 +23543,8 @@
 						"When a creature the shatterstar can see hits it with a melee attack while within 5 feet of it, the shatterstar can release a burst of pressurized air at the creature. The attacker must succeed on a DC 13 CON save or be blinded until the end of its next turn. 267 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Shimmer Mole",
@@ -23627,7 +23773,8 @@
 						"Stonefish drakes often hunt other burrowing creatures, and while prairie dogs, snakes, and ferrets make up a large portion of their diets, they find mirror drakes and rampedes (both in this book) especially delicious. This appetite leads many merchant caravans and remote communities to broker deals of protection with the drakes when plagued by those creatures."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Shrine Keeper",
@@ -23726,7 +23873,8 @@
 						"The shrine keeper magically teleports, along with any equipment it is wearing or carrying, up to 60 feet to an unoccupied space within the shrine it protects or within 30 feet of the exterior of the shrine. Swirls of fire the same color as the keeper appear at the origin and destination when it uses this bonus action. 269 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Sidhe Ox",
@@ -23815,7 +23963,8 @@
 						"The sidhe ox releases a deep, rumbling low in a 30-foot cone, calling to the earth. Plants in the area experience a sudden burst of growth, turning the area into difficult terrain until the start of the ox’s next turn. This difficult terrain doesn’t cost the ox extra movement."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Silt Lurker",
@@ -23906,7 +24055,8 @@
 						"The silt lurker rubs its algae-filled body against one creature it can see within 5 feet of it that is poisoned by it, enhancing the poison. The target must succeed on a DC 13 CON save or be paralyzed until the end of its next turn. VARIANT SILT LURKER: ICE ALGAE LURKER Some silt lurkers form when magical or alchemical run-off infuses arctic algae. A silt lurker symbiotically linked to ice algae is immune to cold damage, and its Toxic Rub action petrifies the target in ice instead of paralyzing. In addition, the ice algae lurker replaces its Algal Bloom action with the following: Freezing Spray (Recharge 5–6). The ice algae lurker releases shards of frozen ooze in a 30-foot cone. Each creature in the area must make a DC 13 DEX save, taking 5 (2d4) piercing damage and 10 (3d6) cold damage on a failed save, or half as much damage on a successful one. A creature that fails the save by 5 or more is also petrified in ice for 1 minute or until it takes fire damage. 271 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Skeleton Lord",
@@ -24053,7 +24203,8 @@
 						"The skeleton lord issues a stern command to up to three friendly Undead it can see within 30 feet of it. Each target’s AC increases by 2 until the end of its next turn, and each target gains 9 (2d8) temporary HP. 297 U U"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Skunk",
@@ -24182,7 +24333,8 @@
 						"The skunk raises its tail and sprays noxious gas in a 15-foot cone. Each creature in the area must make a DC 12 DEX save. On a failure, a creature takes 5 (2d4) poison damage, is poisoned for 1 minute, and stinks. On a success, a creature takes half the damage, is poisoned until the end of its next turn, and doesn’t stink. A poisoned creature can make a DC 12 CON save at the end of each of its turns, ending the effect on itself on a success. Until the creature that stinks spends 10 minutes washing with soap, creatures have advantage on WIS (Perception) checks to detect it by smell."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Slaughter Hide",
@@ -24266,7 +24418,8 @@
 						"The slaughter hide projects the pain and terror of its mortal life into the mind of one creature it can see within 30 feet of it. The target must succeed on a DC 13 WIS save or fall prone and be incapacitated until the end of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Sludge Mephit",
@@ -24366,7 +24519,8 @@
 						"The mephit casts the grease spell (spell save DC 11), requiring no material components and using WIS as the spellcasting ability."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Soarer",
@@ -24779,7 +24933,8 @@
 						"A lustralichen spider’s webbing is coated in the fungus’s spores, and those caught in it are subject to its hallucinogenic effects. When they are finally confronted by the spider, victims see multiple spiders on top of each other, uncertain of which is real and which is hallucination."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Spellweaver Ettercap",
@@ -24897,7 +25052,8 @@
 						"The spellweaver launches a gob of webbing at one creature it can see within 30 feet of it. The target must succeed on a DC 13 DEX save or be restrained. A creature, including the restrained target, can take its action to free the target from the webbing by succeeding on a DC 13 STR check. The webbing can also be attacked and destroyed (AC 10; HP 5; vulnerability to fire damage; immunity to bludgeoning, poison, and psychic damage). 127 E E"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Starspot Swarm",
@@ -25127,7 +25283,8 @@
 						"A wax golem, even one who has assumed the likeness of an individual, contains something dear to its creator. This is usually something significant that the creator associates with candlelight, such as the page from a book they read, an eating implement from a candlelit meal, or a scrap of fabric from a sleeping robe."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Stenar",
@@ -25229,7 +25386,8 @@
 						"When a friendly stenar this stenar can see within 30 feet of it is pushed, pulled, thrown, or otherwise moved outside its normal movement, this stenar can teleport, along with any equipment it is wearing or carrying, to an unoccupied space within 5 feet of that friendly stenar."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Stitchcloak",
@@ -25328,7 +25486,8 @@
 						"The souls in the stitchcloak’s cloak shriek and moan. Each creature within 15 feet of the stitchcloak must succeed on a DC 16 WIS save or be frightened until the end of its next turn. Creatures that are deafened are immune to this effect. 279 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Stone Sage",
@@ -25441,7 +25600,8 @@
 						"The stone sage causes the ground within 10 feet of a point the sage can see within 30 feet of it to soften and stick to the feet of nearby creatures. Each creature in the area must succeed on a DC 14 STR save or have its speed halved until the end of its next turn. A creature that fails the save by 5 or more is restrained until the end of its next turn instead."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Stone Sifter",
@@ -25551,7 +25711,8 @@
 						"The stone sifter burrows up to its burrowing speed, refilling with stone. It can immediately try to recharge its Stone Shower action. 281 S S"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Stonefish Drake",
@@ -25647,7 +25808,8 @@
 						"The stonefish drake burrows up to 15 feet, emerging from the ground and landing on the surface. It occupies a space of its choice within 5 feet of where it emerges, and each creature within 10 feet of that point must succeed on a DC 16 DEX save or be knocked prone in the drake’s space. Any creature that succeeds is pushed into an unoccupied space within 5 feet of the drake. If no unoccupied space is within range, the creature instead falls prone in the drake’s space. As the drake lands, its folded back sail bursts open, releasing a cloud of dust and sand in a 10-foot radius around the drake that lasts until the end of the drake’s next turn. A creature that enters the cloud for the first time on a turn or starts its turn there must succeed on a DC 16 CON save or have disadvantage on attack rolls until the end of its turn, as the cloud chokes it, disrupts its vision, or similarly hinders it."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Storm Mephit",
@@ -25744,7 +25906,8 @@
 						"The mephit casts the thunderwave spell (spell save DC 11), using CHA as the spellcasting ability. 205 M M"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Storm Serpent",
@@ -25987,7 +26150,8 @@
 						"Servitors of Abizeth are devils created specifically by and to serve Abizeth and act as his intermediaries when dealing with mortals. These devils exploit any weaknesses of personality a mortal might possess, playing on vanity, insecurity, or hot-headedness, and manipulate the mortal into exacting bloody vengeance, forever marking their soul for Abizeth. Despite the servitors’ monstrous appearance, they radiate an aura of nobility, saving their menace instead for the enemies of those entreating for their master’s aid. ABIZETH’S LAIR Abizeth’s fortress lies at the center of a war-torn and ravaged land. Great war engines stand on wide walls behind battlements more than a dozen times taller than a human. Bearded devils man the walls and gates, led by Abizeth’s servitor devils. At its heart, Abizeth sits upon a D D 94 morbid throne made from the bones of fallen enemies. Here, he plots, listening to the angry howls of souls consumed by vengeance, both outside the castle and in the mortal realm. When encountered in his lair, Abizeth has a challenge rating of 22. LAIR ACTIONS On initiative count 20 (losing initiative ties), Abizeth can take a lair action to cause one of the following effects; Abizeth can’t use the same effect two rounds in a row: • Fog of War. Magical fog fills a 20-foot-radius sphere centered on a point Abizeth can see within 120 feet of him. The fog spreads around corners and its area is lightly obscured. Those within the fog have their anger heightened by the fog’s magical effects. A creature that isn’t a Fiend or Undead and that starts its turn in the fog must succeed on a DC 21 WIS save or immediately use its reaction to make one melee attack against a random creature within 5 feet of it, as it is temporarily overcome with rage. The fog lasts for 1 minute, until Abizeth uses this lair action again, or until Abizeth dies. • Gout of Flame. A blast of flame erupts from a point on a surface Abizeth can see within 120 feet of him. Each creature in a 30-foot cone from that point must make a DC 21 DEX save. On a failure, a creature takes 21 (6d6) fire damage and catches fire; until a creature takes an action to douse the fire, the target takes 7 (2d6) fire damage at the start of each of its turns. On a success, the target takes half the damage and doesn’t catch fire. • River of Blood. Blood flows in a 120-foot line that is 10 feet wide and 1 inch deep across the ground, starting from a point Abizeth can see within 120 feet of him. The river’s area is difficult terrain, and any creature that enters or moves through the area must succeed on a DC 21 DEX save or fall prone at the end of its movement. The DC increases by 1 for every 5 feet the creature moves through the river beyond the first 5 feet. The river lasts for 1 minute, until Abizeth uses this lair action again, or until Abizeth dies. REGIONAL EFFECTS The region surrounding Abizeth’s lair is warped by his magic, which creates one or more of the following effects: • Crowing Death. Hellish crows infest the land within 5 miles of the lair, clustering on trees and picking over any dead they find. They regularly circle overhead, croaking and harassing travelers, and their constant presence makes traveling without being noticed more difficult. • Stoked Fires. Humanoids near the lair become bold and brash, but they are more susceptible to tales of treachery and betrayal. A creature has disadvantage on CHA (Intimidation) checks against a Humanoid that has spent at least 24 hours within 10 miles of the lair. In addition, a creature has advantage on CHA (Persuasion) checks to convince such a Humanoid they have been betrayed or wronged. • Whispering Fog. Dense banks of fog drift within 1 mile of the lair, lightly obscuring the area. A creature inside a fog bank hears terrible whispers and sees shadowy forms moving in a threatening manner on the edge of hearing or vision, making it difficult to tell between illusory and real threats. If Abizeth dies, these effects fade in 1d10 days."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Swamp Stalker",
@@ -26671,7 +26835,8 @@
 						"When a creature the swarmskin can see within 10 feet of it damages it, the swarmskin can send stinging insects out of the wound toward the creature. The target must make a DC 15 DEX save, taking 5 (2d4) necrotic damage on a failed save, or half as much damage on a successful one."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Taiga Crawler",
@@ -26766,7 +26931,8 @@
 						"The taiga crawler rears up and slams into the ground with a roar, preparing to charge. Each creature within 10 feet of it must succeed on a DC 16 STR save or be knocked prone. At the start of its next turn, the crawler moves up to 20 feet in a straight line and can move through the space of any Huge or smaller creature, roaring and flinging acidic spittle as it does. The first time it enters a creature’s space during this move, that creature must succeed on a DC 16 STR save or take 3 (1d6) acid damage, be pushed up to 10 feet away from the crawler, and be knocked prone. A creature that failed the save from the initial slam has disadvantage on this save and takes twice as much acid damage. 285 T T"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Thief Lord",
@@ -26949,7 +27115,8 @@
 						"The thorn stag chooses a point on the ground it can see within 30 feet of it and calls plants to spring up. Each creature within 10 feet of that point must succeed on a DC 13 STR save or be restrained until the start of the stag’s next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Thronebound",
@@ -27122,7 +27289,8 @@
 						"When the thundrux is hit by a melee attack using a manufactured weapon, it can emit sonic waves that send painful vibrations through the weapon. The attacker must succeed on a DC 19 STR save or drop the weapon."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Tinder Wyrm",
@@ -27360,7 +27528,8 @@
 						"Stories persist among void trolls that a cult called the Hollow Hunger have learned to control their rampant hunger, gaining clarity of mind and purpose. However, none have ever seen actual members of the cult, and many believe the Hollow Hunger is just a story told to give void trolls some measure of hope."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Tress Lizard",
@@ -27539,7 +27708,8 @@
 						"One creature grappled by the truescale must succeed a DC 13 STR save or take 4 (1d8) bludgeoning damage and begin suffocating. The creature continues suffocating until the grapple ends."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Tunnel Rumbler",
@@ -27656,7 +27826,8 @@
 						"Necromantic energy seeps out from a skeleton lord, coating its blade and imbuing the weapon with the power to slice through a creature’s lifeforce. These undead lords are masterful tacticians and often serve as generals for liches or powerful necromancers."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Tynan",
@@ -28038,7 +28209,8 @@
 						"The unearthed deposits one creature it is grappling into a shallow hole in the ground, burying the creature and ending the grapple. A buried creature is restrained and unable to breathe or stand up. A creature, including the buried creature, can take its action to free the buried creature by succeeding on a DC 17 STR check."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Unflamed",
@@ -28163,7 +28335,8 @@
 						"Vampire ants are favored pets of vampires. The substance produced by the larvae is a delicacy known as “ant wine,” and many vampires keep pits of larvae. Some vampires are particularly proud of their ant wine vintages and breed the ants for their taste."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Vampire Ant",
@@ -28247,7 +28420,8 @@
 						"The vampire ant siphons lifeforce from a swarm of vampire ant larvae within 5 feet of it. If the swarm has temporary HP, it loses up to 5 (2d4) temporary HP, and the ant regains HP equal to that amount."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Veiled Passenger",
@@ -28347,7 +28521,8 @@
 						"When a creature the veiled passenger can see within 60 feet of it attacks it with a weapon, the passenger can lash out psychically at the weapon, imposing disadvantage on the attack roll. 301 V V"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Veilworm",
@@ -28461,7 +28636,8 @@
 						"When a bonded ally the veilworm can see is attacked, the veilworm can move up to 20 feet toward that ally without provoking opportunity attacks. If it ends this movement within 5 feet of the ally, the veilworm becomes the target of the attack instead."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Venture Priest",
@@ -28649,7 +28825,8 @@
 						"The dragon exhales a sweet-smelling gas in a 15-foot cone. Each creature in that area must succeed on a DC 11 CHA save or be distracted for 1 minute. When a distracted creature casts a spell, it must succeed on a DC 11 CHA save or be unable to cast the spell, using the action, bonus action, or reaction to cast the spell but not expending the spell slot."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Vikalver",
@@ -28756,7 +28933,8 @@
 						"The vikalver adds 3 to its AC against one melee attack that would hit it. To do so, the vikalver must see the attacker and be wielding a melee weapon. If the triggering attack misses and the attacker is within 5 feet of it, the vikalver can kick, punch, or headbutt the attacker, dealing 5 (2d4) bludgeoning damage. 303 V V"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Viridian Queen",
@@ -28885,7 +29063,8 @@
 						"The void harbinger’s key power is its ability to tear open rifts to the Void. Minor tears stay open briefly, allowing the harbinger to channel Void energy at its enemies, summon void-touched servitors, or destroy local terrain. After establishing a foothold, a void harbinger can summon larger forces and cause expanding damage to the surrounding terrain. When all resistance on a world has been eliminated, the harbinger causes the rifts to grow and proliferate, a process that ultimately ends with the utter consumption of the world. REGIONAL EFFECTS A void harbinger has no true lair, but the region where it secures a foothold in a world is altered by its void energy, which creates one or more of the following effects: • Before the Silence. Unsettling sounds randomly echo within the area claimed as the harbinger’s foothold. These sounds spook wildlife, making hunting nearly impossible in the area, and unnerve most humanoids. • Sudden Decay. Nonmagical plants within the area claim as the harbinger’s foothold shrivel and decay within 7 days of the foothold being established, losing their color and vitality. • Void Patches. Areas of darkness and extreme cold measuring 100 feet to a side accumulate throughout the area claimed as the harbinger’s foothold. Nonmagical light doesn’t work in these areas, and a creature that spends at least 1 hour in such an area suffers the effects of extreme cold (see Player’s Guide ). These effects fade 1d6 days after the void harbinger dies or leaves the area for at least 24 hours."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Void Harbinger",
@@ -29268,7 +29447,8 @@
 						"When a creature deals damage to the voltaic newt while within 15 feet of it, the newt can send a spark of lightning at the creature. The target must succeed on a DC 13 DEX save or take 3 (1d6) lightning damage. VARIANT: RADIANT NEWT During a trip to the Material Plane long ago, an angel fell in love with the adorable voltaic newt and brought dozens back home as pets. The angel was eventually commanded to return the newts, who had unknowingly been changed by the celestial realms’ radiant power. Radiant newts typically inhabit river deltas and oases in sun-soaked regions. A radiant newt is resistant to the blinded condition instead of incapacitated and replaces all instances of lightning damage in its statistics with radiant damage. In addition, it replaces the voltaic newt’s Electric Discharge action with the following: Blinding Beam (Recharge 5–6). The newt exhales brilliant energy in a 30-foot line that is 5 feet wide. Each creature in the line must make a DC 13 DEX save. On a failure, a creature takes 10 (3d6) radiant damage and is blinded until the end of its next turn. On a success, a creature takes half the damage and isn’t blinded. 307 V V"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Vulkeen",
@@ -29385,7 +29565,8 @@
 						"When the vulkeen takes damage, it can force smoke to briefly seep from its wounds. Each creature within 10 feet of the vulkeen must succeed on a DC 17 CON save or have disadvantage on attack rolls until the end of its next turn, as it chokes on the smoke."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "War Giant",
@@ -29475,7 +29656,8 @@
 						"The war giant calls out one of the following commands to up to three friendly creatures within 30 feet of it that can hear it: • Charge! Each target can immediately move up to half its speed without provoking opportunity attacks and has advantage on the next attack roll it makes before the start of the giant’s next turn. • Defensive Formation! Each target can immediately move up to half its speed toward the war giant without provoking opportunity attacks. Each target that ends this movement within 5 feet of the giant or another target of this command gains a +2 bonus to its AC until the start of the giant’s next turn. • Hold Steady! Each target can’t be pushed or knocked prone until the start of the giant’s next turn, and each target gains 7 (2d6) temporary HP."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "War Pig",
@@ -29637,7 +29819,8 @@
 						"A wasteborn despoiler’s otherworldly power attracts other badlands denizens, forming them into a band of marauders. A powerful runner, the despoiler encourages its followers to build great vehicles or tame mighty mounts to keep the band highly mobile. In this way, the despoiler and its marauders can strike settlements and escape in a cloud of dust. The despoiler assumes a prominent position during raids so its followers, and its enemies, can see it and know their doom rides toward them . A WASTEBORN DESPOILER’S LAIR A wasteborn despoiler makes its lair in badlands, forming a remote encampment for it and its followers. The encampment is typically close to rocky outcroppings with a view of the surrounding area. When encountered in its lair, a wasteborn despoiler has a challenge rating of 21. LAIR ACTIONS On initiative count 20 (losing initiative ties), the wasteborn despoiler can take a lair action to cause one of the following effects; the wasteborn despoiler can’t use the same effect two rounds in a row: • Castigating Terrain. The ground erupts on a point the wasteborn despoiler can see within 120 feet of it. Each creature within 15 feet of that point must succeed on a DC 20 DEX save or take 9 (2d8) bludgeoning damage and be knocked prone. The area then becomes difficult terrain until initiative count 20 on the next round. W W 310 • Detritus Barrage. A barrage of rocks, debris, and makeshift weapons strike a point the wasteborn despoiler can see within 60 feet of it. Each creature within 20 feet of that point must make a DC 20 DEX save, taking 10 (3d6) bludgeoning, piercing, or slashing damage (the despoiler’s choice) on a failure, or half as much damage on a success. • Dust Squall. A 30-foot-radius cloud of swirling dust coalesces centered on a point the wasteborn despoiler can see within 120 feet of it. The cloud spreads around corners. A creature that enters the cloud for the first time on a turn or starts its turn there must succeed on a DC 20 CON save or take 5 (2d4) slashing damage and be blinded until the end of its next turn. The despoiler can choose for any number of its allies to not be affected. The dust cloud lasts for 1 minute, until the despoiler uses this lair action again, or until the despoiler dies. REGIONAL EFFECTS The region containing a wasteborn despoiler’s lair is warped by its presence, which creates one or more of the following effects: • Dust Storms. Dust constantly swirls in storms within 3 miles of the despoiler’s lair. Creatures in the area, other than the despoiler’s followers, have disadvantage on WIS (Perception) checks that rely on vision. • Roiled Wildlife. Beasts and creatures with the Animal tag within 10 miles of the despoiler’s lair become excessively aggressive and randomly attack Humanoids. Such creatures that have been tamed by the despoiler or its followers aren’t affected. • Uncovered Secrets. Entrances leading to long-buried objects and creatures randomly open within 5 miles of the despoiler’s lair. If the wasteborn despoiler dies, these effects fade in 1d10 days."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Wasteborn Despoiler",
@@ -29928,7 +30111,8 @@
 						"Gorelings tend to gather in swarms, but when they do, they are also harder to control. Necromancers often limit themselves to creating only a handful of gorelings at a time to avoid being overrun."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Waxworker Devil",
@@ -30254,7 +30438,8 @@
 						"As kelp wights claim their victims, the wretched creatures arise as shambling zombies under the wights’ control. The wights use the zombies to besiege coastal towns or to lure more prospective victims to their shoreline lairs."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Wind Leech",
@@ -30348,7 +30533,8 @@
 						"Withered elders see themselves as agents of the natural order. They act only in service of ruin, and they can’t be convinced to turn from that path. They are canny, and often ancient, opponents, and they aren’t prone to underestimating an enemy. When a withered elder downs a foe, it takes the time to ensure that foe is dead and rife with decay before moving on to the next one. A WITHERED ELDER’S LAIR Seeing themselves as unparalleled masters of the wilds, withered elders shun the company of any that might see themselves as an equal. They lair in underground complexes overrun with fungi or the ruins of settlements destroyed by nature’s wrath. Their lairs are filled with blight-altered plants and animals, natural traps, and obstructing topography. When encountered in its lair, a withered elder has a challenge rating of 15. LAIR ACTIONS On initiative count 20 (losing initiative ties), the withered elder can take a lair action to cause one of the following effects; the withered elder can’t use the same effect two rounds in a row: • Absorb Life. One Beast or Plant the withered elder can see within 90 feet of it withers and dies, restoring 10 HP per that creature’s CR to the withered elder. Nonmagical plants in a 5-foot radius centered on a point the withered elder can see within 90 feet of it wither and die. The elder then regains 10 (3d6) HP. If that area includes a Beast, Humanoid, or Plant, the elder regains 13 (3d8) HP instead. When the elder regains HP from an area of nonmagical plants, it can’t regain HP from that same area of nonmagical plants again with this lair action. • Foul Miasma. A cloud of corruption billows from a point the withered elder can see within 120 feet of it. Each creature within 15 feet of that point must succeed W W 316 on a DC 19 CON save or take 7 (2d6) poison damage, be poisoned, and be vulnerable to poison damage until initiative count 20 on the next round. • Wither Flesh. The flesh of up to three creatures that aren’t Constructs or Undead the withered elder can see within 60 feet of it withers. Each creature must succeed on a DC 19 CON save or take 9 (2d8) necrotic damage and gain only half the HP from effects that restore HP until initiative count 20 on the next round. REGIONAL EFFECTS The region housing a withered elder’s lair is wounded by its presence, which creates one or more of the following effects: • Heavy Air. The air is thick and heavy within 3 miles of the withered elder’s lair. Flying speeds are halved in this area. • Sense Life. The withered elder can detect the presence of creatures that aren’t Constructs, Plants, or Undead within 1 mile of its lair. If such a creature comes within half a mile of its lair, the withered elder immediately knows the type, size, and CR or level of the creature. • Shifting Topography. The land within 5 miles of the withered elder’s lair slowly and subtly shifts throughout the day. Formerly reliable trails and passages end abruptly or in a different location. Landmarks change position. A creature that attempts to navigate through the area has disadvantage on checks to do so. If the withered elder is destroyed, these effects fade in 1d10 days."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Withered Elder",
@@ -30606,7 +30792,8 @@
 						"The wood flitkith magically manipulates a piece of wood worn by a creature within 60 feet of it, causing one of the following effects: • Rearrange Supports. The wooden supports in the target’s backpack shift, throwing off balance. The target must succeed on a DC 13 DEX save or have disadvantage on attack rolls until the end of its next turn. • Unbutton Gear. Wooden buttons, toggles, and similar connectors disconnect pieces of clothing or equipment. The target must succeed on a DC 13 DEX save or its speed is halved until it takes an action to reconnect them. • Warp Weapon. The target must succeed on a DC 13 STR save or a wooden weapon it wields deals only half the normal damage until the end of its next turn."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Wooly Hippopotamus",
@@ -30900,7 +31087,8 @@
 						"The wrath wight vents its wrath in a mind- shaking scream at one creature it can see within 30 feet of it. The target must succeed on a DC 16 WIS save or be overcome with a fit of rage on its next turn. While in a fit of rage, a creature has advantage on melee attack rolls, it is unable to distinguish friend from foe, and it must attack the nearest creature other than the wrath wight. If no other creature is near enough to move to and attack, the target stalks off in a random direction, seeking a target for its rage."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Wrestler",
@@ -31515,7 +31703,8 @@
 						"Individual broodlings that survive longer than a few weeks often become favored pets of their aberrant hosts or even of mortal cultists, perhaps receiving names or perches of honor or being draped in small decorations. Such connections might result in disproportionate retribution when said honored broodling falls in battle."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Zombie Lord",
@@ -31652,7 +31841,8 @@
 						"The zombie lord uses Undead Horde."
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		},
 		{
 			"name": "Zwölfhulk",
@@ -31774,7 +31964,8 @@
 						"At the GM’s discretion, some of the creatures in this appendix can be added to the list of animal forms available to a spellcaster via the create familiar or find familiar spells. Those creatures are: giant honey bee, opossum, and skunk. In addition, this book features other familiars that might have specific requirements, such as only serve spellcasters that craft items, or might require permission from a GM before choosing them as familiars. The Additional Familiars table lists where these familiars can be found in this book. ADDITIONAL FAMILIARS FAMILIAR PAGE Dragonette, Pelagic 115 Eldritch Sable 123 Fire Cat 140 Flitkith, Cloth 141 Flitkith, Metal 142 Flitkith, Wood 142 Gluckshund 159 Mephit, Glass 204 Mephit, Sludge 205 Mephit, Storm 205 Musculi 211 Searsprite 265"
 					]
 				}
-			]
+			],
+			"hasFluffImages": true
 		}
 	]
 }
