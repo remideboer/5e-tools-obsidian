@@ -74,6 +74,7 @@ for (const [pageNo, group] of byPage) {
 	}));
 	if (files.every(item => fs.existsSync(path.join(IMG_DIR, item.file)))) {
 		for (const item of files) {
+			item.monster.ent.hasFluffImages = true;
 			fluff.push(fluffEntry(item.monster.name));
 			pictures += 1;
 		}
@@ -84,6 +85,7 @@ for (const [pageNo, group] of byPage) {
 		const image = images[index] || (index === 0 ? images[0] : null);
 		if (!image) return;
 		fs.writeFileSync(path.join(IMG_DIR, item.file), image);
+		item.monster.ent.hasFluffImages = true;
 		fluff.push(fluffEntry(item.monster.name));
 		pictures += 1;
 	});

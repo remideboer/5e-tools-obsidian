@@ -136,6 +136,7 @@ for (const raw of tov) {
 	if (fs.existsSync(srcImg)) {
 		fs.copyFileSync(srcImg, destImg);
 		pictures += 1;
+		ent.hasFluffImages = true;
 		fluff.push({
 			name: ent.name,
 			source: "ToV",
@@ -151,6 +152,7 @@ for (const raw of tov) {
 		});
 	} else if (fs.existsSync(destImg)) {
 		pictures += 1;
+		ent.hasFluffImages = true;
 		fluff.push({
 			name: ent.name,
 			source: "ToV",
