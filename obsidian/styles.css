@@ -1965,7 +1965,27 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	padding: 0.35em 0.75em;
 	border-radius: 8px;
 	pointer-events: none;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.1em;
+	white-space: normal;
+	text-align: center;
+}
+
+.fiveetools-roll-popup__line {
 	white-space: nowrap;
+}
+
+.fiveetools-view .fiveetools-hit-roll,
+.fiveetools-view .fiveetools-or-roll,
+.fiveetools-dmscreen .fiveetools-hit-roll,
+.fiveetools-dmscreen .fiveetools-or-roll,
+.fiveetools-hover-card .fiveetools-hit-roll,
+.fiveetools-hover-card .fiveetools-or-roll {
+	cursor: pointer;
+	color: var(--text-accent);
+	text-decoration: underline dotted;
 }
 
 .fiveetools-creature-footer__row {

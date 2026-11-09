@@ -231,10 +231,16 @@ function jpegWithDpi (dpi) {
 		? "1 : FAIL!"
 		: hitDie === 20
 			? "20 : CRITICAL!"
-			: `${hitDie} + 5: ${hitRoll.total}`;
+			: `${hitDie} + 5: ${hitRoll.total} to hit`;
 	if (notice !== expectHit) throw new Error(`hit notice ${notice}`);
-	const dmgNotice = host.formatRollNotice(host.rollPacked(Renderer.utils.getTagEntry("@damage", "2d6+3")));
-	if (/d6/i.test(dmgNotice) || !/\d+ \+ 3: \d+/.test(dmgNotice)) throw new Error(`damage notice ${dmgNotice}`);
+	const dmgPacked = host.rollPacked(Renderer.utils.getTagEntry("@damage", "2d6+3|display|Scimitar|slashing"));
+	const dmgNotice = host.formatRollNotice({...dmgPacked, showLabel: true, label: "Scimitar"});
+	if (!/Scimitar \d+ slashing damage/.test(dmgNotice)) throw new Error(`damage notice ${dmgNotice}`);
+	const rechEntry = Renderer.utils.getTagEntry("@recharge", "5");
+	rechEntry.name = "Fire Breath";
+	const rechRoll = host.rollPacked(rechEntry);
+	const rechNotice = host.formatRollNotice({...rechRoll, showLabel: true, label: "Fire Breath"});
+	if (!/^Fire Breath \d+: (Recharged!|Did not recharge)$/.test(rechNotice)) throw new Error(`recharge notice ${rechNotice}`);
 	console.log("cr", crPart);
 	const tokenUrl = Renderer.monster.getTokenUrl(ent);
 	console.log("tokenUrl", tokenUrl);

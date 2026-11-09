@@ -1015,10 +1015,23 @@ export function spellListTag (spell, hit) {
 function namedDamageTag (damageTag, label) {
 	const raw = String(damageTag || "").trim();
 	if (!raw || !label) return raw;
-	const m = raw.match(/^\{@(damage|dice)\s+([^}|]+)(?:\|[^}]*)?\}$/i);
+	const m = raw.match(/^\{@(damage|dice)\s+([^}|]+)(?:\|([^}]*)?)?\}$/i);
 	if (!m) return raw;
-	return `{@${m[1].toLowerCase()} ${m[2].trim()}||${label}}`;
+	const kind = m[1].toLowerCase();
+	const dice = m[2].trim();
+	const rest = String(m[3] || "");
+	const parts = rest.split("|").map(p => p.trim());
+	// Tag shape: {@damage dice|display|name|damageType}
+	// Keep a trailing damage type if present (often sole segment when we stash |||type).
+	const type = parts.reverse().find(p => p && !p.includes(" ") && DAMAGE_TYPE_SET.has(p.toLowerCase())) || "";
+	if (kind === "damage" && type) return `{@damage ${dice}||${label}|${type.toLowerCase()}}`;
+	return `{@${kind} ${dice}||${label}}`;
 }
+
+const DAMAGE_TYPE_SET = new Set([
+	"acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic",
+	"piercing", "poison", "psychic", "radiant", "slashing", "thunder",
+]);
 
 function spellsFromEnt (ent) {
 	const out = [];

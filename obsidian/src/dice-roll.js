@@ -10,10 +10,11 @@ export function rollPacked (entry, evt = {}) {
 	const Renderer = globalThis.Renderer;
 	if (!Renderer?.dice || !entry) return {label: "Roll", notation: "", total: null, dice: [], totals: []};
 	const packed = JSON.parse(JSON.stringify(entry));
+	if (packed.toRoll != null) packed.toRoll = normalizeDiceNotation(packed.toRoll);
 	const shiftKey = !!evt.shiftKey;
 	const ctrlKey = !!(evt.ctrlKey || evt.metaKey);
 	const meta = Renderer.dice.getEventModifiedRollMeta({shiftKey, ctrlKey, metaKey: ctrlKey}, packed);
-	const notation = String(meta.entry?.toRoll || packed.toRoll || "");
+	const notation = normalizeDiceNotation(meta.entry?.toRoll || packed.toRoll || "");
 	const count = Math.max(1, Number(meta.rollCount) || 1);
 	const totals = [];
 	const dice = [];
@@ -23,6 +24,11 @@ export function rollPacked (entry, evt = {}) {
 		totals.push(lastOnce.total);
 		dice.push(...lastOnce.dice);
 	}
+	const successThresh = packed.successThresh != null ? Number(packed.successThresh) : null;
+	const successMax = packed.successMax != null ? Number(packed.successMax) : null;
+	const rechargeOk = successThresh != null
+		? lastOnce.total > (successMax || 100) - successThresh
+		: null;
 	return {
 		label: packed.name || packed.displayText || notation || "Roll",
 		notation,
@@ -34,6 +40,13 @@ export function rollPacked (entry, evt = {}) {
 		subType: packed.subType || "",
 		context: packed.context || null,
 		mode: rollMode(packed.subType, shiftKey, ctrlKey),
+		damageType: packed.damageType || "",
+		successThresh,
+		successMax,
+		chanceSuccessText: packed.chanceSuccessText || "Recharged!",
+		chanceFailureText: packed.chanceFailureText || "Did not recharge",
+		displayText: packed.displayText || "",
+		rechargeOk,
 	};
 }
 
@@ -56,10 +69,24 @@ export function rollInitiative (bonus, evt = {}, label = "Initiative") {
 export function formatRollNotice (result) {
 	if (result?.total == null) return "Could not roll.";
 	const prefix = result.showLabel && result.label ? `${result.label} ` : "";
+	if (result.successThresh != null) {
+		const outcome = result.rechargeOk
+			? (result.chanceSuccessText || "Recharged!")
+			: (result.chanceFailureText || "Did not recharge");
+		return `${prefix}${result.total}: ${outcome}`;
+	}
 	if (result.context?.type === "hit") {
 		const nat = Number(result.diceTotal);
 		if (nat === 1) return `${prefix}1 : FAIL!`;
 		if (nat === 20) return `${prefix}20 : CRITICAL!`;
+		return `${prefix}${formatBreakdown(result)}: ${result.total} to hit`;
+	}
+	if (result.subType === "damage") {
+		const type = String(result.damageType || "").trim().toLowerCase();
+		const typePart = type ? ` ${type}` : "";
+		const mode = result.mode ? ` (${result.mode})` : "";
+		const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
+		return `${prefix}${result.total}${typePart} damage${mode}${extra}`;
 	}
 	const mode = result.mode ? ` (${result.mode})` : "";
 	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
@@ -83,22 +110,37 @@ function formatBreakdown (result) {
  * @returns {Promise<object>} resolves with `result` when the popup is shown
  */
 export function presentRoll (plugin, result) {
-	const text = formatRollNotice(result);
+	return presentRolls(plugin, result == null ? [] : [result]).then(() => result);
+}
+
+/**
+ * Show one or more roll lines in a stacked popup.
+ * @returns {Promise<object[]>}
+ */
+export function presentRolls (plugin, results) {
+	const list = (results || []).filter(it => it?.total != null);
+	if (!list.length) return Promise.resolve(results || []);
+	const lines = list.map(formatRollNotice);
 	const docs = rollDocuments(plugin);
-	if (result?.total != null && plugin?.settings?.dice3d) {
+	if (plugin?.settings?.dice3d) {
+		// One 3D roll for all dice — concurrent roller.roll calls hang and skip the popup.
+		const combined = {
+			dice: list.flatMap(it => it.dice || []),
+			total: list.reduce((sum, it) => sum + (Number(it.total) || 0), 0),
+		};
 		const waits = docs.map((doc) => {
 			const win = doc.defaultView || window;
-			return Promise.resolve(showDice3d(plugin, result, doc)).then(() => new Promise((resolve) => {
+			return Promise.resolve(showDice3d(plugin, combined, doc)).then(() => new Promise((resolve) => {
 				win.setTimeout(() => {
-					showRollPopup(text, doc);
+					showRollPopupLines(lines, doc);
 					resolve();
 				}, 500);
 			}));
 		});
-		return Promise.all(waits).then(() => result);
+		return Promise.all(waits).then(() => list);
 	}
-	for (const doc of docs) showRollPopup(text, doc);
-	return Promise.resolve(result);
+	for (const doc of docs) showRollPopupLines(lines, doc);
+	return Promise.resolve(list);
 }
 
 function rollDocuments (plugin) {
@@ -114,9 +156,15 @@ function rollDocuments (plugin) {
 	return docs;
 }
 
-function showRollPopup (text, doc = document) {
+function showRollPopupLines (lines, doc = document) {
 	const el = ensureRollPopup(doc);
-	el.textContent = text;
+	el.replaceChildren();
+	for (const text of lines) {
+		const line = doc.createElement("div");
+		line.className = "fiveetools-roll-popup__line";
+		line.textContent = text;
+		el.appendChild(line);
+	}
 	el.style.display = "";
 	const win = doc.defaultView || window;
 	const prev = popupTimers.get(doc);
@@ -185,38 +233,203 @@ export function appendTextWithDiceRollers (host, text) {
 
 export function bindDiceRollers (el, plugin) {
 	if (!el?.addEventListener) return;
+	markDamageTriggers(el);
 	if (el.dataset.fiveetoolsDiceBound === "1") return;
 	el.dataset.fiveetoolsDiceBound = "1";
 	el.addEventListener("click", (evt) => {
 		const roller = evt.target.closest?.(".render-roller[data-packed-dice]");
-		if (!roller || !el.contains(roller)) return;
-		evt.preventDefault();
-		evt.stopPropagation();
-		let packed;
-		try {
-			packed = JSON.parse(roller.getAttribute("data-packed-dice"));
-		} catch (_) {
+		if (roller && el.contains(roller)) {
+			evt.preventDefault();
+			evt.stopPropagation();
+			const result = rollFromRoller(roller, evt);
+			if (result) presentRoll(plugin, result);
 			return;
 		}
-		const named = resolveRollerName(roller, packed);
-		if (named) packed.name = named;
-		const result = rollPacked(packed, evt);
-		if (named) {
-			result.label = named;
-			result.showLabel = true;
-		}
-		presentRoll(plugin, result);
+		const trigger = evt.target.closest?.("[data-hit-roll], [data-or-roll]");
+		if (!trigger || !el.contains(trigger)) return;
+		evt.preventDefault();
+		evt.stopPropagation();
+		const results = rollDamagesFromTrigger(trigger, evt);
+		if (results.length) presentRolls(plugin, results);
 	}, true);
 }
 
-function resolveRollerName (roller, packed) {
-	const attr = roller.getAttribute("data-roll-name");
-	if (attr) return String(attr).trim();
-	if (packed?.name) return String(packed.name).trim();
+function markDamageTriggers (root) {
+	for (const node of root.querySelectorAll?.("i") || []) {
+		if (node.dataset.hitRoll) continue;
+		if (String(node.textContent || "").trim() !== "Hit:") continue;
+		node.dataset.hitRoll = "1";
+		node.classList.add("fiveetools-hit-roll", "render-roller");
+		if (!node.getAttribute("title")) node.setAttribute("title", "Click to roll Hit damage.");
+	}
+	const blocks = new Set();
+	for (const hit of root.querySelectorAll?.("[data-hit-roll]") || []) {
+		const block = hit.closest?.("p, [data-roll-name-ancestor]") || hit.parentElement;
+		if (block) blocks.add(block);
+	}
+	for (const block of blocks) markOrTriggersInBlock(block);
+}
+
+function markOrTriggersInBlock (block) {
+	const doc = block.ownerDocument || document;
+	const walker = doc.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+	const textNodes = [];
+	while (walker.nextNode()) textNodes.push(walker.currentNode);
+	for (const textNode of textNodes) {
+		if (textNode.parentElement?.closest?.("[data-or-roll], [data-hit-roll], .render-roller[data-packed-dice]")) continue;
+		const raw = String(textNode.nodeValue || "");
+		const m = raw.match(/^(.*?)(\bor\b)(.*)$/i);
+		if (!m) continue;
+		if (!hasDamageRollerBefore(block, textNode) || !hasDamageRollerAfter(block, textNode)) continue;
+
+		const before = doc.createTextNode(m[1]);
+		const span = doc.createElement("span");
+		span.dataset.orRoll = "1";
+		span.className = "fiveetools-or-roll render-roller";
+		span.textContent = m[2];
+		span.setAttribute("title", "Click to roll alternative damage.");
+		const after = doc.createTextNode(m[3]);
+		const parent = textNode.parentNode;
+		parent.insertBefore(before, textNode);
+		parent.insertBefore(span, textNode);
+		parent.insertBefore(after, textNode);
+		parent.removeChild(textNode);
+	}
+}
+
+function hasDamageRollerBefore (block, node) {
+	return damageRollersInBlock(block).some(roller => Boolean(roller.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING));
+}
+
+function hasDamageRollerAfter (block, node) {
+	return damageRollersInBlock(block).some(roller => Boolean(node.compareDocumentPosition(roller) & Node.DOCUMENT_POSITION_FOLLOWING));
+}
+
+function damageRollersInBlock (block) {
+	return [...(block.querySelectorAll?.(".render-roller[data-packed-dice]") || [])].filter((roller) => {
+		try {
+			const packed = JSON.parse(roller.getAttribute("data-packed-dice"));
+			return packed.subType === "damage";
+		} catch (_) {
+			return false;
+		}
+	});
+}
+
+function rollFromRoller (roller, evt) {
+	let packed;
+	try {
+		packed = JSON.parse(roller.getAttribute("data-packed-dice"));
+	} catch (_) {
+		return null;
+	}
+	const isRecharge = packed.successThresh != null;
+	const named = resolveRollerName(roller, packed, {isRecharge});
+	if (named) packed.name = named;
+	if (!packed.damageType && packed.subType === "damage") {
+		const inferred = damageTypeNearRoller(roller);
+		if (inferred) packed.damageType = inferred;
+	}
+	const result = rollPacked(packed, evt);
+	if (named) {
+		result.label = named;
+		result.showLabel = true;
+	}
+	return result;
+}
+
+function rollDamagesFromTrigger (trigger, evt) {
+	const block = trigger.closest?.("p, [data-roll-name-ancestor]") || trigger.parentElement;
+	if (!block) return [];
+	const end = nextDamageBoundary(block, trigger);
+	const results = [];
+	for (const roller of damageRollersInBlock(block)) {
+		if (!isNodeBetween(trigger, roller, end)) continue;
+		const result = rollFromRoller(roller, evt);
+		if (result) results.push(result);
+	}
+	return results;
+}
+
+function nextDamageBoundary (block, trigger) {
+	const boundaries = [...(block.querySelectorAll?.("[data-hit-roll], [data-or-roll]") || [])];
+	return boundaries.find(el => el !== trigger
+		&& Boolean(trigger.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) || null;
+}
+
+/** True if `node` is after `start` and (if `end`) before `end`. */
+function isNodeBetween (start, node, end) {
+	if (!Boolean(start.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+	if (!end) return true;
+	return Boolean(node.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
+const DAMAGE_TYPES = [
+	"acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic",
+	"piercing", "poison", "psychic", "radiant", "slashing", "thunder",
+];
+
+const SPELLCASTING_TRAIT_RE = /^(innate\s+)?spellcasting$/i;
+
+function resolveRollerName (roller, packed, {isRecharge = false} = {}) {
+	const attr = cleanRollerLabel(roller.getAttribute("data-roll-name"));
+	if (attr && !(isRecharge && SPELLCASTING_TRAIT_RE.test(attr))) return attr;
+	const packedName = cleanRollerLabel(packed?.name);
+	if (packedName && !(isRecharge && SPELLCASTING_TRAIT_RE.test(packedName))) return packedName;
+
 	const ancestor = roller.closest?.("[data-roll-name-ancestor]");
-	const fromAncestor = ancestor?.getAttribute("data-roll-name-ancestor");
-	if (!fromAncestor) return "";
-	return String(fromAncestor).trim().replace(/[.,:]$/, "");
+	const fromAncestor = cleanRollerLabel(ancestor?.getAttribute("data-roll-name-ancestor"));
+	if (fromAncestor && !(isRecharge && SPELLCASTING_TRAIT_RE.test(fromAncestor))) return fromAncestor;
+
+	if (isRecharge) {
+		const fromLine = rechargeNameFromParent(roller);
+		if (fromLine) return fromLine;
+		return "Recharge";
+	}
+	return "";
+}
+
+function cleanRollerLabel (raw) {
+	let s = String(raw || "").trim();
+	if (!s) return "";
+	s = s.replace(/\{@recharge[^}]*\}/gi, " ");
+	s = s.replace(/\(?\s*Recharge\s+[\d\u2013\-]+(?:\s*[–\-]\s*\d+)?\s*\)?/gi, " ");
+	s = s.replace(/\s+/g, " ").trim().replace(/[.,:]$/, "");
+	return s;
+}
+
+function rechargeNameFromParent (roller) {
+	const p = roller.closest?.("p");
+	if (!p) return "";
+	const links = [...(p.querySelectorAll?.("a") || [])]
+		.map(a => String(a.textContent || "").trim())
+		.filter(Boolean);
+	if (links.length) return links[0];
+	return "";
+}
+
+function damageTypeNearRoller (roller) {
+	const parent = roller.parentElement;
+	if (!parent) return "";
+	let sawRoller = false;
+	let after = "";
+	for (const node of parent.childNodes) {
+		if (node === roller || (node.contains && node.contains(roller))) {
+			sawRoller = true;
+			continue;
+		}
+		if (!sawRoller) continue;
+		after += node.textContent || "";
+		if (after.length > 80) break;
+	}
+	if (!after) {
+		const full = String(parent.textContent || "");
+		const idx = full.indexOf(roller.textContent || "");
+		after = idx >= 0 ? full.slice(idx + String(roller.textContent || "").length) : full;
+	}
+	const re = new RegExp(`\\b(${DAMAGE_TYPES.join("|")})\\b`, "i");
+	const m = after.match(re);
+	return m ? m[1].toLowerCase() : "";
 }
 
 function rollMode (subType, shiftKey, ctrlKey) {
@@ -259,8 +472,20 @@ export function rollDice (notation) {
 	return rollNotation(notation);
 }
 
+/** Match web Renderer.dice lexer: natural-language ops → symbols. */
+function normalizeDiceNotation (raw) {
+	return String(raw || "")
+		.replace(/\s*?\bplus\b\s*?/gi, " + ")
+		.replace(/\s*?\bminus\b\s*?/gi, " - ")
+		.replace(/\s*?\btimes\b\s*?/gi, " * ")
+		.replace(/\s*?\bover\b\s*?/gi, " / ")
+		.replace(/\s*?\bdivided by\b\s*?/gi, " / ")
+		.replace(/[\u2012-\u2014\u2212]/g, "-")
+		.trim();
+}
+
 function parseSimpleDice (raw) {
-	let s = String(raw || "").replace(/\s+/g, "");
+	let s = normalizeDiceNotation(raw).replace(/\s+/g, "");
 	if (!s) return null;
 	let floorHalf = false;
 	const floorM = s.match(/^floor\(\((.+)\)\/2\)$/i);

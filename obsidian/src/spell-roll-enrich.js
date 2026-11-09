@@ -10,9 +10,15 @@ export function spellRollerMetaFromEntity (ent) {
 		: Boolean(ent?.spellAttack);
 	const text = flattenSpellEntries(ent?.entries);
 	const m = text.match(/\{@(?:damage|dice)\s+[^}]+\}/i);
+	let damageTag = m ? m[0] : "";
+	const inflict = Array.isArray(ent?.damageInflict) ? String(ent.damageInflict[0] || "").toLowerCase() : "";
+	if (damageTag && inflict) {
+		const inner = damageTag.match(/^\{@damage\s+([^}|]+)/i);
+		if (inner) damageTag = `{@damage ${inner[1].trim()}|||${inflict}}`;
+	}
 	return {
 		hasAttack,
-		damageTag: m ? m[0] : "",
+		damageTag,
 		enriched: true,
 	};
 }
