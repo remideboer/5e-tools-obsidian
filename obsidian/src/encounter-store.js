@@ -37,38 +37,97 @@ export function applyEncountersJson (json) {
 	return setEncountersJson(json);
 }
 
-export function encountersVaultPath (plugin) {
+export function encountersRoot (plugin) {
 	const folder = String(plugin?.settings?.notesFolder || "5etools").replace(/\\/g, "/").replace(/\/+$/, "");
-	return `${folder}/_encounters/encounters.json`;
+	return `${folder}/_encounters`;
+}
+
+/** @deprecated Monolith path; kept for one-time migration. */
+export function encountersVaultPath (plugin) {
+	return `${encountersRoot(plugin)}/encounters.json`;
+}
+
+export function savedEncounterPath (plugin, id) {
+	const safe = String(id || "").trim().replace(/[^\w.-]+/g, "-") || "encounter";
+	return `${encountersRoot(plugin)}/${safe}.json`;
+}
+
+export function instanceVaultPath (plugin) {
+	return `${encountersRoot(plugin)}/_instance.json`;
 }
 
 export async function loadEncountersFromVault (plugin) {
 	const vault = plugin?.app?.vault;
 	if (!vault) return getEncountersJson();
-	const file = vault.getAbstractFileByPath(encountersVaultPath(plugin));
-	if (!file || file.children) {
-		setEncountersJson(emptyCatalog());
-		return getEncountersJson();
+	await migrateMonolithEncounters(plugin);
+	const encounters = [];
+	const folder = vault.getAbstractFileByPath(encountersRoot(plugin));
+	if (folder?.children) {
+		for (const child of folder.children) {
+			if (child.children || !String(child.path || "").endsWith(".json")) continue;
+			const base = String(child.name || "").replace(/\.json$/i, "");
+			if (base === "_instance" || base.endsWith(".bak") || base === "encounters") continue;
+			try {
+				const raw = JSON.parse(await vault.read(child));
+				const saved = normalizeEncounter(raw);
+				if (saved) encounters.push(saved);
+			} catch (_) { /* skip */ }
+		}
 	}
-	try {
-		const text = await vault.read(file);
-		setEncountersJson(JSON.parse(text));
-	} catch (_) {
-		setEncountersJson(emptyCatalog());
+	let instance = emptyInstance();
+	const instFile = vault.getAbstractFileByPath(instanceVaultPath(plugin));
+	if (instFile && !instFile.children) {
+		try {
+			instance = normalizeInstance(JSON.parse(await vault.read(instFile)));
+		} catch (_) { /* keep empty */ }
 	}
+	setEncountersJson({encounters, instance});
 	return getEncountersJson();
 }
 
-export async function saveEncountersToVault (plugin) {
+async function migrateMonolithEncounters (plugin) {
 	const vault = plugin?.app?.vault;
-	if (!vault) return getEncountersJson();
-	const filePath = encountersVaultPath(plugin);
-	const folder = filePath.replace(/\/[^/]+$/, "");
-	await ensureFolder(plugin.app, folder);
-	const text = `${JSON.stringify(catalogJson, null, "\t")}\n`;
-	const existing = vault.getAbstractFileByPath(filePath);
-	if (existing && !existing.children) await vault.modify(existing, text);
-	else await vault.create(filePath, text);
+	if (!vault) return;
+	const monolithPath = encountersVaultPath(plugin);
+	const monolith = vault.getAbstractFileByPath(monolithPath);
+	if (!monolith || monolith.children) return;
+	let parsed;
+	try {
+		parsed = JSON.parse(await vault.read(monolith));
+	} catch (_) {
+		return;
+	}
+	const catalog = normalizeCatalog(parsed);
+	await ensureFolder(plugin.app, encountersRoot(plugin));
+	for (const saved of catalog.encounters) {
+		await writeVaultJson(plugin, savedEncounterPath(plugin, saved.id), saved);
+	}
+	await writeVaultJson(plugin, instanceVaultPath(plugin), catalog.instance);
+	const bakPath = `${monolithPath}.bak`;
+	const existingBak = vault.getAbstractFileByPath(bakPath);
+	if (existingBak && !existingBak.children) await vault.delete(existingBak);
+	await vault.rename(monolith, bakPath);
+}
+
+export async function saveInstanceToVault (plugin) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return getEncounterInstance();
+	await ensureFolder(plugin.app, encountersRoot(plugin));
+	await writeVaultJson(plugin, instanceVaultPath(plugin), catalogJson.instance || emptyInstance());
+	return getEncounterInstance();
+}
+
+export async function saveSavedEncounter (plugin, saved) {
+	const vault = plugin?.app?.vault;
+	if (!vault || !saved?.id) return saved;
+	await ensureFolder(plugin.app, encountersRoot(plugin));
+	await writeVaultJson(plugin, savedEncounterPath(plugin, saved.id), saved);
+	return saved;
+}
+
+/** Persist instance only (composer edits). Prefer saveSavedEncounter when saving a named roster. */
+export async function saveEncountersToVault (plugin) {
+	await saveInstanceToVault(plugin);
 	return getEncountersJson();
 }
 
@@ -88,7 +147,7 @@ export function queueSaveEncountersToVault (plugin, delay = 250) {
 	if (saveTimer) clearTimeout(saveTimer);
 	saveTimer = setTimeout(() => {
 		saveTimer = null;
-		saveEncountersToVault(plugin).catch(() => {});
+		saveInstanceToVault(plugin).catch(() => {});
 	}, delay);
 }
 
@@ -97,7 +156,7 @@ export async function flushEncounterSave (plugin) {
 		clearTimeout(saveTimer);
 		saveTimer = null;
 	}
-	return saveEncountersToVault(plugin);
+	return saveInstanceToVault(plugin);
 }
 
 export function listSavedEncounters () {
@@ -140,6 +199,12 @@ export function deleteSavedEncounter (id) {
 	const catalog = normalizeCatalog(catalogJson);
 	catalog.encounters = catalog.encounters.filter(it => it.id !== needle);
 	setEncountersJson(catalog);
+	return getEncountersJson();
+}
+
+export async function deleteSavedEncounterFromVault (plugin, id) {
+	deleteSavedEncounter(id);
+	await deleteVaultFile(plugin, savedEncounterPath(plugin, id));
 	return getEncountersJson();
 }
 
@@ -214,6 +279,24 @@ async function ensureFolder (app, folderPath) {
 		acc = acc ? `${acc}/${part}` : part;
 		if (!app.vault.getAbstractFileByPath(acc)) await app.vault.createFolder(acc);
 	}
+}
+
+async function writeVaultJson (plugin, filePath, value) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return;
+	const folder = filePath.replace(/\/[^/]+$/, "");
+	await ensureFolder(plugin.app, folder);
+	const text = `${JSON.stringify(value, null, "\t")}\n`;
+	const existing = vault.getAbstractFileByPath(filePath);
+	if (existing && !existing.children) await vault.modify(existing, text);
+	else await vault.create(filePath, text);
+}
+
+async function deleteVaultFile (plugin, filePath) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return;
+	const existing = vault.getAbstractFileByPath(filePath);
+	if (existing && !existing.children) await vault.delete(existing);
 }
 
 if (globalThis.FiveEToolsObsidian) {

@@ -16,7 +16,7 @@ import {
 	slotPool,
 	sourcesFor,
 } from "./dpr-view.js";
-import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault, saveEncountersToVault, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
+import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, saveSavedEncounter, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {encounterDifficulty} from "./encounter-difficulty.js";
 import {addCombatants, initiativeFromEnt, kindKey, listKindGroups, paintKindRoster} from "./encounter-view.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
@@ -652,7 +652,8 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			};
 			setEncounterInstance(plugin._encounterSession);
 		}
-		void saveEncountersToVault(plugin);
+		void saveSavedEncounter(plugin, next);
+		queueSaveEncountersToVault(plugin);
 		paintSavedRoster();
 		onThreat();
 	};

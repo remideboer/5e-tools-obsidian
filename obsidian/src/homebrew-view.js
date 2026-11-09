@@ -3,7 +3,7 @@ import {
 	buildEntity,
 	cacheBrewInDataLoader,
 	cacheEntityInDataLoader,
-	deleteEntity,
+	deleteHomebrewEntity,
 	emptyForm,
 	entityToForm,
 	getBrewEntity,
@@ -11,9 +11,8 @@ import {
 	HOMEBREW_TYPES,
 	listBrewEntities,
 	normalizeMonsterForm,
+	saveHomebrewEntity,
 	saveHomebrewImage,
-	saveHomebrewToVault,
-	upsertEntity,
 } from "./homebrew-store.js";
 import {loadEntity} from "./entity-loader.js";
 import {brewDocFromEntity, indexHomebrewDocs, searchEntities} from "./search-index.js";
@@ -327,8 +326,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		const name = selectedName;
 		if (!name) return;
 		confirmDelete(app, name, async () => {
-			deleteEntity(homebrewType(typeId).prop, name);
-			await saveHomebrewToVault(plugin);
+			await deleteHomebrewEntity(plugin, homebrewType(typeId).prop, name);
 			cacheBrewInDataLoader();
 			indexHomebrewDocs();
 			selectedName = "";
@@ -359,8 +357,9 @@ export function renderHomebrewEditor (formEl, resultEl, {
 			new Notice("Name is required.");
 			return;
 		}
-		upsertEntity(homebrewType(typeId).prop, ent, {previousName: previousName || selectedName});
-		await saveHomebrewToVault(plugin);
+		await saveHomebrewEntity(plugin, homebrewType(typeId).prop, ent, {
+			previousName: previousName || selectedName,
+		});
 		cacheBrewInDataLoader();
 		indexHomebrewDocs();
 		selectedName = ent.name;

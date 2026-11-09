@@ -11,9 +11,9 @@ import {bindDiceRollers} from "./dice-roll.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {attachHoverCard} from "./hover-card.js";
 import {addCombatants, applyTemplateToGroup} from "./encounter-view.js";
-import {emptyInstance, getEncounterInstance, getSavedEncounter, queueSaveEncountersToVault, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
+import {emptyInstance, getEncounterInstance, getSavedEncounter, queueSaveEncountersToVault, saveSavedEncounter, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {adjustMultiattack, CR_STEPS, crLabel, crNumber, homebrewName} from "./creature-scale.js";
-import {cacheBrewInDataLoader, saveHomebrewToVault, upsertEntity} from "./homebrew-store.js";
+import {cacheBrewInDataLoader, saveHomebrewEntity} from "./homebrew-store.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 	containerEl.empty();
@@ -298,8 +298,7 @@ function wireCrSlider ({plugin, doc, page, ent, shownEnt, statWrap, crRow, crSli
 			delete saved._scaledCr;
 			delete saved._isScaledCr;
 			delete saved._originalCr;
-			upsertEntity("monster", saved);
-			await saveHomebrewToVault(plugin);
+			await saveHomebrewEntity(plugin, "monster", saved);
 			cacheBrewInDataLoader();
 			indexHomebrewDocs();
 			new Notice(`Saved ${saved.name}.`);
@@ -338,7 +337,7 @@ async function addCreatureToEncounter (plugin, doc, shownEnt, scaleBase) {
 	const saved = scaled && next.savedId ? getSavedEncounter(next.savedId) : null;
 	const savedName = String(next.name || "").trim() || saved?.name;
 	if (saved && savedName) {
-		upsertSavedEncounter({
+		const written = upsertSavedEncounter({
 			id: saved.id,
 			name: savedName,
 			combatants: next.combatants,
@@ -346,6 +345,7 @@ async function addCreatureToEncounter (plugin, doc, shownEnt, scaleBase) {
 			party: next.party,
 			initOrderBaseline: next.initOrderBaseline,
 		});
+		await saveSavedEncounter(plugin, written);
 	}
 	plugin._encounterSession = next;
 	setEncounterInstance(next);

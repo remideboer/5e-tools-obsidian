@@ -9,15 +9,14 @@ import {
 	emptyForm,
 	homebrewType,
 	normalizeMonsterForm,
-	saveHomebrewToVault,
-	upsertEntity,
+	saveHomebrewEntity,
 } from "./homebrew-store.js";
 import {
-	deleteSavedEncounter,
+	deleteSavedEncounterFromVault,
 	getSavedEncounter,
 	listSavedEncounters,
 	queueSaveEncountersToVault,
-	saveEncountersToVault,
+	saveSavedEncounter,
 	setEncounterInstance,
 	upsertSavedEncounter,
 } from "./encounter-store.js";
@@ -527,7 +526,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		const saved = savedId ? getSavedEncounter(savedId) : null;
 		const savedName = String(name || "").trim() || saved?.name;
 		if (!saved || !savedName) return;
-		upsertSavedEncounter({
+		const written = upsertSavedEncounter({
 			id: saved.id,
 			name: savedName,
 			combatants,
@@ -535,6 +534,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			party,
 			initOrderBaseline,
 		});
+		void saveSavedEncounter(plugin, written);
 	};
 
 	const paintDifficulty = () => {
@@ -863,8 +863,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			}
 			try {
 				if (saveToHomebrew) {
-					upsertEntity("monster", ent);
-					await saveHomebrewToVault(plugin);
+					await saveHomebrewEntity(plugin, "monster", ent);
 					cacheBrewInDataLoader();
 					indexHomebrewDocs();
 				}
@@ -1021,7 +1020,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 				party,
 				initOrderBaseline,
 			});
-			await saveEncountersToVault(plugin);
+			await saveSavedEncounter(plugin, saved);
 			savedId = saved.id;
 			pickedId = saved.id;
 			name = saved.name;
@@ -1043,8 +1042,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			message: `Delete saved encounter ${saved.name}?`,
 			confirmLabel: "Delete",
 			onConfirm: async () => {
-				deleteSavedEncounter(saved.id);
-				await saveEncountersToVault(plugin);
+				await deleteSavedEncounterFromVault(plugin, saved.id);
 				if (savedId === saved.id) savedId = null;
 				pickedId = null;
 				emit();

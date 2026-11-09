@@ -74,26 +74,91 @@ export function deleteEntity (prop, name) {
 	setBrewJson(brew);
 }
 
-export function brewVaultPath (plugin) {
+export function homebrewRoot (plugin) {
 	const folder = String(plugin?.settings?.notesFolder || "5etools").replace(/\\/g, "/").replace(/\/+$/, "");
-	return `${folder}/_homebrew/homebrew.json`;
+	return `${folder}/_homebrew`;
+}
+
+/** @deprecated Monolith path; kept for one-time migration. */
+export function brewVaultPath (plugin) {
+	return `${homebrewRoot(plugin)}/homebrew.json`;
+}
+
+export function entitySlug (name) {
+	return String(name || "")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 80) || "entity";
+}
+
+export function entityVaultPath (plugin, prop, name) {
+	return `${homebrewRoot(plugin)}/${prop}/${entitySlug(name)}.json`;
+}
+
+export function metaVaultPath (plugin) {
+	return `${homebrewRoot(plugin)}/_meta.json`;
 }
 
 export async function loadHomebrewFromVault (plugin) {
 	const vault = plugin?.app?.vault;
 	if (!vault) return getBrewJson();
-	const file = vault.getAbstractFileByPath(brewVaultPath(plugin));
-	if (!file || file.children) {
-		setBrewJson(emptyBrew());
-		return getBrewJson();
+	await migrateMonolithHomebrew(plugin);
+	const brew = emptyBrew();
+	const metaFile = vault.getAbstractFileByPath(metaVaultPath(plugin));
+	if (metaFile && !metaFile.children) {
+		try {
+			const meta = JSON.parse(await vault.read(metaFile));
+			if (meta?.sources?.length) brew._meta = meta;
+			else if (meta?._meta?.sources?.length) brew._meta = meta._meta;
+		} catch (_) { /* keep default meta */ }
 	}
-	try {
-		const text = await vault.read(file);
-		setBrewJson(JSON.parse(text));
-	} catch (_) {
-		setBrewJson(emptyBrew());
+	for (const prop of BREW_PROPS) {
+		const folder = vault.getAbstractFileByPath(`${homebrewRoot(plugin)}/${prop}`);
+		if (!folder?.children) {
+			brew[prop] = [];
+			continue;
+		}
+		const list = [];
+		for (const child of folder.children) {
+			if (child.children || !String(child.path || "").endsWith(".json")) continue;
+			try {
+				const ent = JSON.parse(await vault.read(child));
+				if (ent?.name) list.push(ent);
+			} catch (_) { /* skip bad file */ }
+		}
+		brew[prop] = list;
 	}
+	setBrewJson(brew);
 	return getBrewJson();
+}
+
+async function migrateMonolithHomebrew (plugin) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return;
+	const monolithPath = brewVaultPath(plugin);
+	const monolith = vault.getAbstractFileByPath(monolithPath);
+	if (!monolith || monolith.children) return;
+	let parsed;
+	try {
+		parsed = JSON.parse(await vault.read(monolith));
+	} catch (_) {
+		return;
+	}
+	const brew = normalizeBrew(parsed);
+	await ensureFolder(plugin.app, homebrewRoot(plugin));
+	await writeVaultJson(plugin, metaVaultPath(plugin), brew._meta);
+	for (const prop of BREW_PROPS) {
+		await ensureFolder(plugin.app, `${homebrewRoot(plugin)}/${prop}`);
+		for (const ent of brew[prop] || []) {
+			if (!ent?.name) continue;
+			await writeVaultJson(plugin, entityVaultPath(plugin, prop, ent.name), ent);
+		}
+	}
+	const bakPath = `${monolithPath}.bak`;
+	const existingBak = vault.getAbstractFileByPath(bakPath);
+	if (existingBak && !existingBak.children) await vault.delete(existingBak);
+	await vault.rename(monolith, bakPath);
 }
 
 export async function saveHomebrewImage (plugin, file) {
@@ -101,24 +166,65 @@ export async function saveHomebrewImage (plugin, file) {
 	if (!vault || !file) throw new Error("Could not save that image.");
 	const ext = String(file.name || "").match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "png";
 	const stem = String(file.name || "image").replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "image";
-	const folder = `${brewVaultPath(plugin).replace(/\/[^/]+$/, "")}/img`;
+	const folder = `${homebrewRoot(plugin)}/img`;
 	await ensureFolder(plugin.app, folder);
 	const path = `${folder}/${stem}-${Date.now().toString(36)}.${ext}`;
 	await vault.createBinary(path, await file.arrayBuffer());
 	return path;
 }
 
+export async function saveHomebrewEntity (plugin, prop, ent, {previousName} = {}) {
+	upsertEntity(prop, ent, {previousName});
+	const vault = plugin?.app?.vault;
+	if (!vault || !ent?.name) return getBrewJson();
+	await ensureFolder(plugin.app, `${homebrewRoot(plugin)}/${prop}`);
+	await writeVaultJson(plugin, entityVaultPath(plugin, prop, ent.name), ent);
+	const prev = String(previousName || "").trim();
+	if (prev && entitySlug(prev) !== entitySlug(ent.name)) {
+		await deleteVaultFile(plugin, entityVaultPath(plugin, prop, prev));
+	}
+	await writeVaultJson(plugin, metaVaultPath(plugin), brewJson._meta);
+	return getBrewJson();
+}
+
+export async function deleteHomebrewEntity (plugin, prop, name) {
+	deleteEntity(prop, name);
+	await deleteVaultFile(plugin, entityVaultPath(plugin, prop, name));
+	return getBrewJson();
+}
+
+/** @deprecated Prefer saveHomebrewEntity / deleteHomebrewEntity. Writes every entity file. */
 export async function saveHomebrewToVault (plugin) {
 	const vault = plugin?.app?.vault;
 	if (!vault) return getBrewJson();
-	const filePath = brewVaultPath(plugin);
+	await ensureFolder(plugin.app, homebrewRoot(plugin));
+	await writeVaultJson(plugin, metaVaultPath(plugin), brewJson._meta);
+	for (const prop of BREW_PROPS) {
+		await ensureFolder(plugin.app, `${homebrewRoot(plugin)}/${prop}`);
+		for (const ent of brewJson[prop] || []) {
+			if (!ent?.name) continue;
+			await writeVaultJson(plugin, entityVaultPath(plugin, prop, ent.name), ent);
+		}
+	}
+	return getBrewJson();
+}
+
+async function writeVaultJson (plugin, filePath, value) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return;
 	const folder = filePath.replace(/\/[^/]+$/, "");
 	await ensureFolder(plugin.app, folder);
-	const text = `${JSON.stringify(brewJson, null, "\t")}\n`;
+	const text = `${JSON.stringify(value, null, "\t")}\n`;
 	const existing = vault.getAbstractFileByPath(filePath);
 	if (existing && !existing.children) await vault.modify(existing, text);
 	else await vault.create(filePath, text);
-	return getBrewJson();
+}
+
+async function deleteVaultFile (plugin, filePath) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return;
+	const existing = vault.getAbstractFileByPath(filePath);
+	if (existing && !existing.children) await vault.delete(existing);
 }
 
 export function cacheBrewInDataLoader () {
