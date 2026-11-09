@@ -318,6 +318,7 @@ export function emptyForm (typeId) {
 			reactions: [],
 			spells: [],
 			spellAbility: "int",
+			spellKind: "spellcasting",
 		};
 		case "background": return {
 			name: "",
@@ -383,17 +384,22 @@ export function normalizeMonsterForm (form) {
 	next.spells = coerceSpells(form?.spells);
 	next.spellAbility = String(form?.spellAbility || "int").toLowerCase();
 	if (!["int", "wis", "cha"].includes(next.spellAbility)) next.spellAbility = "int";
+	next.spellKind = String(form?.spellKind || "spellcasting").toLowerCase() === "innate" ? "innate" : "spellcasting";
 	next.crOverride = !!form?.crOverride;
 	bumpNamedRowId([next.traits, next.actions, next.bonus, next.reactions, next.spells].flat());
 	return next;
 }
 
 export function newNamedRow (partial = {}) {
+	const recharge = partial.recharge == null || partial.recharge === ""
+		? null
+		: Math.max(2, Math.min(6, Number(partial.recharge) || 6));
 	return {
 		id: partial.id || `r${nextNamedRowId++}`,
 		name: String(partial.name || ""),
 		text: String(partial.text || ""),
 		template: String(partial.template || ""),
+		recharge,
 	};
 }
 
@@ -621,16 +627,50 @@ function buildMonster (form) {
 	const spells = coerceSpells(form?.spells).filter(it => it.name);
 	if (spells.length) {
 		const ability = String(form?.spellAbility || "int").toLowerCase();
-		const abilityLabel = ability === "wis" ? "Wisdom" : ability === "cha" ? "Charisma" : "Intelligence";
+		const abilityKey = ["int", "wis", "cha"].includes(ability) ? ability : "int";
+		const abilityLabel = abilityKey === "wis" ? "Wisdom" : abilityKey === "cha" ? "Charisma" : "Intelligence";
 		const who = ent.name || "creature";
-		ent.spellcasting = [{
-			name: "Spellcasting",
+		const innate = String(form?.spellKind || "").toLowerCase() === "innate";
+		const score = Number(ent[abilityKey]) || 10;
+		const mod = Math.floor((score - 10) / 2);
+		const pb = crProficiencyBonus(ent.cr);
+		const hit = mod + pb;
+		const dc = 8 + mod + pb;
+		const block = {
+			name: innate ? "Innate Spellcasting" : "Spellcasting",
 			type: "spellcasting",
-			ability: ["int", "wis", "cha"].includes(ability) ? ability : "int",
-			displayAs: "action",
-			headerEntries: [`The ${who} casts one of the following spells, using ${abilityLabel} as the spellcasting ability:`],
-			will: spells.map(it => `{@spell ${it.name}|${it.source || "XPHB"}}`),
-		}];
+			ability: abilityKey,
+			headerEntries: [
+				`The ${who} casts one of the following spells, using ${abilityLabel} as the spellcasting ability (spell save {@dc ${dc}}, +${hit} to hit with spell attacks):`,
+			],
+		};
+		if (!innate) block.displayAs = "action";
+		const will = [];
+		const slots = {};
+		const recharge = {};
+		for (const spell of spells) {
+			const tag = `{@spell ${spell.name}|${spell.source || "XPHB"}}`;
+			const usage = String(spell.usage || "will").toLowerCase();
+			if (usage === "slot") {
+				const level = Math.max(0, Math.min(9, Number(spell.slotLevel) || 0));
+				const key = String(level);
+				if (!slots[key]) slots[key] = {slots: Math.max(0, Number(spell.slots) || (level === 0 ? 0 : 1)), spells: []};
+				if (level > 0) slots[key].slots = Math.max(1, Number(spell.slots) || slots[key].slots || 1);
+				else delete slots[key].slots;
+				slots[key].spells.push(tag);
+			} else if (usage === "recharge") {
+				const n = Math.max(2, Math.min(6, Number(spell.recharge) || 6));
+				const key = String(n);
+				if (!recharge[key]) recharge[key] = [];
+				recharge[key].push(tag);
+			} else {
+				will.push(tag);
+			}
+		}
+		if (will.length) block.will = will;
+		if (Object.keys(slots).length) block.spells = slots;
+		if (Object.keys(recharge).length) block.recharge = recharge;
+		ent.spellcasting = [block];
 	}
 	return ent;
 }
@@ -666,6 +706,12 @@ function monsterToForm (ent) {
 	form.reactions = namedEntriesToRows(ent.reaction);
 	form.spells = spellsFromEnt(ent);
 	form.spellAbility = ent.spellcasting?.[0]?.ability || "int";
+	const cast = ent.spellcasting?.[0];
+	if (!cast) form.spellKind = "spellcasting";
+	else if (cast.displayAs === "action") form.spellKind = "spellcasting";
+	else if (/innate/i.test(String(cast.name || "")) || cast.displayAs === "trait" || cast.displayAs == null) {
+		form.spellKind = "innate";
+	} else form.spellKind = "spellcasting";
 	return form;
 }
 
@@ -899,6 +945,7 @@ function coerceNamedRows (raw) {
 			name: it?.name,
 			text: it?.text != null ? it.text : entriesToText(it?.entries),
 			template: it?.template,
+			recharge: it?.recharge,
 		})).filter(it => it.id);
 	}
 	return parseNamedEntries(raw).map(it => newNamedRow({
@@ -908,63 +955,100 @@ function coerceNamedRows (raw) {
 }
 
 function namedRowsToEntries (raw) {
-	return coerceNamedRows(raw).filter(it => String(it.name || "").trim()).map(it => ({
-		name: String(it.name).trim(),
-		entries: String(it.text || "").trim() ? [String(it.text).trim()] : [""],
-	}));
+	return coerceNamedRows(raw).filter(it => String(it.name || "").trim()).map((it) => {
+		const base = String(it.name).trim().replace(/\s*\{@recharge(?:\s+\d+)?(?:\|[^}]*)?\}\s*$/i, "").trim();
+		const recharge = it.recharge == null ? null : Math.max(2, Math.min(6, Number(it.recharge) || 6));
+		const tag = recharge == null ? "" : (recharge === 6 ? " {@recharge}" : ` {@recharge ${recharge}}`);
+		return {
+			name: `${base}${tag}`.trim(),
+			entries: String(it.text || "").trim() ? [String(it.text).trim()] : [""],
+		};
+	});
 }
 
 function namedEntriesToRows (list) {
-	return (list || []).map(it => newNamedRow({
-		name: it?.name || "",
-		text: entriesToText(it?.entries),
-	}));
+	return (list || []).map((it) => {
+		const rawName = String(it?.name || "");
+		const rechargeMatch = rawName.match(/\{@recharge(?:\s+(\d+))?(?:\|[^}]*)?\}/i);
+		const recharge = rechargeMatch ? Number(rechargeMatch[1] || 6) : null;
+		const name = rawName.replace(/\s*\{@recharge(?:\s+\d+)?(?:\|[^}]*)?\}\s*/gi, " ").replace(/\s+/g, " ").trim();
+		return newNamedRow({
+			name,
+			text: entriesToText(it?.entries),
+			recharge,
+		});
+	});
 }
 
 function coerceSpells (raw) {
 	if (!Array.isArray(raw)) return [];
-	return raw.map(it => ({
-		id: it?.id || `r${nextNamedRowId++}`,
-		name: String(it?.name || "").trim(),
-		source: String(it?.source || it?.s || "XPHB").trim() || "XPHB",
-		u: it?.u || "",
-	})).filter(it => it.name);
+	return raw.map((it) => {
+		const usage = ["will", "slot", "recharge"].includes(String(it?.usage || "").toLowerCase())
+			? String(it.usage).toLowerCase()
+			: "will";
+		return {
+			id: it?.id || `r${nextNamedRowId++}`,
+			name: String(it?.name || "").trim(),
+			source: String(it?.source || it?.s || "XPHB").trim() || "XPHB",
+			u: it?.u || "",
+			usage,
+			slotLevel: Math.max(0, Math.min(9, Number(it?.slotLevel) || 0)),
+			slots: Math.max(1, Number(it?.slots) || 1),
+			recharge: Math.max(2, Math.min(6, Number(it?.recharge) || 6)),
+		};
+	}).filter(it => it.name);
 }
 
 function spellsFromEnt (ent) {
 	const out = [];
 	const seen = new Set();
+	const push = (blob, usage, extra = {}) => {
+		const text = typeof blob === "string" ? blob : "";
+		for (const m of text.matchAll(/\{@spell ([^}]+)\}/gi)) {
+			const [name, source] = m[1].split("|").map(part => part.trim());
+			if (!name) continue;
+			const src = source || "XPHB";
+			const key = `${name.toLowerCase()}|${src.toLowerCase()}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			out.push({
+				id: `r${nextNamedRowId++}`,
+				name,
+				source: src,
+				u: "",
+				usage,
+				slotLevel: extra.slotLevel ?? 1,
+				slots: extra.slots ?? 1,
+				recharge: extra.recharge ?? 6,
+			});
+		}
+	};
 	for (const block of ent?.spellcasting || []) {
-		const blobs = [
-			...(block.will || []),
-			...Object.values(block.daily || {}).flat(),
-			...(block.headerEntries || []),
-		];
+		for (const blob of block.will || []) push(blob, "will");
 		if (block.spells && typeof block.spells === "object") {
-			for (const slot of Object.values(block.spells)) {
+			for (const [level, slot] of Object.entries(block.spells)) {
 				const list = Array.isArray(slot) ? slot : slot?.spells;
-				if (Array.isArray(list)) blobs.push(...list);
+				const slots = Array.isArray(slot) ? 1 : Math.max(1, Number(slot?.slots) || 1);
+				if (!Array.isArray(list)) continue;
+				for (const blob of list) push(blob, "slot", {slotLevel: Number(level) || 0, slots});
 			}
 		}
-		for (const blob of blobs) {
-			const text = typeof blob === "string" ? blob : "";
-			for (const m of text.matchAll(/\{@spell ([^}]+)\}/gi)) {
-				const [name, source] = m[1].split("|").map(part => part.trim());
-				if (!name) continue;
-				const src = source || "XPHB";
-				const key = `${name.toLowerCase()}|${src.toLowerCase()}`;
-				if (seen.has(key)) continue;
-				seen.add(key);
-				out.push({
-					id: `r${nextNamedRowId++}`,
-					name,
-					source: src,
-					u: "",
-				});
+		if (block.recharge && typeof block.recharge === "object") {
+			for (const [n, list] of Object.entries(block.recharge)) {
+				if (!Array.isArray(list)) continue;
+				for (const blob of list) push(blob, "recharge", {recharge: Number(n) || 6});
 			}
 		}
+		for (const blob of Object.values(block.daily || {}).flat()) push(blob, "will");
 	}
 	return out;
+}
+
+function crProficiencyBonus (cr) {
+	const label = String(cr?.cr ?? cr ?? "0");
+	const n = label === "1/8" || label === "1/4" || label === "1/2" ? 0 : (Number(label) || 0);
+	if (n < 5) return 2;
+	return Math.ceil(n / 4) + 1;
 }
 
 function bumpNamedRowId (rows) {
