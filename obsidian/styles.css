@@ -4475,7 +4475,7 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 
 .fiveetools-creatureform__namedrow {
 	display: grid;
-	grid-template-columns: 1fr auto auto;
+	grid-template-columns: minmax(10em, 1fr) minmax(0, auto) auto;
 	gap: 4px;
 	padding: 6px;
 	border: 1px solid var(--background-modifier-border);
@@ -4485,13 +4485,14 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 .fiveetools-creatureform__namedrow input {
 	grid-column: 1;
 	width: 100%;
-	min-width: 0;
+	min-width: 10em;
 }
 
 .fiveetools-creatureform__namedrow select {
 	grid-column: 2;
 	width: auto;
-	min-width: 8em;
+	min-width: 0;
+	max-width: 8em;
 }
 
 .fiveetools-creatureform__namedrow button {
@@ -4501,6 +4502,26 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 .fiveetools-creatureform__namedrow textarea {
 	grid-column: 1 / -1;
 	width: 100%;
+}
+
+/* Name stays full-width; recharge must not squeeze it on iPad / narrow panes. */
+body.is-mobile .fiveetools-creatureform__namedrow {
+	grid-template-columns: 1fr auto;
+}
+
+body.is-mobile .fiveetools-creatureform__namedrow input {
+	grid-column: 1 / -1;
+	min-width: 0;
+}
+
+body.is-mobile .fiveetools-creatureform__namedrow select {
+	grid-column: 1;
+	justify-self: start;
+	max-width: none;
+}
+
+body.is-mobile .fiveetools-creatureform__namedrow button {
+	grid-column: 2;
 }
 
 .fiveetools-creatureform__chips {
