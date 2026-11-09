@@ -1977,6 +1977,11 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	white-space: nowrap;
 }
 
+.fiveetools-roll-popup__val {
+	font-weight: 800;
+	font-variant-numeric: tabular-nums;
+}
+
 .fiveetools-view .fiveetools-hit-roll,
 .fiveetools-view .fiveetools-or-roll,
 .fiveetools-dmscreen .fiveetools-hit-roll,
@@ -3350,6 +3355,64 @@ body.fiveetools-table-window .fiveetools-dice-overlay {
 
 body.fiveetools-table-window .fiveetools-roll-popup {
 	z-index: 1101;
+}
+
+.fiveetools-roll-history-hud {
+	position: fixed;
+	right: 16px;
+	bottom: 16px;
+	z-index: 1090;
+	width: min(320px, 42vw);
+	max-height: 40vh;
+	overflow: auto;
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: rgba(20, 20, 20, 0.82);
+	color: #f2f2f2;
+	font-size: 13px;
+	line-height: 1.35;
+	pointer-events: none;
+	-webkit-app-region: no-drag;
+}
+
+.fiveetools-roll-history-hud .fiveetools-roll-history__empty {
+	color: rgba(242, 242, 242, 0.55);
+	font-size: 12px;
+}
+
+.fiveetools-roll-history__list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.fiveetools-roll-history__item {
+	padding: 6px 8px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.fiveetools-roll-history--compact .fiveetools-roll-history__item {
+	font-variant-numeric: tabular-nums;
+}
+
+.fiveetools-dmscreen__rollhist {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.fiveetools-dmscreen__rollhist .fiveetools-roll-history__item {
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.fiveetools-dmscreen__rollhist .fiveetools-roll-history__empty {
+	color: var(--text-muted);
+	font-size: 12px;
 }
 
 .fiveetools-table-player__roster {

@@ -6,6 +6,7 @@ import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
+import {renderRollHistoryWidget} from "./roll-history.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
@@ -130,6 +131,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Add the dice roller"},
 	});
+	const addRollHistBtn = bar.createEl("button", {
+		text: "Roll log",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Add the last-five roll history"},
+	});
 	const refButtons = QUICK_REFS.map((spec) => {
 		const el = bar.createEl("button", {
 			text: spec.label,
@@ -157,6 +163,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		addPlayersBtn.toggleAttribute("disabled", items().some(panel => panel.type === "players"));
 		addTimeBtn.toggleAttribute("disabled", items().some(panel => panel.type === "time"));
 		addDiceBtn.toggleAttribute("disabled", items().some(panel => panel.type === "dice"));
+		addRollHistBtn.toggleAttribute("disabled", items().some(panel => panel.type === "rollHistory"));
 		for (const btn of refButtons) {
 			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
 		}
@@ -583,6 +590,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (items().some(panel => panel.type === "dice")) return;
 		addColumn(blankPanel("dice", "Dice"));
 	});
+	addRollHistBtn.addEventListener("click", () => {
+		if (items().some(panel => panel.type === "rollHistory")) return;
+		addColumn(blankPanel("rollHistory", "Roll history"));
+	});
 
 	const pinReference = (spec) => {
 		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
@@ -681,7 +692,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				}
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice" || panel.type === "rollHistory") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -724,6 +735,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "players") void paintPlayers(body, panel);
 		else if (panel.type === "time") paintTime(body, panel);
 		else if (panel.type === "dice") paintDice(body, panel);
+		else if (panel.type === "rollHistory") paintRollHistory(body);
 		else if (panel.type === "initiative") {
 			body.addClass("fiveetools-dmscreen__init");
 			body.setAttr("tabindex", "0");
@@ -749,6 +761,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				emit();
 			},
 		});
+	};
+
+	const paintRollHistory = (body) => {
+		body._rollHistOff?.();
+		body._rollHistOff = renderRollHistoryWidget(body);
 	};
 
 	const paintTime = (body, panel) => {

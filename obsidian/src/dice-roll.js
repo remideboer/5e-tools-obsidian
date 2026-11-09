@@ -1,5 +1,6 @@
 import {showDice3d} from "./dice-3d.js";
 import {mapPlayerDocument} from "./map-view.js";
+import {pushRollHistory} from "./roll-history.js";
 import {tableDocument} from "./table-session.js";
 
 const POPUP_ID = "fiveetools-roll-popup";
@@ -120,7 +121,11 @@ export function presentRoll (plugin, result) {
 export function presentRolls (plugin, results) {
 	const list = (results || []).filter(it => it?.total != null);
 	if (!list.length) return Promise.resolve(results || []);
-	const lines = list.map(formatRollNotice);
+	pushRollHistory(list.map(result => ({
+		text: formatRollNotice(result),
+		total: result.total,
+		label: result.label || "",
+	})));
 	const docs = rollDocuments(plugin);
 	if (plugin?.settings?.dice3d) {
 		// One 3D roll for all dice — concurrent roller.roll calls hang and skip the popup.
@@ -132,14 +137,14 @@ export function presentRolls (plugin, results) {
 			const win = doc.defaultView || window;
 			return Promise.resolve(showDice3d(plugin, combined, doc)).then(() => new Promise((resolve) => {
 				win.setTimeout(() => {
-					showRollPopupLines(lines, doc);
+					showRollPopupResults(list, doc);
 					resolve();
 				}, 500);
 			}));
 		});
 		return Promise.all(waits).then(() => list);
 	}
-	for (const doc of docs) showRollPopupLines(lines, doc);
+	for (const doc of docs) showRollPopupResults(list, doc);
 	return Promise.resolve(list);
 }
 
@@ -156,13 +161,13 @@ function rollDocuments (plugin) {
 	return docs;
 }
 
-function showRollPopupLines (lines, doc = document) {
+function showRollPopupResults (results, doc = document) {
 	const el = ensureRollPopup(doc);
 	el.replaceChildren();
-	for (const text of lines) {
+	for (const result of results) {
 		const line = doc.createElement("div");
 		line.className = "fiveetools-roll-popup__line";
-		line.textContent = text;
+		appendRollNoticeNodes(line, result, doc);
 		el.appendChild(line);
 	}
 	el.style.display = "";
@@ -173,6 +178,92 @@ function showRollPopupLines (lines, doc = document) {
 		el.style.display = "none";
 		popupTimers.delete(doc);
 	}, POPUP_MS));
+}
+
+function boldVal (doc, value) {
+	const b = doc.createElement("b");
+	b.className = "fiveetools-roll-popup__val";
+	b.textContent = String(value);
+	return b;
+}
+
+function appendText (host, text) {
+	host.appendChild(host.ownerDocument.createTextNode(text));
+}
+
+/** Build popup line DOM with dice/totals in bold. */
+function appendRollNoticeNodes (line, result, doc) {
+	if (result?.total == null) {
+		appendText(line, "Could not roll.");
+		return;
+	}
+	const prefix = result.showLabel && result.label ? `${result.label} ` : "";
+	if (prefix) appendText(line, prefix);
+
+	if (result.successThresh != null) {
+		const outcome = result.rechargeOk
+			? (result.chanceSuccessText || "Recharged!")
+			: (result.chanceFailureText || "Did not recharge");
+		line.appendChild(boldVal(doc, result.total));
+		appendText(line, `: ${outcome}`);
+		return;
+	}
+	if (result.context?.type === "hit") {
+		const nat = Number(result.diceTotal);
+		if (nat === 1) {
+			line.appendChild(boldVal(doc, "1"));
+			appendText(line, " : FAIL!");
+			return;
+		}
+		if (nat === 20) {
+			line.appendChild(boldVal(doc, "20"));
+			appendText(line, " : CRITICAL!");
+			return;
+		}
+		appendBreakdownNodes(line, result, doc);
+		appendText(line, ": ");
+		line.appendChild(boldVal(doc, result.total));
+		appendText(line, " to hit");
+		return;
+	}
+	if (result.subType === "damage") {
+		const type = String(result.damageType || "").trim().toLowerCase();
+		const typePart = type ? ` ${type}` : "";
+		const mode = result.mode ? ` (${result.mode})` : "";
+		const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
+		line.appendChild(boldVal(doc, result.total));
+		appendText(line, `${typePart} damage${mode}${extra}`);
+		return;
+	}
+	const mode = result.mode ? ` (${result.mode})` : "";
+	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
+	const mod = Number(result.mod) || 0;
+	if (!mod) {
+		line.appendChild(boldVal(doc, result.total));
+		appendText(line, `${mode}${extra}`);
+		return;
+	}
+	appendBreakdownNodes(line, result, doc);
+	appendText(line, `${mode}: `);
+	line.appendChild(boldVal(doc, result.total));
+	appendText(line, extra);
+}
+
+function appendBreakdownNodes (line, result, doc) {
+	if (result.diceTotal == null) {
+		appendText(line, result.label || result.notation || "Roll");
+		return;
+	}
+	const diceTotal = Number(result.diceTotal);
+	if (!Number.isFinite(diceTotal)) {
+		appendText(line, result.label || result.notation || "Roll");
+		return;
+	}
+	const mod = Number(result.mod) || 0;
+	line.appendChild(boldVal(doc, diceTotal));
+	if (!mod) return;
+	appendText(line, ` ${mod < 0 ? "-" : "+"} `);
+	line.appendChild(boldVal(doc, Math.abs(mod)));
 }
 
 function ensureRollPopup (doc = document) {

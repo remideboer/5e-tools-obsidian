@@ -2,6 +2,7 @@ import {ItemView, Menu, Notice, setIcon} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_TABLE, tableInitHeightPercent} from "./constants.js";
 import {acOf, avatarFrom, characterId, hpOf} from "./dpr-view.js";
 import {presentRoll, rollInitiative} from "./dice-roll.js";
+import {ensureTableRollHistoryHud, removeTableRollHistoryHud} from "./roll-history.js";
 import {rosterName, listCharacters} from "./character-store.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault} from "./encounter-store.js";
@@ -99,6 +100,7 @@ export class FiveEToolsTableView extends ItemView {
 			});
 		}
 		if (session.showRoster !== false && placedChips(session).length) paintPlayerRoster(frame, session, this.contentEl.win.document, this.plugin);
+		ensureTableRollHistoryHud(this.contentEl.win.document);
 	}
 }
 
@@ -108,8 +110,12 @@ function markTableWindow (view, on) {
 	const body = view?.contentEl?.doc?.body;
 	if (!win || win === window || !body) return;
 	body.classList.toggle("fiveetools-table-window", on);
-	if (!on) return;
+	if (!on) {
+		removeTableRollHistoryHud(view.contentEl.doc);
+		return;
+	}
 	if (!view.frame || view.frame.ownerDocument !== win.document) mountTableFrame(view);
+	ensureTableRollHistoryHud(view.contentEl.doc);
 	view.contentEl.doc.title = "Table";
 	win.document.documentElement.style.background = "#000";
 	body.style.background = "#000";
