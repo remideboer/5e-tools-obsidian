@@ -4484,6 +4484,34 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	width: 100%;
 }
 
+.fiveetools-creatureform__speeds {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.fiveetools-creatureform__speedrow {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.fiveetools-creatureform__speedlabel {
+	flex: 0 0 4.5em;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.fiveetools-creatureform__speedrow select {
+	flex: 1;
+	min-width: 0;
+	width: auto;
+}
+
+.fiveetools-creatureform__speedadd select {
+	width: 100%;
+}
+
 .fiveetools-creatureform__picklist {
 	display: flex;
 	align-items: center;

@@ -17,6 +17,7 @@ import {
 import {loadEntity} from "./entity-loader.js";
 import {brewDocFromEntity, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {renderCreatureForm} from "./creature-form.js";
+import {enrichMonsterSpells} from "./spell-roll-enrich.js";
 
 export function renderHomebrewEditor (formEl, resultEl, {
 	session,
@@ -312,13 +313,14 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		emit();
 	});
 
-	editBtn.addEventListener("click", () => {
+	editBtn.addEventListener("click", async () => {
 		const ent = getBrewEntity(typeId, selectedName);
 		if (!ent) return;
 		previousName = ent.name;
 		draft = entityToForm(typeId, ent);
+		if (typeId === "monster") await enrichMonsterSpells(draft);
 		renderForm();
-		previewEntity(ent);
+		previewEntity(typeId === "monster" ? buildEntity(typeId, draft) : ent);
 		emit();
 	});
 
@@ -340,18 +342,20 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		});
 	});
 
-	previewBtn.addEventListener("click", () => {
+	previewBtn.addEventListener("click", async () => {
 		cancelPreview();
+		if (typeId === "monster") await enrichMonsterSpells(draft);
 		const ent = buildEntity(typeId, draft);
 		if (!ent.name) {
 			new Notice("Name is required.");
 			previewEntity(ent);
 			return;
 		}
-		previewDraft();
+		previewEntity(ent);
 	});
 
 	saveBtn.addEventListener("click", async () => {
+		if (typeId === "monster") await enrichMonsterSpells(draft);
 		const ent = buildEntity(typeId, draft);
 		if (!ent.name) {
 			new Notice("Name is required.");

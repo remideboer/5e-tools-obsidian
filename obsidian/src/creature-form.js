@@ -1,5 +1,5 @@
 import {searchEntities} from "./search-index.js";
-import {newNamedRow, normalizeMonsterForm} from "./homebrew-store.js";
+import {newNamedRow, normalizeMonsterForm, parseSpeed, speedToText} from "./homebrew-store.js";
 import {applyCalculatedCr, estimateCreatureCr} from "./creature-cr.js";
 import {
 	ACTION_TEMPLATES,
@@ -13,6 +13,8 @@ import {
 	templateById,
 	TRAIT_TEMPLATES,
 } from "./creature-templates.js";
+import {loadEntity} from "./entity-loader.js";
+import {enrichMonsterSpells, spellRollerMetaFromEntity} from "./spell-roll-enrich.js";
 import {getParser} from "./fiveetools-host.js";
 
 const SIZES = [
@@ -102,6 +104,12 @@ function numberedOptions (min, max, step = 1) {
 const ABILITY_SCORES = numberedOptions(1, 30);
 const ARMOR_CLASSES = numberedOptions(1, 30);
 const SPEEDS = numberedOptions(0, 120, 5).map(it => ({id: it.id, label: `${it.label} ft.`}));
+const SPEED_MODES = [
+	{id: "fly", label: "Fly"},
+	{id: "swim", label: "Swim"},
+	{id: "climb", label: "Climb"},
+	{id: "burrow", label: "Burrow"},
+];
 const SLOT_COUNTS = numberedOptions(1, 6);
 
 const DAMAGE_TYPES = [
@@ -156,10 +164,8 @@ function monsterStatFields () {
 			{key: "alignment", label: "Alignment", input: "select", options: ALIGNMENTS},
 			{key: "ac", label: "Armor class", input: "select", options: ARMOR_CLASSES, fallback: "10"},
 		]},
-		{kind: "grid", fields: [
-			{key: "hpFormula", label: "HP formula"},
-			{key: "speed", label: "Speed", input: "select", options: SPEEDS, fallback: "30"},
-		]},
+		{key: "hpFormula", label: "HP formula"},
+		{kind: "speed"},
 		{kind: "grid", cols: 3, fields: [
 			{key: "str", label: "STR", input: "select", options: ABILITY_SCORES, fallback: "10"},
 			{key: "dex", label: "DEX", input: "select", options: ABILITY_SCORES, fallback: "10"},
@@ -203,6 +209,10 @@ export function renderCreatureForm (parent, draft, {onChange} = {}) {
 		}
 		if (field.kind === "cr") {
 			paintCr = addCrField(parent, draft, emit);
+			continue;
+		}
+		if (field.kind === "speed") {
+			addSpeedField(parent, draft, emit);
 			continue;
 		}
 		addField(parent, field, draft, emit);
@@ -503,7 +513,7 @@ function renderSpellSection (parent, draft, emit) {
 			row.addEventListener("click", () => {
 				const key = `${doc.n}|${doc.s}`.toLowerCase();
 				if (draft.spells.some(it => `${it.name}|${it.source}`.toLowerCase() === key)) return;
-				draft.spells = [...draft.spells, {
+				const spell = {
 					id: newNamedRow().id,
 					name: doc.n,
 					source: doc.s,
@@ -512,12 +522,23 @@ function renderSpellSection (parent, draft, emit) {
 					slotLevel: 1,
 					slots: 1,
 					recharge: 6,
-				}];
+					hasAttack: false,
+					damageTag: "",
+					enriched: false,
+				};
+				draft.spells = [...draft.spells, spell];
 				searchEl.value = "";
 				hitsEl.empty();
 				emit();
 				paintSpells();
 				queueMicrotask(() => searchEl.focus());
+				void loadEntity(doc).then(({ent}) => {
+					Object.assign(spell, spellRollerMetaFromEntity(ent));
+					emit();
+				}).catch(() => {
+					spell.enriched = true;
+					emit();
+				});
 			});
 		}
 	};
@@ -525,6 +546,11 @@ function renderSpellSection (parent, draft, emit) {
 	searchEl.addEventListener("input", () => paintHits());
 	paintSpells();
 	paintSummary();
+	void enrichMonsterSpells(draft).then((changed) => {
+		if (!changed) return;
+		paintSpells();
+		emit();
+	});
 	return paintSummary;
 }
 
@@ -545,6 +571,91 @@ function proficiencyBonus (cr) {
 	const n = Number(String(cr || "0").includes("/") ? 0 : cr) || 0;
 	if (n < 5) return 2;
 	return Math.ceil(n / 4) + 1;
+}
+
+function addSpeedField (parent, draft, emit) {
+	const wrap = parent.createDiv({cls: "fiveetools-homebrew__field"});
+	wrap.createEl("label", {text: "Speed"});
+	const listEl = wrap.createDiv({cls: "fiveetools-creatureform__speeds"});
+	const addRow = wrap.createDiv({cls: "fiveetools-creatureform__speedadd"});
+	const addPick = addRow.createEl("select", {attr: {title: "Add speed"}});
+	addPick.createEl("option", {attr: {value: ""}, text: "Add speed…"});
+
+	const readSpeeds = () => parseSpeed(draft.speed);
+	const writeSpeeds = (speeds) => {
+		draft.speed = speedToText(speeds);
+		emit();
+		paint();
+	};
+
+	const paint = () => {
+		const speeds = readSpeeds();
+		listEl.empty();
+
+		const walkRow = listEl.createDiv({cls: "fiveetools-creatureform__speedrow"});
+		walkRow.createSpan({cls: "fiveetools-creatureform__speedlabel", text: "Walk"});
+		const walkSel = walkRow.createEl("select", {attr: {title: "Walk speed"}});
+		for (const opt of SPEEDS) walkSel.createEl("option", {attr: {value: opt.id}, text: opt.label});
+		walkSel.value = String(speeds.walk ?? 30);
+		if (![...walkSel.options].some(o => o.value === walkSel.value)) {
+			walkSel.createEl("option", {attr: {value: walkSel.value}, text: `${walkSel.value} ft.`});
+		}
+		walkSel.addEventListener("change", () => {
+			const next = readSpeeds();
+			next.walk = Number(walkSel.value) || 0;
+			writeSpeeds(next);
+		});
+
+		for (const mode of SPEED_MODES) {
+			if (speeds[mode.id] == null) continue;
+			const row = listEl.createDiv({cls: "fiveetools-creatureform__speedrow"});
+			row.createSpan({cls: "fiveetools-creatureform__speedlabel", text: mode.label});
+			const sel = row.createEl("select", {attr: {title: `${mode.label} speed`}});
+			for (const opt of SPEEDS) sel.createEl("option", {attr: {value: opt.id}, text: opt.label});
+			sel.value = String(speeds[mode.id]);
+			if (![...sel.options].some(o => o.value === sel.value)) {
+				sel.createEl("option", {attr: {value: sel.value}, text: `${sel.value} ft.`});
+			}
+			sel.addEventListener("change", () => {
+				const next = readSpeeds();
+				next[mode.id] = Number(sel.value) || 0;
+				if (!next[mode.id]) delete next[mode.id];
+				writeSpeeds(next);
+			});
+			const remove = row.createEl("button", {
+				text: "×",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
+				attr: {type: "button", title: `Remove ${mode.label.toLowerCase()}`},
+			});
+			remove.addEventListener("click", (evt) => {
+				evt.preventDefault();
+				const next = readSpeeds();
+				delete next[mode.id];
+				writeSpeeds(next);
+			});
+		}
+
+		addPick.empty();
+		addPick.createEl("option", {attr: {value: ""}, text: "Add speed…"});
+		for (const mode of SPEED_MODES) {
+			if (speeds[mode.id] != null) continue;
+			addPick.createEl("option", {attr: {value: mode.id}, text: mode.label});
+		}
+		addPick.value = "";
+		addPick.disabled = SPEED_MODES.every(mode => speeds[mode.id] != null);
+	};
+
+	addPick.addEventListener("change", () => {
+		const mode = addPick.value;
+		addPick.value = "";
+		if (!mode) return;
+		const next = readSpeeds();
+		if (next[mode] != null) return;
+		next[mode] = Number(next.walk) || 30;
+		writeSpeeds(next);
+	});
+
+	paint();
 }
 
 function addCrField (parent, draft, emit) {

@@ -641,7 +641,7 @@ function buildMonster (form) {
 			type: "spellcasting",
 			ability: abilityKey,
 			headerEntries: [
-				`The ${who} casts one of the following spells, using ${abilityLabel} as the spellcasting ability (spell save {@dc ${dc}}, +${hit} to hit with spell attacks):`,
+				`The ${who} casts one of the following spells, using ${abilityLabel} as the spellcasting ability (spell save {@dc ${dc}}, {@hit ${hit}} to hit with spell attacks):`,
 			],
 		};
 		if (!innate) block.displayAs = "action";
@@ -649,7 +649,7 @@ function buildMonster (form) {
 		const slots = {};
 		const recharge = {};
 		for (const spell of spells) {
-			const tag = `{@spell ${spell.name}|${spell.source || "XPHB"}}`;
+			const tag = spellListTag(spell, hit);
 			const usage = String(spell.usage || "will").toLowerCase();
 			if (usage === "slot") {
 				const level = Math.max(0, Math.min(9, Number(spell.slotLevel) || 0));
@@ -874,7 +874,7 @@ function parseClassList (raw) {
 	return splitComma(raw).map(name => ({name, source: "XPHB"}));
 }
 
-function parseSpeed (raw) {
+export function parseSpeed (raw) {
 	const text = String(raw || "").trim();
 	const out = {};
 	const walk = text.match(/^(\d+)/);
@@ -886,7 +886,7 @@ function parseSpeed (raw) {
 	return out;
 }
 
-function speedToText (speed) {
+export function speedToText (speed) {
 	if (speed == null) return "30";
 	if (typeof speed === "number") return String(speed);
 	const parts = [String(speed.walk || 30)];
@@ -995,8 +995,20 @@ function coerceSpells (raw) {
 			slotLevel: Math.max(0, Math.min(9, Number(it?.slotLevel) || 0)),
 			slots: Math.max(1, Number(it?.slots) || 1),
 			recharge: Math.max(2, Math.min(6, Number(it?.recharge) || 6)),
+			hasAttack: Boolean(it?.hasAttack),
+			damageTag: typeof it?.damageTag === "string" ? it.damageTag : "",
+			enriched: Boolean(it?.enriched),
 		};
 	}).filter(it => it.name);
+}
+
+function spellListTag (spell, hit) {
+	const base = `{@spell ${spell.name}|${spell.source || "XPHB"}}`;
+	const parts = [];
+	if (spell.hasAttack) parts.push(`{@hit ${hit}}`);
+	if (spell.damageTag) parts.push(spell.damageTag);
+	if (!parts.length) return base;
+	return `${base} (${parts.join(", ")})`;
 }
 
 function spellsFromEnt (ent) {
@@ -1011,6 +1023,9 @@ function spellsFromEnt (ent) {
 			const key = `${name.toLowerCase()}|${src.toLowerCase()}`;
 			if (seen.has(key)) continue;
 			seen.add(key);
+			const damageTag = (text.match(/\{@damage\s+[^}]+\}/i) || text.match(/\{@dice\s+[^}]+\}/i) || [""])[0];
+			const hasAttack = /\{@hit\b/i.test(text);
+			const enriched = hasAttack || Boolean(damageTag);
 			out.push({
 				id: `r${nextNamedRowId++}`,
 				name,
@@ -1020,6 +1035,9 @@ function spellsFromEnt (ent) {
 				slotLevel: extra.slotLevel ?? 1,
 				slots: extra.slots ?? 1,
 				recharge: extra.recharge ?? 6,
+				hasAttack,
+				damageTag,
+				enriched,
 			});
 		}
 	};
