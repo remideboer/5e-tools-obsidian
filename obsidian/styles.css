@@ -1104,6 +1104,12 @@ a.fiveetools-inline-link {
 	padding: 0;
 }
 
+/* Keep catalog + creator readable; scroll the pair instead of crushing the form. */
+.fiveetools-library__listcol--homebrew .fiveetools-library__list {
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
 .fiveetools-library__listcol--encounter .fiveetools-encounter,
 .fiveetools-library__listcol--homebrew .fiveetools-homebrew {
 	flex-direction: row;
@@ -4259,6 +4265,7 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 .fiveetools-homebrew {
 	display: flex;
 	flex-direction: row;
+	min-width: 560px;
 	min-height: 0;
 	height: 100%;
 }
@@ -4268,8 +4275,8 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 }
 
 .fiveetools-homebrew__catalog {
-	flex: 1 1 50%;
-	min-width: 0;
+	flex: 1 0 260px;
+	min-width: 260px;
 	min-height: 0;
 	overflow-x: hidden;
 	overflow-y: auto;
@@ -4281,14 +4288,15 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 }
 
 .fiveetools-homebrew__creator {
-	flex: 1 1 50%;
-	min-width: 0;
+	flex: 1 0 280px;
+	min-width: 280px;
 	display: flex;
 	flex-direction: column;
 	padding: 8px;
 	min-height: 0;
 	gap: 8px;
 	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 .fiveetools-homebrew__tabs,
