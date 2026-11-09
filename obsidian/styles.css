@@ -1982,6 +1982,10 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	font-variant-numeric: tabular-nums;
 }
 
+.fiveetools-roll-popup__dtype {
+	font-style: italic;
+}
+
 .fiveetools-view .fiveetools-hit-roll,
 .fiveetools-view .fiveetools-or-roll,
 .fiveetools-dmscreen .fiveetools-hit-roll,

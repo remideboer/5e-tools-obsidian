@@ -121,12 +121,16 @@ export function presentRoll (plugin, result) {
 export function presentRolls (plugin, results) {
 	const list = (results || []).filter(it => it?.total != null);
 	if (!list.length) return Promise.resolve(results || []);
-	pushRollHistory(list.map(result => ({
-		text: formatRollNotice(result),
-		total: result.total,
-		label: result.label || "",
-	})));
 	const docs = rollDocuments(plugin);
+	const reveal = () => {
+		// Same moment as the popup — after 3D dice settle when enabled.
+		pushRollHistory(list.map(result => ({
+			text: formatRollNotice(result),
+			total: result.total,
+			label: result.label || "",
+		})));
+		for (const doc of docs) showRollPopupResults(list, doc);
+	};
 	if (plugin?.settings?.dice3d) {
 		// One 3D roll for all dice — concurrent roller.roll calls hang and skip the popup.
 		const combined = {
@@ -136,15 +140,15 @@ export function presentRolls (plugin, results) {
 		const waits = docs.map((doc) => {
 			const win = doc.defaultView || window;
 			return Promise.resolve(showDice3d(plugin, combined, doc)).then(() => new Promise((resolve) => {
-				win.setTimeout(() => {
-					showRollPopupResults(list, doc);
-					resolve();
-				}, 500);
+				win.setTimeout(resolve, 500);
 			}));
 		});
-		return Promise.all(waits).then(() => list);
+		return Promise.all(waits).then(() => {
+			reveal();
+			return list;
+		});
 	}
-	for (const doc of docs) showRollPopupResults(list, doc);
+	reveal();
 	return Promise.resolve(list);
 }
 
@@ -228,11 +232,17 @@ function appendRollNoticeNodes (line, result, doc) {
 	}
 	if (result.subType === "damage") {
 		const type = String(result.damageType || "").trim().toLowerCase();
-		const typePart = type ? ` ${type}` : "";
 		const mode = result.mode ? ` (${result.mode})` : "";
 		const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
 		line.appendChild(boldVal(doc, result.total));
-		appendText(line, `${typePart} damage${mode}${extra}`);
+		if (type) {
+			appendText(line, " ");
+			const ital = doc.createElement("i");
+			ital.className = "fiveetools-roll-popup__dtype";
+			ital.textContent = type;
+			line.appendChild(ital);
+		}
+		appendText(line, ` damage${mode}${extra}`);
 		return;
 	}
 	const mode = result.mode ? ` (${result.mode})` : "";
