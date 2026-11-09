@@ -4,6 +4,7 @@ import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {bindDiceRollers} from "./dice-roll.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {cachedMediaSrc} from "./media-cache.js";
+import {enrichCreatureSpellcasting} from "./spell-roll-enrich.js";
 
 const SHOW_DELAY = 350;
 const HIDE_DELAY = 150;
@@ -189,6 +190,8 @@ async function showCard (id, plugin, doc, x, y, ent) {
 		const loaded = await loadEntity(doc);
 		creature = loaded?.ent || null;
 	}
+	if (id !== token || !creature) return;
+	if (isBestiary(creature, doc)) creature = await enrichCreatureSpellcasting(creature);
 	if (id !== token || !creature) return;
 	const html = renderCompactHtml(creature, doc ? loadPageForDoc(doc) : null);
 	if (id !== token) return;

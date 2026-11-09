@@ -20,6 +20,7 @@ import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {brewDocFromEntity, findEntityDoc, searchEntities} from "./search-index.js";
+import {enrichCreatureSpellcasting} from "./spell-roll-enrich.js";
 import {ensureTableSession, onTableChange, refreshTable} from "./table-session.js";
 import {tableInitHeightPercent} from "./constants.js";
 import {onInitiativeKey, placedChips, selectTableTurn, finishTableTurn, addPlayerRecordsFrom20, addNamedBelowPlayers, addNamedAtEnd, appendInitToken, removeTableGroup, reorderPlacedRoster, castTableWindow, closeTableWindow, tableWindowOpen, clearTableRoster} from "./table-view.js";
@@ -1364,8 +1365,12 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		}
 		const page = loadPageForDoc(doc);
 		const wrap = host.createDiv({cls: "fiveetools-view__stats"});
-		wrap.innerHTML = renderCompactHtml(loaded.ent, page);
-		if (loaded.ent.__prop === "monster") appendCreatureStatFooter(wrap, loaded.ent, plugin);
+		const ent = loaded.ent.__prop === "monster"
+			? await enrichCreatureSpellcasting(loaded.ent)
+			: loaded.ent;
+		if (!host.isConnected) return;
+		wrap.innerHTML = renderCompactHtml(ent, page);
+		if (ent.__prop === "monster") appendCreatureStatFooter(wrap, ent, plugin);
 		bindInternalLinks(wrap, plugin);
 		bindDiceRollers(wrap, plugin);
 		await rewriteMediaUrls(plugin, wrap);

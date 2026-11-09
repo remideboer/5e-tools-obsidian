@@ -1002,13 +1002,22 @@ function coerceSpells (raw) {
 	}).filter(it => it.name);
 }
 
-function spellListTag (spell, hit) {
+export function spellListTag (spell, hit) {
 	const base = `{@spell ${spell.name}|${spell.source || "XPHB"}}`;
+	const label = String(spell.name || "").trim();
 	const parts = [];
-	if (spell.hasAttack) parts.push(`{@hit ${hit}}`);
-	if (spell.damageTag) parts.push(spell.damageTag);
+	if (spell.hasAttack) parts.push(label ? `{@hit ${hit}||${label}}` : `{@hit ${hit}}`);
+	if (spell.damageTag) parts.push(namedDamageTag(spell.damageTag, label));
 	if (!parts.length) return base;
 	return `${base} (${parts.join(", ")})`;
+}
+
+function namedDamageTag (damageTag, label) {
+	const raw = String(damageTag || "").trim();
+	if (!raw || !label) return raw;
+	const m = raw.match(/^\{@(damage|dice)\s+([^}|]+)(?:\|[^}]*)?\}$/i);
+	if (!m) return raw;
+	return `{@${m[1].toLowerCase()} ${m[2].trim()}||${label}}`;
 }
 
 function spellsFromEnt (ent) {

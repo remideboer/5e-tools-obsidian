@@ -55,15 +55,15 @@ export function rollInitiative (bonus, evt = {}, label = "Initiative") {
 
 export function formatRollNotice (result) {
 	if (result?.total == null) return "Could not roll.";
+	const prefix = result.showLabel && result.label ? `${result.label} ` : "";
 	if (result.context?.type === "hit") {
 		const nat = Number(result.diceTotal);
-		if (nat === 1) return "1 : FAIL!";
-		if (nat === 20) return "20 : CRITICAL!";
+		if (nat === 1) return `${prefix}1 : FAIL!`;
+		if (nat === 20) return `${prefix}20 : CRITICAL!`;
 	}
 	const mode = result.mode ? ` (${result.mode})` : "";
 	const extra = result.totals?.length > 1 ? ` [${result.totals.join(", ")}]` : "";
 	const mod = Number(result.mod) || 0;
-	const prefix = result.showLabel && result.label ? `${result.label} ` : "";
 	// Flat rolls: show total only (e.g. "5"), not "5: 5".
 	if (!mod) return `${prefix}${result.total}${mode}${extra}`;
 	return `${prefix}${formatBreakdown(result)}${mode}: ${result.total}${extra}`;
@@ -198,12 +198,25 @@ export function bindDiceRollers (el, plugin) {
 		} catch (_) {
 			return;
 		}
-		const named = roller.getAttribute("data-roll-name");
-		if (named && !packed.name) packed.name = named;
+		const named = resolveRollerName(roller, packed);
+		if (named) packed.name = named;
 		const result = rollPacked(packed, evt);
-		if (named) result.showLabel = true;
+		if (named) {
+			result.label = named;
+			result.showLabel = true;
+		}
 		presentRoll(plugin, result);
 	}, true);
+}
+
+function resolveRollerName (roller, packed) {
+	const attr = roller.getAttribute("data-roll-name");
+	if (attr) return String(attr).trim();
+	if (packed?.name) return String(packed.name).trim();
+	const ancestor = roller.closest?.("[data-roll-name-ancestor]");
+	const fromAncestor = ancestor?.getAttribute("data-roll-name-ancestor");
+	if (!fromAncestor) return "";
+	return String(fromAncestor).trim().replace(/[.,:]$/, "");
 }
 
 function rollMode (subType, shiftKey, ctrlKey) {

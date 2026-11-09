@@ -14,6 +14,7 @@ import {addCombatants, applyTemplateToGroup} from "./encounter-view.js";
 import {emptyInstance, getEncounterInstance, getSavedEncounter, queueSaveEncountersToVault, saveSavedEncounter, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {adjustMultiattack, CR_STEPS, crLabel, crNumber, homebrewName} from "./creature-scale.js";
 import {cacheBrewInDataLoader, saveHomebrewEntity} from "./homebrew-store.js";
+import {enrichCreatureSpellcasting} from "./spell-roll-enrich.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 	containerEl.empty();
@@ -71,7 +72,10 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 		}
 
 		const bookEnt = loaded.ent || null;
-		const displayEnt = opts.entity ? JSON.parse(JSON.stringify(opts.entity)) : bookEnt;
+		let displayEnt = opts.entity ? JSON.parse(JSON.stringify(opts.entity)) : bookEnt;
+		if (displayEnt && isCreatureEntity(displayEnt, doc)) {
+			displayEnt = await enrichCreatureSpellcasting(displayEnt);
+		}
 		const scaleSource = opts.scaleBase
 			? JSON.parse(JSON.stringify(opts.scaleBase))
 			: (bookEnt || displayEnt);
@@ -219,8 +223,9 @@ async function scaledCopy (original, targetNumber) {
 }
 
 async function paintScaledStat (statWrap, ent, page, plugin, doc) {
-	statWrap.innerHTML = renderCompactHtml(ent, page);
-	if (isCreatureEntity(ent, doc)) appendCreatureStatFooter(statWrap, ent, plugin);
+	const display = isCreatureEntity(ent, doc) ? await enrichCreatureSpellcasting(ent) : ent;
+	statWrap.innerHTML = renderCompactHtml(display, page);
+	if (isCreatureEntity(display, doc)) appendCreatureStatFooter(statWrap, display, plugin);
 	bindInternalLinks(statWrap, plugin);
 	bindDiceRollers(statWrap, plugin);
 	await rewriteMediaUrls(plugin, statWrap);
