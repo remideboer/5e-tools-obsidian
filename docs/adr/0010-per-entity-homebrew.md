@@ -20,3 +20,4 @@ Homebrew and saved encounters lived in single JSON catalogs (`_homebrew/homebrew
 - Two devices can add different brew or encounters without wiping each other.
 - Call sites use `saveHomebrewEntity` / `deleteHomebrewEntity` and `saveSavedEncounter` / `deleteSavedEncounterFromVault` instead of dumping the whole catalog.
 - A rename of a brew entity deletes the old slug file. Encounter rename keeps the same `id` filename.
+- Homebrew monsters may include inline `fluff.entries` (Description + named Lore) and plugin field `_homebrewRollTables` (vault `.md` paths and/or `loot:{id}` refs to loot-generator tables). Official bestiary lore still comes from `monsterFluff` via `Renderer.monster.pGetFluff`.

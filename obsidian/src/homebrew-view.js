@@ -224,6 +224,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		addImageField(formWrap);
 		if (homebrewType(typeId).id === "monster") {
 			renderCreatureForm(formWrap, draft, {
+				plugin,
 				onChange: () => {
 					emit();
 					schedulePreview();

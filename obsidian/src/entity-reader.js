@@ -15,6 +15,7 @@ import {emptyInstance, getEncounterInstance, getSavedEncounter, queueSaveEncount
 import {adjustMultiattack, CR_STEPS, crLabel, crNumber, homebrewName} from "./creature-scale.js";
 import {cacheBrewInDataLoader, saveHomebrewEntity} from "./homebrew-store.js";
 import {enrichCreatureSpellcasting} from "./spell-roll-enrich.js";
+import {appendCreatureFluff, appendCreatureRollTables} from "./creature-lore.js";
 
 export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 	containerEl.empty();
@@ -138,6 +139,11 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 					onShown: (ent) => { shown.ent = ent; },
 					onApplyStats: opts.onApplyStats,
 				});
+				if (isCreatureEntity(displayEnt, doc)) {
+					const loreEnt = bookEnt || displayEnt;
+					await appendCreatureFluff(body, loreEnt, plugin, {bindInternalLinks});
+					await appendCreatureRollTables(body, loreEnt, plugin);
+				}
 			} else {
 				crRow.remove();
 			}

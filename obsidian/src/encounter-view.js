@@ -840,6 +840,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		blankEl.removeClass("is-hidden");
 		const formHost = blankEl.createDiv({cls: "fiveetools-encounter__blankform"});
 		renderCreatureForm(formHost, blankDraft, {
+			plugin,
 			onChange: () => {
 				emit();
 				scheduleBlankPreview();

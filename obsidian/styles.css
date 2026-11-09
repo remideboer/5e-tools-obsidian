@@ -4746,6 +4746,72 @@ body.is-mobile [data-fiveetools-hover="1"] {
 	overflow: auto;
 }
 
+.fiveetools-view__fluff,
+.fiveetools-view__creature-tables {
+	margin-top: 16px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.fiveetools-view__fluff-title {
+	margin: 0 0 8px;
+	font-size: 1rem;
+}
+
+.fiveetools-view__fluff-body {
+	font-size: 0.95em;
+	line-height: 1.45;
+}
+
+.fiveetools-view__fluff-body p {
+	margin: 0 0 0.75em;
+}
+
+.fiveetools-view__creature-table {
+	margin-bottom: 12px;
+}
+
+.fiveetools-view__creature-table-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.fiveetools-view__creature-table-result {
+	margin-bottom: 8px;
+}
+
+.fiveetools-view__creature-table-grid {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9em;
+}
+
+.fiveetools-view__creature-table-grid th,
+.fiveetools-view__creature-table-grid td {
+	border: 1px solid var(--background-modifier-border);
+	padding: 4px 6px;
+	text-align: left;
+	vertical-align: top;
+}
+
+.fiveetools-creatureform__tables {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 8px;
+}
+
+.fiveetools-creatureform__tablerow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 4px 0;
+}
+
 .fiveetools-view a,
 .fiveetools-view .ve-help {
 	pointer-events: auto;

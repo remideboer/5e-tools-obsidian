@@ -319,6 +319,9 @@ export function emptyForm (typeId) {
 			spells: [],
 			spellAbility: "int",
 			spellKind: "spellcasting",
+			description: "",
+			lore: "",
+			rollTables: [],
 		};
 		case "background": return {
 			name: "",
@@ -386,6 +389,9 @@ export function normalizeMonsterForm (form) {
 	if (!["int", "wis", "cha"].includes(next.spellAbility)) next.spellAbility = "int";
 	next.spellKind = String(form?.spellKind || "spellcasting").toLowerCase() === "innate" ? "innate" : "spellcasting";
 	next.crOverride = !!form?.crOverride;
+	next.description = String(form?.description || "");
+	next.lore = String(form?.lore || "");
+	next.rollTables = coerceRollTables(form?.rollTables);
 	bumpNamedRowId([next.traits, next.actions, next.bonus, next.reactions, next.spells].flat());
 	return next;
 }
@@ -416,6 +422,10 @@ export function buildEntity (typeId, form) {
 	if (ent) ent.__prop = type.prop;
 	const image = String(form?.image || "").trim();
 	if (ent && image) ent._homebrewImage = image;
+	if (ent && type.id === "monster") {
+		const paths = coerceRollTables(form?.rollTables).map(it => it.path).filter(Boolean);
+		if (paths.length) ent._homebrewRollTables = paths;
+	}
 	return ent;
 }
 
@@ -672,6 +682,8 @@ function buildMonster (form) {
 		if (Object.keys(recharge).length) block.recharge = recharge;
 		ent.spellcasting = [block];
 	}
+	const fluffEntries = buildMonsterFluffEntries(form);
+	if (fluffEntries.length) ent.fluff = {entries: fluffEntries};
 	return ent;
 }
 
@@ -712,7 +724,67 @@ function monsterToForm (ent) {
 	else if (/innate/i.test(String(cast.name || "")) || cast.displayAs === "trait" || cast.displayAs == null) {
 		form.spellKind = "innate";
 	} else form.spellKind = "spellcasting";
+	const fluffParts = fluffToDescriptionLore(ent.fluff?.entries);
+	form.description = fluffParts.description;
+	form.lore = fluffParts.lore;
+	form.rollTables = coerceRollTables(ent._homebrewRollTables);
 	return form;
+}
+
+function buildMonsterFluffEntries (form) {
+	const entries = [];
+	for (const para of splitParagraphs(form?.description)) entries.push(para);
+	const lore = splitParagraphs(form?.lore);
+	if (lore.length) {
+		entries.push({
+			type: "entries",
+			name: "Lore",
+			entries: lore,
+		});
+	}
+	return entries;
+}
+
+function fluffToDescriptionLore (entries) {
+	const desc = [];
+	const lore = [];
+	for (const entry of entries || []) {
+		if (typeof entry === "string") {
+			desc.push(entry);
+			continue;
+		}
+		if (entry && typeof entry === "object") {
+			const name = String(entry.name || "").trim();
+			if (/^lore$/i.test(name) && Array.isArray(entry.entries)) {
+				lore.push(entriesToText(entry.entries));
+				continue;
+			}
+			const text = entriesToText(entry.entries != null ? entry.entries : entry);
+			if (text) desc.push(text);
+		}
+	}
+	return {
+		description: desc.filter(Boolean).join("\n\n"),
+		lore: lore.filter(Boolean).join("\n\n"),
+	};
+}
+
+function coerceRollTables (raw) {
+	if (!Array.isArray(raw)) return [];
+	const out = [];
+	const seen = new Set();
+	for (const item of raw) {
+		const path = typeof item === "string" ? item.trim() : String(item?.path || "").trim();
+		if (!path || seen.has(path)) continue;
+		seen.add(path);
+		let name = typeof item === "string" ? "" : String(item?.name || "").trim();
+		if (!name) {
+			if (path.startsWith("loot:")) name = path.slice("loot:".length);
+			else name = path.replace(/^.*\//, "").replace(/\.md$/i, "");
+		}
+		out.push({path, name});
+	}
+	return out;
 }
 
 function buildBackground (form) {

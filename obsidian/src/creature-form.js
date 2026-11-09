@@ -16,6 +16,9 @@ import {
 import {loadEntity} from "./entity-loader.js";
 import {enrichMonsterSpells, spellRollerMetaFromEntity} from "./spell-roll-enrich.js";
 import {getParser} from "./fiveetools-host.js";
+import {listRollTables} from "./roll-tables/roll-table-store.js";
+import {ensureLootData, listLootTables} from "./loot-view.js";
+import {lootTableRef, isLootTableRef} from "./creature-lore.js";
 
 const SIZES = [
 	{id: "T", label: "Tiny"},
@@ -186,7 +189,7 @@ function monsterStatFields () {
 	];
 }
 
-export function renderCreatureForm (parent, draft, {onChange} = {}) {
+export function renderCreatureForm (parent, draft, {onChange, plugin} = {}) {
 	const next = normalizeMonsterForm(draft);
 	for (const key of Object.keys(next)) draft[key] = next[key];
 
@@ -220,6 +223,20 @@ export function renderCreatureForm (parent, draft, {onChange} = {}) {
 	applyCalculatedCr(draft);
 	paintCr();
 
+	addTextAreaField(parent, {
+		key: "description",
+		label: "Description",
+		placeholder: "Short physical description…",
+		rows: "3",
+	}, draft, emit);
+	addTextAreaField(parent, {
+		key: "lore",
+		label: "Lore",
+		placeholder: "Background and lore…",
+		rows: "5",
+	}, draft, emit);
+	renderRollTableSection(parent, draft, emit, plugin);
+
 	for (const key of ["traits", "actions", "bonus", "reactions"]) {
 		renderNamedSection(parent, key, draft, who, emit, {
 			onInnate: () => {
@@ -230,6 +247,158 @@ export function renderCreatureForm (parent, draft, {onChange} = {}) {
 		});
 	}
 	paintSpellSummary = renderSpellSection(parent, draft, emit);
+}
+
+function addTextAreaField (parent, field, draft, emit) {
+	const wrap = parent.createDiv({cls: "fiveetools-homebrew__field"});
+	wrap.createEl("label", {text: field.label});
+	const el = wrap.createEl("textarea", {
+		attr: {
+			rows: field.rows || "3",
+			placeholder: field.placeholder || "",
+		},
+	});
+	el.value = draft[field.key] ?? "";
+	el.addEventListener("input", () => {
+		draft[field.key] = el.value;
+		emit();
+	});
+}
+
+function renderRollTableSection (parent, draft, emit, plugin) {
+	const wrap = parent.createDiv({cls: "fiveetools-creatureform__section"});
+	wrap.createEl("label", {text: "Roll tables"});
+	wrap.createEl("p", {
+		cls: "fiveetools-view__meta",
+		text: "Link vault tables or loot generator tables.",
+	});
+
+	const attachedEl = wrap.createDiv({cls: "fiveetools-creatureform__tables"});
+	const searchEl = wrap.createEl("input", {
+		cls: "fiveetools-creatureform__search",
+		attr: {type: "search", placeholder: "Search roll tables…"},
+	});
+	const hitsEl = wrap.createDiv({cls: "fiveetools-creatureform__hits"});
+
+	const paintAttached = () => {
+		attachedEl.empty();
+		const rows = Array.isArray(draft.rollTables) ? draft.rollTables : [];
+		if (!rows.length) {
+			attachedEl.createEl("div", {cls: "fiveetools-view__meta", text: "No tables linked."});
+			return;
+		}
+		for (const row of rows) {
+			const item = attachedEl.createDiv({cls: "fiveetools-creatureform__tablerow"});
+			const label = item.createDiv();
+			label.createEl("div", {text: row.name || row.path});
+			label.createEl("div", {
+				cls: "fiveetools-view__meta",
+				text: isLootTableRef(row.path) ? "Loot generator" : "Vault table",
+			});
+			const remove = item.createEl("button", {
+				text: "Remove",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
+				attr: {type: "button"},
+			});
+			remove.addEventListener("click", () => {
+				draft.rollTables = (draft.rollTables || []).filter(it => it.path !== row.path);
+				emit();
+				paintAttached();
+			});
+		}
+	};
+
+	let tables = [];
+	let highlight = 0;
+	const filtered = () => {
+		const needle = String(searchEl.value || "").trim().toLowerCase();
+		const linked = new Set((draft.rollTables || []).map(it => it.path));
+		return tables.filter((table) => {
+			if (linked.has(table.path)) return false;
+			if (!needle) return true;
+			return String(table.name || "").toLowerCase().includes(needle)
+				|| String(table.sub || "").toLowerCase().includes(needle)
+				|| String(table.path || "").toLowerCase().includes(needle);
+		}).slice(0, 12);
+	};
+
+	const applyHit = (hit) => {
+		if (!hit?.path) return;
+		const rows = Array.isArray(draft.rollTables) ? draft.rollTables : [];
+		if (rows.some(it => it.path === hit.path)) return;
+		draft.rollTables = [...rows, {path: hit.path, name: hit.name || hit.path}];
+		emit();
+		searchEl.value = "";
+		hitsEl.empty();
+		paintAttached();
+		queueMicrotask(() => searchEl.focus());
+	};
+
+	const paintHits = () => {
+		hitsEl.empty();
+		const hits = filtered();
+		if (!hits.length) {
+			if (String(searchEl.value || "").trim().length >= 1) {
+				hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No matches."});
+			}
+			highlight = 0;
+			return;
+		}
+		highlight = Math.min(highlight, hits.length - 1);
+		hits.forEach((hit, index) => {
+			const row = hitsEl.createDiv({
+				cls: `fiveetools-creatureform__hit${index === highlight ? " is-selected" : ""}`,
+			});
+			row.createEl("div", {cls: "fiveetools-modal__name", text: hit.name});
+			row.createEl("div", {cls: "fiveetools-modal__sub", text: hit.sub || hit.path});
+			row.addEventListener("click", () => applyHit(hit));
+		});
+	};
+
+	searchEl.addEventListener("input", () => {
+		highlight = 0;
+		paintHits();
+	});
+	searchEl.addEventListener("keydown", (evt) => {
+		const hits = filtered();
+		if (!hits.length) return;
+		if (evt.key === "ArrowDown") {
+			evt.preventDefault();
+			highlight = (highlight + 1) % hits.length;
+			paintHits();
+		} else if (evt.key === "ArrowUp") {
+			evt.preventDefault();
+			highlight = (highlight - 1 + hits.length) % hits.length;
+			paintHits();
+		} else if (evt.key === "Enter") {
+			evt.preventDefault();
+			applyHit(hits[highlight] || hits[0]);
+		}
+	});
+
+	paintAttached();
+	if (plugin) {
+		void (async () => {
+			const vault = await listRollTables(plugin);
+			const vaultHits = (vault || []).map(table => ({
+				path: table.path,
+				name: table.name || table.stem || table.path,
+				sub: "Vault table",
+			}));
+			let lootHits = [];
+			try {
+				await ensureLootData(plugin);
+				lootHits = listLootTables().map(table => ({
+					path: lootTableRef(table.id),
+					name: table.label || table.name,
+					sub: `Loot · ${table.group || "Generator"}`,
+				}));
+			} catch (_) { /* loot data optional in editor */ }
+			tables = [...vaultHits, ...lootHits]
+				.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+			paintHits();
+		})();
+	}
 }
 
 function renderNamedSection (parent, key, draft, who, emit, {onInnate} = {}) {
