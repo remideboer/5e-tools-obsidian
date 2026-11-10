@@ -14,6 +14,7 @@ import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST,
 import {allocPanelId, getDmScreenBoard, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, combatantTag, listKindGroups, stepAmount} from "./encounter-view.js";
+import {renderCorpusPanel} from "./adventure-reader.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {attachHoverCard} from "./hover-card.js";
 import {characterId} from "./dpr-view.js";
@@ -37,7 +38,13 @@ const QUICK_REFS = [
 const PIN_CATEGORIES = [
 	"bestiary", "spell", "item", "background", "species",
 	"condition", "disease", "status", "rule",
+	"adventure", "book",
 ];
+
+function isCorpusDoc (doc) {
+	const cat = String(doc?.cf || "").toLowerCase();
+	return cat === "adventure" || cat === "book";
+}
 
 /**
  * Tools → DM screen: pinned entity / note / counter cards.
@@ -195,6 +202,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		}
 		state.columns.forEach((column, index) => {
 			const el = grid.createDiv({cls: "fiveetools-dmscreen__column"});
+			if (column.items.some(panel => panel.type === "corpus")) el.addClass("is-wide");
 			if (column.collapsed) el.addClass("is-collapsed");
 			const setCollapsed = (collapsed) => {
 				column.collapsed = !!collapsed;
@@ -554,6 +562,19 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	};
 
 	const pinEntity = (doc) => {
+		if (isCorpusDoc(doc)) {
+			placePanel({
+				id: allocPanelId(),
+				type: "corpus",
+				title: doc.n || "Entry",
+				doc: slimDoc(doc),
+				path: "",
+				text: "",
+				value: 0,
+				chapter: 0,
+			});
+			return;
+		}
 		placePanel({
 			id: allocPanelId(),
 			type: "entity",
@@ -766,7 +787,35 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "reference") void paintReference(body, panel);
 		else if (panel.type === "rollTable") void paintRollTable(body, panel);
 		else if (panel.type === "refTable") void paintRefTable(body, panel);
+		else if (panel.type === "corpus") void paintCorpus(body, panel);
 		else void paintEntity(body, panel);
+	};
+
+	const paintCorpus = async (body, panel) => {
+		body.setText("Loading…");
+		try {
+			const loaded = await loadEntity(panel.doc);
+			if (!body.isConnected) return;
+			body.empty();
+			if (!loaded?.ent) {
+				body.createEl("p", {text: `No JSON found for ${panel.doc?.n || "entry"}.`});
+				return;
+			}
+			if (loaded.ent.name || panel.doc?.n) panel.title = panel.title || loaded.ent.name || panel.doc.n;
+			await renderCorpusPanel(body, plugin, loaded.ent, {
+				bindInternalLinks: true,
+				omitCover: true,
+				chapterIndex: panel.chapter || 0,
+				onChapterChange: (ix) => {
+					panel.chapter = ix;
+					emit();
+				},
+			});
+		} catch (e) {
+			if (!body.isConnected) return;
+			body.empty();
+			body.createEl("p", {text: e.message || "Could not load entry."});
+		}
 	};
 
 	const paintDice = (body, panel) => {

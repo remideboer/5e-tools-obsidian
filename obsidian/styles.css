@@ -401,6 +401,11 @@ a.fiveetools-inline-link {
 	overflow-y: auto;
 }
 
+.fiveetools-dmscreen__column.is-wide {
+	flex-basis: 560px;
+	width: 560px;
+}
+
 .fiveetools-dmscreen__column.is-collapsed {
 	flex-basis: 36px;
 	width: 36px;

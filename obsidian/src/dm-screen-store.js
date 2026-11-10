@@ -91,7 +91,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "refTable", "initiative", "players", "time", "dice", "rollHistory"]);
+const PANEL_TYPES = new Set(["entity", "corpus", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "refTable", "initiative", "players", "time", "dice", "rollHistory"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -101,7 +101,7 @@ function normalizePanel (raw) {
 	const path = String(raw.path || "");
 	const bundledId = String(raw.bundledId || "");
 	const ref = String(raw.ref || "");
-	if (type === "entity" && !doc) return null;
+	if ((type === "entity" || type === "corpus") && !doc) return null;
 	if (type === "campaignNote" && !path) return null;
 	if (type === "rollTable" && !path && !bundledId) return null;
 	if (type === "refTable" && !bundledId) return null;
@@ -118,6 +118,10 @@ function normalizePanel (raw) {
 		collapsed: !!raw.collapsed,
 	};
 	if ((type === "rollTable" || type === "refTable") && bundledId) panel.bundledId = bundledId;
+	if (type === "corpus") {
+		const chapter = Math.floor(Number(raw.chapter));
+		panel.chapter = Number.isFinite(chapter) && chapter >= 0 ? chapter : 0;
+	}
 	if (type === "players") panel.characters = characterIds(raw.characters);
 	if (type === "time") Object.assign(panel, normalizeTime(raw));
 	if (type === "dice") panel.dice = normalizeDice(raw.dice);
@@ -167,7 +171,7 @@ function characterIds (raw) {
 }
 
 function defaultTitle (type, doc, ref) {
-	if (type === "entity") return doc?.n || "Entry";
+	if (type === "entity" || type === "corpus") return doc?.n || "Entry";
 	if (type === "counter") return "Counter";
 	if (type === "encounter") return "Encounter";
 	if (type === "initiative") return "Initiative";

@@ -100,7 +100,12 @@ export async function renderBookPanel (bodyEl, plugin, ent, {bindInternalLinks} 
 	return renderCorpusPanel(bodyEl, plugin, ent, {bindInternalLinks});
 }
 
-export async function renderCorpusPanel (bodyEl, plugin, ent, {bindInternalLinks} = {}) {
+export async function renderCorpusPanel (bodyEl, plugin, ent, {
+	bindInternalLinks,
+	chapterIndex = 0,
+	onChapterChange,
+	omitCover = false,
+} = {}) {
 	const meta = corpusMeta(ent);
 	const head = meta.head;
 	const chapters = getCorpusChapters(ent);
@@ -115,13 +120,15 @@ export async function renderCorpusPanel (bodyEl, plugin, ent, {bindInternalLinks
 		bodyEl.createEl("p", {cls: "fiveetools-view__meta", text: bits.join(" · ")});
 	}
 
-	const coverSrc = coverUrlForCorpus(head, plugin.settings.imageBaseUrl);
-	if (coverSrc) {
-		const imgWrap = bodyEl.createDiv({cls: "fiveetools-view__images"});
-		const coverImg = imgWrap.createEl("img", {attr: {alt: head.name || "Cover"}});
-		void cachedMediaSrc(plugin, coverSrc).then(src => {
-			if (src) coverImg.setAttr("src", src);
-		});
+	if (!omitCover) {
+		const coverSrc = coverUrlForCorpus(head, plugin.settings.imageBaseUrl);
+		if (coverSrc) {
+			const imgWrap = bodyEl.createDiv({cls: "fiveetools-view__images"});
+			const coverImg = imgWrap.createEl("img", {attr: {alt: head.name || "Cover"}});
+			void cachedMediaSrc(plugin, coverSrc).then(src => {
+				if (src) coverImg.setAttr("src", src);
+			});
+		}
 	}
 
 	if (!chapters.length) {
@@ -131,18 +138,20 @@ export async function renderCorpusPanel (bodyEl, plugin, ent, {bindInternalLinks
 
 	const toc = bodyEl.createDiv({cls: "fiveetools-adventure__toc"});
 	const chapterBody = bodyEl.createDiv({cls: "fiveetools-adventure__chapter"});
-	let selected = 0;
+	let selected = Math.max(0, Math.min(chapters.length - 1, Number(chapterIndex) || 0));
 	const currentId = String(head.id || "").toLowerCase();
 
 	let chapterGen = 0;
 	const showChapter = async (ix, header, headerNumber) => {
 		const myGen = ++chapterGen;
 		const nextIx = Math.max(0, Math.min(chapters.length - 1, Number(ix) || 0));
+		const changed = nextIx !== selected;
 		selected = nextIx;
 		syncBookUtilRender(ent, nextIx);
 		toc.querySelectorAll(".fiveetools-adventure__chapbtn").forEach((btn, i) => {
 			btn.classList.toggle("is-active", i === nextIx);
 		});
+		if (changed) onChapterChange?.(nextIx);
 		const chapter = chapters[nextIx];
 		chapterBody.empty();
 		chapterBody.createEl("h3", {text: chapter.name});
@@ -192,10 +201,10 @@ export async function renderCorpusPanel (bodyEl, plugin, ent, {bindInternalLinks
 	const jump = plugin[meta.jumpKey];
 	plugin[meta.jumpKey] = null;
 	if (jump && jump.id === currentId) {
-		await showChapter(jump.chapter ?? 0, jump.header, jump.headerNumber);
+		await showChapter(jump.chapter ?? selected, jump.header, jump.headerNumber);
 		return;
 	}
-	await showChapter(0);
+	await showChapter(selected);
 }
 
 function syncBookUtilRender (ent, chapterIx) {
