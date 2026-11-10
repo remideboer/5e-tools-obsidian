@@ -18,6 +18,7 @@ import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncoun
 import {addCombatants, adjustHp, appendSavedCombatants, combatantTag, listKindGroups, stepAmount} from "./encounter-view.js";
 import {renderCorpusPanel} from "./adventure-reader.js";
 import {bindInternalLinks} from "./entity-reader.js";
+import {getRenderer} from "./fiveetools-host.js";
 import {attachHoverCard} from "./hover-card.js";
 import {characterId} from "./dpr-view.js";
 import {loadEntity} from "./entity-loader.js";
@@ -1208,16 +1209,20 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	const paintTableGrid = (host, parsed) => {
 		const table = host.createEl("table", {cls: "fiveetools-dmscreen__table"});
 		const head = table.createEl("thead").createEl("tr");
-		for (const header of parsed.headers) head.createEl("th", {text: header});
+		for (const header of parsed.headers) {
+			const th = head.createEl("th");
+			appendTaggedText(th, header);
+		}
 		const tbody = table.createEl("tbody");
 		for (const cells of parsed.rows) {
 			const tr = tbody.createEl("tr");
 			for (const cell of cells) {
 				const td = tr.createEl("td");
-				appendTextWithDiceRollers(td, cell);
+				appendTaggedText(td, cell);
 			}
 		}
 		bindDiceRollers(host, plugin);
+		bindInternalLinks(host, plugin);
 	};
 
 	const paintRefTable = async (body, panel) => {
@@ -1280,11 +1285,15 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (badge) host.createEl("div", {cls: "fiveetools-dmscreen__rolldie", text: badge});
 		for (const cell of roll.cells || []) {
 			const line = host.createDiv({cls: "fiveetools-dmscreen__rollline"});
-			if (cell.header) line.createEl("span", {cls: "fiveetools-dmscreen__rolllabel", text: cell.header});
+			if (cell.header) {
+				const label = line.createEl("span", {cls: "fiveetools-dmscreen__rolllabel"});
+				appendTaggedText(label, cell.header);
+			}
 			const value = line.createSpan();
-			appendTextWithDiceRollers(value, cell.text || "");
+			appendTaggedText(value, cell.text || "");
 		}
 		bindDiceRollers(host, plugin);
+		bindInternalLinks(host, plugin);
 	};
 
 	const paintNote = (body, panel) => {
@@ -1740,6 +1749,27 @@ function blankPanel (type, title) {
 	}
 	if (type === "dice") panel.dice = emptyDiceSession();
 	return panel;
+}
+
+/**
+ * Fill a host with table/cell text: bare NdM via dice rollers, `{@…}` via Renderer.
+ * @param {HTMLElement} host
+ * @param {string} text
+ */
+function appendTaggedText (host, text) {
+	if (!host) return;
+	const raw = String(text ?? "");
+	if (!raw) return;
+	if (!raw.includes("{@")) {
+		appendTextWithDiceRollers(host, raw);
+		return;
+	}
+	try {
+		host.innerHTML = getRenderer().get().render(raw) || "";
+	} catch (_) {
+		host.textContent = "";
+		appendTextWithDiceRollers(host, raw);
+	}
 }
 
 function conditionLabel (id) {
