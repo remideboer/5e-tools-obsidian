@@ -18,6 +18,7 @@ import {enrichMonsterSpells, spellRollerMetaFromEntity} from "./spell-roll-enric
 import {getParser} from "./fiveetools-host.js";
 import {listRollTables} from "./roll-tables/roll-table-store.js";
 import {ensureLootData, listLootTables} from "./loot-view.js";
+import {clearSearchInput, createSearchInput} from "./search-field.js";
 import {lootTableRef, isLootTableRef} from "./creature-lore.js";
 
 const SIZES = [
@@ -274,9 +275,9 @@ function renderRollTableSection (parent, draft, emit, plugin) {
 	});
 
 	const attachedEl = wrap.createDiv({cls: "fiveetools-creatureform__tables"});
-	const searchEl = wrap.createEl("input", {
+	const searchEl = createSearchInput(wrap, {
 		cls: "fiveetools-creatureform__search",
-		attr: {type: "search", placeholder: "Search roll tables…"},
+		placeholder: "Search roll tables…",
 	});
 	const hitsEl = wrap.createDiv({cls: "fiveetools-creatureform__hits"});
 
@@ -328,10 +329,9 @@ function renderRollTableSection (parent, draft, emit, plugin) {
 		if (rows.some(it => it.path === hit.path)) return;
 		draft.rollTables = [...rows, {path: hit.path, name: hit.name || hit.path}];
 		emit();
-		searchEl.value = "";
+		clearSearchInput(searchEl, {focus: true});
 		hitsEl.empty();
 		paintAttached();
-		queueMicrotask(() => searchEl.focus());
 	};
 
 	const paintHits = () => {
@@ -406,9 +406,9 @@ function renderNamedSection (parent, key, draft, who, emit, {onInnate} = {}) {
 	const wrap = parent.createDiv({cls: "fiveetools-creatureform__section"});
 	wrap.createEl("label", {text: meta.label});
 
-	const searchEl = wrap.createEl("input", {
+	const searchEl = createSearchInput(wrap, {
 		cls: "fiveetools-creatureform__search",
-		attr: {type: "search", placeholder: `Search ${meta.label.toLowerCase()}…`},
+		placeholder: `Search ${meta.label.toLowerCase()}…`,
 	});
 	const hitsEl = wrap.createDiv({cls: "fiveetools-creatureform__hits"});
 	const chips = wrap.createDiv({cls: "fiveetools-creatureform__chips"});
@@ -424,9 +424,8 @@ function renderNamedSection (parent, key, draft, who, emit, {onInnate} = {}) {
 			evt.preventDefault();
 			applyTemplate(draft, key, hit, who, emit, onInnate);
 			paint();
-			searchEl.value = "";
+			clearSearchInput(searchEl, {focus: true});
 			hitsEl.empty();
-			searchEl.focus();
 		});
 	}
 
@@ -449,10 +448,9 @@ function renderNamedSection (parent, key, draft, who, emit, {onInnate} = {}) {
 
 	const applyHit = (hit) => {
 		applyTemplate(draft, key, hit, who, emit, onInnate);
-		searchEl.value = "";
+		clearSearchInput(searchEl, {focus: true});
 		hitsEl.empty();
 		paint();
-		queueMicrotask(() => searchEl.focus());
 	};
 
 	let highlight = 0;
@@ -589,9 +587,9 @@ function renderSpellSection (parent, draft, emit) {
 		summary.setText(`Spell attack +${stats.hit} · Save DC ${stats.dc}`);
 	};
 
-	const searchEl = wrap.createEl("input", {
+	const searchEl = createSearchInput(wrap, {
 		cls: "fiveetools-creatureform__search",
-		attr: {type: "search", placeholder: "Add spell…"},
+		placeholder: "Add spell…",
 	});
 	const hitsEl = wrap.createDiv({cls: "fiveetools-creatureform__hits"});
 	const listEl = wrap.createDiv({cls: "fiveetools-creatureform__list"});
@@ -696,11 +694,10 @@ function renderSpellSection (parent, draft, emit) {
 					enriched: false,
 				};
 				draft.spells = [...draft.spells, spell];
-				searchEl.value = "";
+				clearSearchInput(searchEl, {focus: true});
 				hitsEl.empty();
 				emit();
 				paintSpells();
-				queueMicrotask(() => searchEl.focus());
 				void loadEntity(doc).then(({ent}) => {
 					Object.assign(spell, spellRollerMetaFromEntity(ent));
 					emit();

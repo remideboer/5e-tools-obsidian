@@ -13,6 +13,7 @@ import {
 	spellRefFromDoc,
 } from "./character-spells.js";
 import {attachHoverCard} from "./hover-card.js";
+import {createSearchInput} from "./search-field.js";
 import {findEntityDoc} from "./search-index.js";
 import {getSpellMeta} from "./spell-meta.js";
 
@@ -46,9 +47,9 @@ export class ManageSpellsModal extends Modal {
 		}
 
 		const searchRow = this.contentEl.createDiv({cls: "fiveetools-homebrew__row"});
-		this.searchInput = searchRow.createEl("input", {
+		this.searchInput = createSearchInput(searchRow, {
 			cls: "fiveetools-campaign__select",
-			attr: {type: "search", placeholder: "Search spells…"},
+			placeholder: "Search spells…",
 		});
 		this.searchInput.value = this.query;
 		this.searchInput.addEventListener("input", () => {

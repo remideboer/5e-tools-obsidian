@@ -1,5 +1,6 @@
 import {Modal, Notice} from "obsidian";
 import {searchEntities, brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
+import {createSearchInput} from "./search-field.js";
 import {loadEntity} from "./entity-loader.js";
 import {CONDITIONS, renderCreatureForm} from "./creature-form.js";
 import {
@@ -439,9 +440,9 @@ export function renderEncounterComposer (formEl, resultEl, {
 
 	const addRow = composerEl.createDiv({cls: "fiveetools-encounter__add"});
 	const searchRow = addRow.createDiv({cls: "fiveetools-encounter__row"});
-	const searchEl = searchRow.createEl("input", {
+	const searchEl = createSearchInput(searchRow, {
 		cls: "fiveetools-encounter__search",
-		attr: {type: "search", placeholder: "Add creature…"},
+		placeholder: "Add creature…",
 	});
 	const countInput = searchRow.createEl("select", {
 		cls: "fiveetools-encounter__count",

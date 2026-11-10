@@ -6,6 +6,7 @@ import {
 	listReferenceSources,
 	referenceImageUrl,
 } from "./map-reference.js";
+import {createSearchInput} from "./search-field.js";
 
 const DOWNLOAD_LIMIT = 3;
 
@@ -38,9 +39,9 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 
 	const chapterKey = (sourceId, name) => `${sourceId}\n${name}`;
 
-	const searchEl = listEl.createEl("input", {
+	const searchEl = createSearchInput(listEl, {
 		cls: "fiveetools-map__search",
-		attr: {type: "search", placeholder: "Search adventures and maps"},
+		placeholder: "Search adventures and maps",
 	});
 	searchEl.value = state.query;
 	const menuEl = listEl.createDiv({cls: "fiveetools-refmaps__tree"});

@@ -1,6 +1,50 @@
+.fiveetools-search {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	align-items: center;
+	box-sizing: border-box;
+}
+
+.fiveetools-search > input {
+	width: 100%;
+	min-width: 0;
+	padding-right: 1.6em;
+	box-sizing: border-box;
+}
+
 .fiveetools-modal .fiveetools-modal__search {
 	width: 100%;
 	margin: 0 0 8px;
+}
+
+.fiveetools-search > input[type="search"]::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.fiveetools-search__clear {
+	position: absolute;
+	right: 2px;
+	top: 50%;
+	transform: translateY(-50%);
+	z-index: 1;
+	padding: 0 4px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small, 0.85rem);
+	line-height: 1;
+	cursor: pointer;
+}
+
+.fiveetools-search__clear:hover {
+	color: var(--text-normal);
+}
+
+.fiveetools-search__clear.is-hidden {
+	display: none;
 }
 
 body.fiveetools-token-dragging .modal-container {

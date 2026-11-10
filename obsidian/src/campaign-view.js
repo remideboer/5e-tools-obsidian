@@ -24,6 +24,7 @@ import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
 import {applyTemplateToGroup, listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
 import {renderCharacterCard} from "./character-view.js";
 import {listCharacters} from "./character-store.js";
+import {createSearchInput} from "./search-field.js";
 
 export function teardownCampaignManager (plugin) {
 	plugin?._campaignVaultOff?.();
@@ -73,9 +74,9 @@ export function renderCampaignManager (formEl, resultEl, {
 	const newCampaignBtn = campaignRow.createEl("button", {text: "New", cls: "fiveetools-btn"});
 	const deleteCampaignBtn = campaignRow.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const tabs = catalogEl.createDiv({cls: "fiveetools-homebrew__tabs"});
-	const searchEl = catalogEl.createEl("input", {
+	const searchEl = createSearchInput(catalogEl, {
 		cls: "fiveetools-homebrew__search",
-		attr: {type: "search", placeholder: "Filter…"},
+		placeholder: "Filter…",
 	});
 	const actions = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
 	const noteNameEl = actions.createEl("input", {

@@ -20,6 +20,7 @@ import {renderCorpusPanel} from "./adventure-reader.js";
 import {bindInternalLinks} from "./entity-reader.js";
 import {getRenderer} from "./fiveetools-host.js";
 import {attachHoverCard} from "./hover-card.js";
+import {clearSearchInput, createSearchInput} from "./search-field.js";
 import {characterId} from "./dpr-view.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
@@ -307,9 +308,9 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 	});
 
 	const searchEl = listEl.createDiv({cls: "fiveetools-dmscreen__search is-hidden"});
-	const searchInput = searchEl.createEl("input", {
+	const searchInput = createSearchInput(searchEl, {
 		cls: "fiveetools-dmscreen__searchinput",
-		attr: {type: "search", placeholder: "Search creatures, items, homebrew, campaign notes…"},
+		placeholder: "Search creatures, items, homebrew, campaign notes…",
 	});
 	const hitsEl = searchEl.createDiv({cls: "fiveetools-dmscreen__hits"});
 
@@ -695,7 +696,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		pinColumn = null;
 		searchMode = "entry";
 		searchInput.placeholder = "Search creatures, items, homebrew, campaign notes…";
-		searchInput.value = "";
+		clearSearchInput(searchInput);
 		hitsEl.empty();
 		searchEl.addClass("is-hidden");
 	};
@@ -1388,9 +1389,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (!plugin._encounterSession) plugin._encounterSession = session;
 
 		const tools = body.createDiv({cls: "fiveetools-dmscreen__enctools"});
-		const search = tools.createEl("input", {
+		const search = createSearchInput(tools, {
 			cls: "fiveetools-dmscreen__encsearch",
-			attr: {type: "search", placeholder: "Add creature", title: "Search creatures"},
+			placeholder: "Add creature",
+			title: "Search creatures",
 		});
 		const savedSel = tools.createEl("select", {
 			cls: "fiveetools-dmscreen__encsaved",
@@ -1529,10 +1531,9 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				const next = await addCombatants(session, doc, 1);
 				session = {...session, combatants: next.combatants, selectedId: next.selectedId};
 				commitEncounter(session);
-				search.value = "";
+				clearSearchInput(search, {focus: true});
 				hitDocs = [];
 				hits.empty();
-				search.focus();
 				paintRoster();
 			} catch (e) {
 				new Notice(e.message || "Could not add that creature.");

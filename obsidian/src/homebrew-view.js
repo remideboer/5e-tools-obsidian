@@ -17,6 +17,7 @@ import {
 import {loadEntity} from "./entity-loader.js";
 import {brewDocFromEntity, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {renderCreatureForm} from "./creature-form.js";
+import {clearSearchInput, createSearchInput} from "./search-field.js";
 import {enrichMonsterSpells} from "./spell-roll-enrich.js";
 
 export function renderHomebrewEditor (formEl, resultEl, {
@@ -51,9 +52,9 @@ export function renderHomebrewEditor (formEl, resultEl, {
 		text: "Search the library and Use an entry as a starter, or create one from scratch. Saved entries appear with source HB.",
 	});
 	const tabs = catalogEl.createDiv({cls: "fiveetools-homebrew__tabs"});
-	const searchEl = catalogEl.createEl("input", {
+	const searchEl = createSearchInput(catalogEl, {
 		cls: "fiveetools-homebrew__search",
-		attr: {type: "search", placeholder: "Search library…"},
+		placeholder: "Search library…",
 	});
 	const hitsEl = catalogEl.createDiv({cls: "fiveetools-homebrew__results"});
 	const listEl = catalogEl.createDiv({cls: "fiveetools-homebrew__list"});
@@ -121,7 +122,7 @@ export function renderHomebrewEditor (formEl, resultEl, {
 				selectedName = "";
 				previousName = "";
 				previewKey = "";
-				searchEl.value = "";
+				clearSearchInput(searchEl);
 				draft = emptyForm(typeId);
 				cancelPreview();
 				searchEl.setAttr("placeholder", `Start from ${type.label.toLowerCase()}…`);

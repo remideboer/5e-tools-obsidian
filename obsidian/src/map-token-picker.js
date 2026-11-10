@@ -1,4 +1,5 @@
 import {Modal} from "obsidian";
+import {createSearchInput} from "./search-field.js";
 import {searchEntities} from "./search-index.js";
 
 const TOKEN_DRAG = "fiveetools-token:";
@@ -36,9 +37,9 @@ class TokenPickerModal extends Modal {
 			cls: "fiveetools-view__meta",
 			text: "Click a creature to place it at the cursor, or drag it onto the map.",
 		});
-		const input = contentEl.createEl("input", {
+		const input = createSearchInput(contentEl, {
 			cls: "fiveetools-modal__search",
-			attr: {type: "search", placeholder: "Search the bestiary"},
+			placeholder: "Search the bestiary",
 		});
 		const list = contentEl.createDiv({cls: "fiveetools-modal__results"});
 		const paint = () => {

@@ -18,6 +18,7 @@ import {
 } from "./dpr-view.js";
 import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, saveSavedEncounter, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {encounterDifficulty} from "./encounter-difficulty.js";
+import {clearSearchInput, createSearchInput} from "./search-field.js";
 import {addCombatants, initiativeFromEnt, kindKey, listKindGroups, paintKindRoster} from "./encounter-view.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
@@ -368,7 +369,7 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 	};
 	const membersEl = host.createDiv({cls: "fiveetools-sim__members"});
 	const finder = host.createDiv({cls: "fiveetools-sim__combo"});
-	const query = finder.createEl("input", {attr: {type: "search", placeholder: "Add a character", autocomplete: "off"}});
+	const query = createSearchInput(finder, {placeholder: "Add a character"});
 	const menu = finder.createDiv({cls: "fiveetools-sim__combo-menu"});
 	let menuOpen = false;
 
@@ -380,11 +381,10 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 	const addCharacter = (id) => {
 		if (!id || state.partyIds.has(id)) return;
 		state.partyIds.add(id);
-		query.value = "";
+		clearSearchInput(query, {focus: true});
 		menuOpen = true;
 		paintMembers();
 		paintChoices();
-		query.focus();
 		onParty();
 	};
 	const paintChoices = () => {
@@ -464,9 +464,9 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 
 	const creatureWrap = host.createDiv({cls: "fiveetools-sim__creatures"});
 	const searchRow = creatureWrap.createDiv({cls: "fiveetools-encounter__row"});
-	const searchEl = searchRow.createEl("input", {
+	const searchEl = createSearchInput(searchRow, {
 		cls: "fiveetools-encounter__search",
-		attr: {type: "search", placeholder: "Add creature…", autocomplete: "off"},
+		placeholder: "Add creature…",
 	});
 	const hitsEl = creatureWrap.createDiv({cls: "fiveetools-encounter__hits"});
 	const addedEl = creatureWrap.createDiv({cls: "fiveetools-encounter__roster"});
@@ -519,12 +519,11 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			new Notice(e.message || "Could not add that creature.");
 			return;
 		}
-		searchEl.value = "";
+		clearSearchInput(searchEl, {focus: true});
 		hitDocs = [];
 		hitIndex = 0;
 		hitsEl.empty();
 		commitAdded();
-		searchEl.focus();
 	};
 	const markHit = () => {
 		const rows = [...hitsEl.querySelectorAll(".fiveetools-encounter__hit")];

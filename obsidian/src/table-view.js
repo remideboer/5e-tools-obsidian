@@ -15,6 +15,7 @@ import {
 	sortGroupsByInitiative,
 } from "./encounter-view.js";
 import {ensureSearchIndex, searchEntities} from "./search-index.js";
+import {clearSearchInput, createSearchInput} from "./search-field.js";
 import {loadEntity} from "./entity-loader.js";
 import {resolveTokenImage} from "./image-resolver.js";
 import {ICON_ID} from "./icon.js";
@@ -625,9 +626,9 @@ async function paintInserts (box, plugin) {
 	if (session.privateRolls) priv.addClass("is-selected");
 
 	box.createEl("h4", {text: "Add a creature"});
-	const searchEl = box.createEl("input", {
+	const searchEl = createSearchInput(box, {
 		cls: "fiveetools-encounter__search",
-		attr: {type: "search", placeholder: "Add creature…", autocomplete: "off"},
+		placeholder: "Add creature…",
 	});
 	const hitsEl = box.createDiv({cls: "fiveetools-encounter__hits"});
 	let hitDocs = [];
@@ -635,11 +636,10 @@ async function paintInserts (box, plugin) {
 	const addHit = (doc) => {
 		if (!doc) return;
 		void addCreature(plugin, doc, 1);
-		searchEl.value = "";
+		clearSearchInput(searchEl, {focus: true});
 		hitDocs = [];
 		hitIndex = 0;
 		hitsEl.empty();
-		searchEl.focus();
 	};
 	const markHit = () => {
 		const rows = [...hitsEl.querySelectorAll(".fiveetools-encounter__hit")];

@@ -1,5 +1,6 @@
 import {Modal} from "obsidian";
 import {CATEGORY_CHIPS} from "./constants.js";
+import {createSearchInput} from "./search-field.js";
 import {searchEntities} from "./search-index.js";
 
 export class FiveEToolsSearchModal extends Modal {
@@ -19,9 +20,9 @@ export class FiveEToolsSearchModal extends Modal {
 		contentEl.empty();
 		contentEl.createEl("h2", {text: "Search 5etools"});
 
-		this.inputEl = contentEl.createEl("input", {
+		this.inputEl = createSearchInput(contentEl, {
 			cls: "fiveetools-modal__search",
-			attr: {type: "search", placeholder: "Goblin, fireball, in:spell, source:mm"},
+			placeholder: "Goblin, fireball, in:spell, source:mm",
 		});
 
 		const chips = contentEl.createDiv({cls: "fiveetools-modal__chips"});

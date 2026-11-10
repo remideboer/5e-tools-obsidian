@@ -28,6 +28,7 @@ import {renderHomebrewEditor} from "./homebrew-view.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
 import {renderCharacterManager} from "./character-view.js";
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
+import {clearSearchInput, createSearchInput} from "./search-field.js";
 import {renderMapTool, teardownMapView} from "./map-view.js";
 import {renderReferenceMaps} from "./map-reference-view.js";
 
@@ -129,9 +130,9 @@ export class FiveEToolsLibraryView extends ItemView {
 
 		this.navEl = this.contentEl.createDiv({cls: "fiveetools-library__nav"});
 		this.navFoldEl = this.mountFold(this.navEl, "nav");
-		this.globalSearchEl = this.navEl.createEl("input", {
+		this.globalSearchEl = createSearchInput(this.navEl, {
 			cls: "fiveetools-library__globalsearch",
-			attr: {type: "search", placeholder: "Search…"},
+			placeholder: "Search…",
 		});
 		const fulltextRow = this.navEl.createEl("label", {cls: "fiveetools-library__fulltext"});
 		this.fulltextBox = fulltextRow.createEl("input", {
@@ -155,9 +156,9 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.listColEl = this.contentEl.createDiv({cls: "fiveetools-library__listcol"});
 		this.listFoldEl = this.mountFold(this.listColEl, "list");
 		this.searchRowEl = this.listColEl.createDiv({cls: "fiveetools-library__searchrow"});
-		this.searchEl = this.searchRowEl.createEl("input", {
+		this.searchEl = createSearchInput(this.searchRowEl, {
 			cls: "fiveetools-library__search",
-			attr: {type: "search", placeholder: "Filter list…"},
+			placeholder: "Filter list…",
 		});
 		this.searchEl.addEventListener("input", () => {
 			this.query = this.searchEl.value;
@@ -290,8 +291,8 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.selectedDoc = null;
 		this.globalQuery = "";
 		this.query = "";
-		if (this.globalSearchEl) this.globalSearchEl.value = "";
-		if (this.searchEl) this.searchEl.value = "";
+		if (this.globalSearchEl) clearSearchInput(this.globalSearchEl);
+		if (this.searchEl) clearSearchInput(this.searchEl);
 		const item = currentNavItem(navId);
 		if (item?.tool === "homebrew" && fromId !== navId) {
 			this.plugin._homebrewSession = {
