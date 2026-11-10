@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
 	ddbProxyUrl: "https://ymiat-ddb-character-proxy.gitaarremi.workers.dev",
 	style: "one",
 	dice3d: false,
+	diceSound: false,
 	dicePublic: false,
 	convertHeicOnPaste: true,
 	focusListOnNav: true,

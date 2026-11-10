@@ -83,6 +83,16 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName("Dice rolling sound")
+			.setDesc("Play a short sound for each 3D die when it starts rolling. Also available as Sound on the Dice roller.")
+			.addToggle(toggle => toggle
+				.setValue(!!this.plugin.settings.diceSound)
+				.onChange(async (value) => {
+					this.plugin.settings.diceSound = !!value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName("Public rolls")
 			.setDesc("Also show the dice roll and result on the player window when it is open.")
 			.addToggle(toggle => toggle

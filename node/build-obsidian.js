@@ -76,6 +76,9 @@ await esbuild.build({
 });
 const notices = path.join(root, "node_modules", "open-dice-dnd", "THIRD_PARTY_NOTICES.txt");
 if (fs.existsSync(notices)) fs.copyFileSync(notices, path.join(diceDir, "THIRD_PARTY_NOTICES.txt"));
+const diceRollSound = path.join(root, "obsidian", "dice", "rolling.mp3");
+if (!fs.existsSync(diceRollSound)) throw new Error("obsidian/dice/rolling.mp3 is missing");
+fs.copyFileSync(diceRollSound, path.join(diceDir, "rolling.mp3"));
 
 const heicDir = path.join(outDir, "heic");
 fs.mkdirSync(heicDir, {recursive: true});

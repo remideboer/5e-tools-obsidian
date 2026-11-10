@@ -7,6 +7,15 @@ const OVERLAY_ID = "fiveetools-dice-overlay";
 
 const sessions = new Map();
 let diceRollerPromise = null;
+/** @type {AudioContext | null} */
+let rollSoundCtx = null;
+/** @type {AudioBuffer | null} */
+let rollSoundBuffer = null;
+let rollSoundUrl = "";
+let rollSoundLoad = null;
+/** Gap between per-die throw SFX so overlaps stay audible as separate voices. */
+const SOUND_STAGGER_SEC = 0.12;
+let rollSoundIndex = 0;
 
 export async function showDice3d (plugin, result, doc = document) {
 	const session = sessionFor(doc);
@@ -17,6 +26,9 @@ export async function showDice3d (plugin, result, doc = document) {
 		if (!hasWebGl(doc)) throw new Error("WebGL unavailable");
 		const roller = await getRoller(plugin, doc);
 		if (!roller) return false;
+		session.plugin = plugin;
+		await ensureRollSound(plugin);
+		rollSoundIndex = 0;
 		const overlay = ensureOverlay(doc);
 		showOverlay(overlay);
 		const token = ++session.hideToken;
@@ -70,16 +82,22 @@ async function loadRoller (plugin, doc) {
 		width: Math.max(320, overlay.clientWidth || view.innerWidth || 800),
 		height: Math.max(240, overlay.clientHeight || view.innerHeight || 600),
 	});
-	fitDice(roller, overlay);
+	const session = sessionFor(doc);
+	session.plugin = plugin;
+	void ensureRollSound(plugin);
+	fitDice(roller, overlay, doc);
 	return roller;
 }
 
-function fitDice (roller, overlay) {
+function fitDice (roller, overlay, doc) {
 	const origApply = roller._applyDiePhysics?.bind(roller);
 	if (origApply) {
 		roller._applyDiePhysics = function (die, seed) {
 			scaleDie(die, DIE_SCALE);
-			return origApply(die, seed);
+			const out = origApply(die, seed);
+			const plugin = sessionFor(doc).plugin;
+			if (plugin?.settings?.diceSound && die?.mesh?.visible !== false) playRollSound();
+			return out;
 		};
 	}
 	const origResize = roller._handleResize?.bind(roller);
@@ -89,6 +107,71 @@ function fitDice (roller, overlay) {
 			origResize();
 		};
 	}
+}
+
+function audioContextCtor () {
+	return globalThis.AudioContext || globalThis.webkitAudioContext || null;
+}
+
+async function ensureRollSound (plugin) {
+	const dir = plugin?.manifest?.dir;
+	const adapter = plugin?.app?.vault?.adapter;
+	if (!dir || !adapter?.getResourcePath) return null;
+	const vaultPath = normalizePath(`${dir}/dice/rolling.mp3`);
+	const url = adapter.getResourcePath(vaultPath);
+	if (!url) return null;
+	if (rollSoundBuffer && rollSoundUrl === url) return rollSoundBuffer;
+	if (rollSoundLoad && rollSoundUrl === url) return rollSoundLoad;
+	rollSoundUrl = url;
+	rollSoundBuffer = null;
+	const Ctor = audioContextCtor();
+	if (!Ctor) return null;
+	rollSoundLoad = (async () => {
+		try {
+			if (!rollSoundCtx || rollSoundCtx.state === "closed") rollSoundCtx = new Ctor();
+			const res = await fetch(url);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const raw = await res.arrayBuffer();
+			rollSoundBuffer = await rollSoundCtx.decodeAudioData(raw.slice(0));
+			return rollSoundBuffer;
+		} catch (e) {
+			console.warn("5etools dice roll sound failed to load", e);
+			rollSoundBuffer = null;
+			return null;
+		} finally {
+			rollSoundLoad = null;
+		}
+	})();
+	return rollSoundLoad;
+}
+
+function playRollSound () {
+	const ctx = rollSoundCtx;
+	const buffer = rollSoundBuffer;
+	if (!ctx || !buffer) return;
+	const index = rollSoundIndex++;
+	const startAt = () => {
+		try {
+			if (ctx.state === "suspended") void ctx.resume?.();
+			const src = ctx.createBufferSource();
+			src.buffer = buffer;
+			// Slight rate/pan spread so voices don't cancel into one mono hit.
+			src.playbackRate.value = 0.94 + (index % 5) * 0.03;
+			const pan = ctx.createStereoPanner?.() || null;
+			const gain = ctx.createGain();
+			gain.gain.value = 0.85;
+			if (pan) {
+				pan.pan.value = ((index % 5) - 2) * 0.28;
+				src.connect(pan);
+				pan.connect(gain);
+			} else {
+				src.connect(gain);
+			}
+			gain.connect(ctx.destination);
+			src.start(ctx.currentTime + index * SOUND_STAGGER_SEC);
+		} catch (_) { /* ignore autoplay / decode errors */ }
+	};
+	startAt();
 }
 
 function scaleDie (die, factor) {

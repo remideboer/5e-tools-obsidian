@@ -145,6 +145,12 @@ export function renderDiceRoller (listEl, readerEl, {
 	const disBox = disLabel.createEl("input", {attr: {type: "checkbox"}});
 	disBox.checked = state.disadvantage;
 	disLabel.createSpan({text: "Disadvantage"});
+	const soundLabel = flags.createEl("label", {cls: "fiveetools-dice-roller__flag"});
+	const soundBox = soundLabel.createEl("input", {
+		attr: {type: "checkbox", title: "Play a roll sound for each 3D die"},
+	});
+	soundBox.checked = !!plugin?.settings?.diceSound;
+	soundLabel.createSpan({text: "Sound"});
 
 	advBox.addEventListener("change", () => {
 		state.advantage = advBox.checked;
@@ -161,6 +167,11 @@ export function renderDiceRoller (listEl, readerEl, {
 			advBox.checked = false;
 		}
 		emit();
+	});
+	soundBox.addEventListener("change", () => {
+		if (!plugin?.settings) return;
+		plugin.settings.diceSound = !!soundBox.checked;
+		void plugin.saveSettings?.();
 	});
 
 	const table = ensureTableSession(plugin);
