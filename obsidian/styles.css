@@ -36,6 +36,23 @@ body.fiveetools-token-dragging .modal-container {
 	background: transparent;
 }
 
+/* Dense toolbars + small screens: same compact control size */
+.fiveetools-dmscreen__colactions .fiveetools-btn,
+.fiveetools-dmscreen__bar .fiveetools-btn,
+body.is-mobile .fiveetools-btn {
+	padding: 2px 4px;
+	font-size: var(--font-ui-smaller, 0.75rem);
+	line-height: 1.2;
+}
+
+@media (max-width: 768px) {
+	.fiveetools-btn {
+		padding: 2px 4px;
+		font-size: var(--font-ui-smaller, 0.75rem);
+		line-height: 1.2;
+	}
+}
+
 button.fiveetools-iconbtn,
 body.is-mobile button.fiveetools-iconbtn {
 	-webkit-appearance: none;
@@ -339,10 +356,23 @@ a.fiveetools-inline-link {
 .fiveetools-dmscreen__bar {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: 2px;
 	flex: 0 0 auto;
 	position: relative;
 	z-index: 5;
+	align-items: center;
+}
+
+.fiveetools-dmscreen__bar .fiveetools-dmscreen__loadoutname {
+	max-width: 9em;
+	min-width: 6em;
+	padding: 2px 4px;
+	font-size: var(--font-ui-smaller, 0.75rem);
+	line-height: 1.2;
+}
+
+.fiveetools-dmscreen__bar .fiveetools-dmscreen__loadoutname.is-hidden {
+	display: none;
 }
 
 .fiveetools-dmscreen__search {
@@ -668,9 +698,6 @@ a.fiveetools-inline-link {
 .fiveetools-dmscreen__colactions .fiveetools-btn {
 	flex: 1 1 0;
 	min-width: 0;
-	padding: 2px 4px;
-	font-size: var(--font-ui-smaller, 0.75rem);
-	line-height: 1.2;
 }
 
 .fiveetools-dmscreen__card {

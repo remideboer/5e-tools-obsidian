@@ -805,6 +805,70 @@ function jpegWithDpi (dpi) {
 	}
 	console.log("dm pins", {columns: afterBoard.columns.length, types});
 
+	if (typeof host.listDmScreenLoadouts !== "function"
+		|| typeof host.saveDmScreenLoadout !== "function"
+		|| typeof host.loadDmScreenLoadout !== "function"
+		|| typeof host.deleteDmScreenLoadout !== "function") {
+		throw new Error("DM screen loadout helpers missing from host");
+	}
+	const memFiles = new Map();
+	const memVault = {
+		async createFolder (folderPath) {
+			const key = String(folderPath || "").replace(/\\/g, "/");
+			if (!memFiles.has(key)) memFiles.set(key, {path: key, children: []});
+		},
+		getAbstractFileByPath (filePath) {
+			const key = String(filePath || "").replace(/\\/g, "/");
+			return memFiles.get(key) || null;
+		},
+		async create (filePath, text) {
+			const key = String(filePath || "").replace(/\\/g, "/");
+			const parent = key.replace(/\/[^/]+$/, "");
+			const name = key.split("/").pop();
+			const file = {path: key, name, children: undefined, _text: String(text)};
+			memFiles.set(key, file);
+			const dir = memFiles.get(parent);
+			if (dir?.children && !dir.children.some(c => c.path === key)) dir.children.push(file);
+			return file;
+		},
+		async modify (file, text) {
+			file._text = String(text);
+		},
+		async read (file) {
+			return file._text || "";
+		},
+		async delete (file) {
+			memFiles.delete(file.path);
+			const parent = file.path.replace(/\/[^/]+$/, "");
+			const dir = memFiles.get(parent);
+			if (dir?.children) dir.children = dir.children.filter(c => c.path !== file.path);
+		},
+	};
+	const loadoutPlugin = {
+		...hostPlugin,
+		app: {vault: memVault},
+		_dmScreenBoard: host.getDmScreenBoard(),
+	};
+	const boardBeforeSave = host.getDmScreenBoard();
+	const saved = await host.saveDmScreenLoadout(loadoutPlugin, {name: "Smoke Loadout"});
+	if (!saved?.id || saved.name !== "Smoke Loadout") throw new Error("saveDmScreenLoadout failed");
+	const listed = await host.listDmScreenLoadouts(loadoutPlugin);
+	if (!listed.some(it => it.id === saved.id && it.name === "Smoke Loadout")) {
+		throw new Error("listDmScreenLoadouts missed saved loadout");
+	}
+	host.setDmScreenBoard({columns: []});
+	loadoutPlugin._dmScreenBoard = host.getDmScreenBoard();
+	if (host.getDmScreenBoard().columns.length) throw new Error("board clear before load failed");
+	await host.loadDmScreenLoadout(loadoutPlugin, saved.id);
+	const loadedBoard = host.getDmScreenBoard();
+	if (loadedBoard.columns.length !== boardBeforeSave.columns.length) {
+		throw new Error(`loadDmScreenLoadout columns ${loadedBoard.columns.length} != ${boardBeforeSave.columns.length}`);
+	}
+	await host.deleteDmScreenLoadout(loadoutPlugin, saved.id);
+	const loadoutsAfterDelete = await host.listDmScreenLoadouts(loadoutPlugin);
+	if (loadoutsAfterDelete.some(it => it.id === saved.id)) throw new Error("deleteDmScreenLoadout left file listed");
+	console.log("dm loadouts", {id: saved.id, restored: loadedBoard.columns.length, remaining: loadoutsAfterDelete.length});
+
 	if (typeof host.ensureSearchIndex !== "function") throw new Error("ensureSearchIndex missing from host");
 	if (typeof host.listEntities !== "function") throw new Error("listEntities missing from host");
 	if (typeof host.getMonsterMeta !== "function") throw new Error("getMonsterMeta missing from host");

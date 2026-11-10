@@ -1,4 +1,4 @@
-import {MarkdownRenderer, Notice} from "obsidian";
+import {MarkdownRenderer, Menu, Notice} from "obsidian";
 import {fileStem, listCampaigns, listEntries, parseCampaignMarkdown} from "./campaign-store.js";
 import {characterName, listCharacters, saveCharacterPlay} from "./character-store.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
@@ -12,7 +12,8 @@ import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
 import {isCorpusDoc} from "./dm-screen-pin.js";
-import {allocPanelId, getDmScreenBoard, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
+import {deleteDmScreenLoadout, listDmScreenLoadouts, loadDmScreenLoadout, saveDmScreenLoadout} from "./dm-screen-loadouts.js";
+import {allocPanelId, emptyBoard, getDmScreenBoard, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, combatantTag, listKindGroups, stepAmount} from "./encounter-view.js";
 import {renderCorpusPanel} from "./adventure-reader.js";
@@ -85,6 +86,169 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else castTableWindow(plugin, {anchorEl: evt.currentTarget, mouseEvent: evt});
 		window.setTimeout(syncTableBtn, 400);
 	});
+
+	let selectedLoadoutId = "";
+	let selectedLoadoutName = "";
+	const loadoutBtn = bar.createEl("button", {
+		text: "Loadout",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Save, load, or delete a DM screen layout"},
+	});
+	const loadoutName = bar.createEl("input", {
+		cls: "fiveetools-dmscreen__loadoutname is-hidden",
+		attr: {type: "text", placeholder: "Name, then Enter", autocomplete: "off", title: "Name, then Enter"},
+	});
+
+	const syncLoadoutBtn = () => {
+		loadoutBtn.setText(selectedLoadoutName ? `Loadout: ${selectedLoadoutName}` : "Loadout");
+		loadoutBtn.setAttribute("title", selectedLoadoutName
+			? `Current loadout: ${selectedLoadoutName}`
+			: "Save, load, or delete a DM screen layout");
+	};
+
+	const hideLoadoutName = () => {
+		loadoutName.value = "";
+		loadoutName.addClass("is-hidden");
+	};
+
+	const askLoadoutName = () => {
+		loadoutName.removeClass("is-hidden");
+		loadoutName.value = "";
+		loadoutName.focus();
+	};
+
+	const applyLoadedBoard = (next, id, name) => {
+		selectedLoadoutId = id;
+		selectedLoadoutName = name;
+		state.columns = copyColumns(next);
+		onBoardChange?.(next);
+		syncLoadoutBtn();
+		paint();
+	};
+
+	loadoutBtn.addEventListener("click", async (evt) => {
+		hideLoadoutName();
+		let rows = [];
+		try {
+			rows = await listDmScreenLoadouts(plugin);
+		} catch (e) {
+			new Notice(e?.message || "Could not list loadouts.");
+			console.error(e);
+			return;
+		}
+		if (selectedLoadoutId && !rows.some(row => row.id === selectedLoadoutId)) {
+			selectedLoadoutId = "";
+			selectedLoadoutName = "";
+			syncLoadoutBtn();
+		}
+		const menu = new Menu();
+		menu.addItem((item) => {
+			item.setTitle("New").onClick(() => {
+				hideLoadoutName();
+				selectedLoadoutId = "";
+				selectedLoadoutName = "";
+				const next = setDmScreenBoard(emptyBoard());
+				if (plugin) plugin._dmScreenBoard = next;
+				state.columns = copyColumns(next);
+				onBoardChange?.(next);
+				queueSaveDmScreen(plugin);
+				syncLoadoutBtn();
+				paint();
+			});
+		});
+		menu.addItem((item) => {
+			item.setTitle("Save");
+			item.onClick(async () => {
+				if (!selectedLoadoutId || !selectedLoadoutName) {
+					askLoadoutName();
+					return;
+				}
+				try {
+					const saved = await saveDmScreenLoadout(plugin, {id: selectedLoadoutId, name: selectedLoadoutName});
+					selectedLoadoutId = saved.id;
+					selectedLoadoutName = saved.name;
+					syncLoadoutBtn();
+					new Notice(`Saved loadout “${saved.name}”.`);
+				} catch (e) {
+					new Notice(e?.message || "Could not save that loadout.");
+					console.error(e);
+				}
+			});
+		});
+		menu.addItem((item) => {
+			item.setTitle("Delete");
+			if (!selectedLoadoutId) item.setDisabled(true);
+			item.onClick(async () => {
+				const id = selectedLoadoutId;
+				const label = selectedLoadoutName || id;
+				if (!id) return;
+				if (typeof window !== "undefined" && !window.confirm(`Delete loadout “${label}”?`)) return;
+				try {
+					await deleteDmScreenLoadout(plugin, id);
+					selectedLoadoutId = "";
+					selectedLoadoutName = "";
+					syncLoadoutBtn();
+					new Notice(`Deleted loadout “${label}”.`);
+				} catch (e) {
+					new Notice(e?.message || "Could not delete that loadout.");
+					console.error(e);
+				}
+			});
+		});
+		if (rows.length) {
+			menu.addSeparator();
+			for (const row of rows) {
+				menu.addItem((item) => {
+					item.setTitle(row.name);
+					if (row.id === selectedLoadoutId) item.setChecked(true);
+					item.onClick(async () => {
+						try {
+							const next = await loadDmScreenLoadout(plugin, row.id);
+							applyLoadedBoard(next, row.id, row.name);
+						} catch (e) {
+							new Notice(e?.message || "Could not load that loadout.");
+							console.error(e);
+						}
+					});
+				});
+			}
+		}
+		menu.showAtMouseEvent(evt);
+	});
+
+	loadoutName.addEventListener("keydown", async (evt) => {
+		if (evt.key === "Escape") {
+			evt.preventDefault();
+			hideLoadoutName();
+			loadoutBtn.focus();
+			return;
+		}
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		const name = String(loadoutName.value || "").trim();
+		if (!name) return;
+		try {
+			const saved = await saveDmScreenLoadout(plugin, {name});
+			selectedLoadoutId = saved.id;
+			selectedLoadoutName = saved.name;
+			hideLoadoutName();
+			syncLoadoutBtn();
+			new Notice(`Saved loadout “${saved.name}”.`);
+			loadoutBtn.focus();
+		} catch (e) {
+			new Notice(e?.message || "Could not save that loadout.");
+			console.error(e);
+			loadoutName.focus();
+		}
+	});
+
+	loadoutName.addEventListener("blur", () => {
+		window.setTimeout(() => {
+			if (document.activeElement === loadoutName) return;
+			hideLoadoutName();
+		}, 0);
+	});
+
 	plugin._dmTurnUnsub?.();
 	plugin._dmTurnUnsub = onTableChange(() => {
 		if (!listEl.isConnected) return;
