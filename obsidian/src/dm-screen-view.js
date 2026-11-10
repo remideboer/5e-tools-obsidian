@@ -304,15 +304,6 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Add the last-five roll history"},
 	});
-	const refButtons = QUICK_REFS.map((spec) => {
-		const el = bar.createEl("button", {
-			text: spec.label,
-			cls: "fiveetools-btn fiveetools-btn--ghost",
-			attr: {type: "button", title: `Pin ${spec.label}`},
-		});
-		el.addEventListener("click", () => pinReference(spec));
-		return {ref: spec.ref, el};
-	});
 
 	const searchEl = listEl.createDiv({cls: "fiveetools-dmscreen__search is-hidden"});
 	const searchInput = searchEl.createEl("input", {
@@ -332,9 +323,6 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		addTimeBtn.toggleAttribute("disabled", items().some(panel => panel.type === "time"));
 		addDiceBtn.toggleAttribute("disabled", items().some(panel => panel.type === "dice"));
 		addRollHistBtn.toggleAttribute("disabled", items().some(panel => panel.type === "rollHistory"));
-		for (const btn of refButtons) {
-			btn.el.toggleAttribute("disabled", items().some(panel => panel.type === "reference" && panel.ref === btn.ref));
-		}
 	};
 
 	const addColumn = (panel) => {
@@ -797,10 +785,6 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		addColumn(blankPanel("rollHistory", "Roll history"));
 	});
 
-	const pinReference = (spec) => {
-		if (items().some(panel => panel.type === "reference" && panel.ref === spec.ref)) return;
-		addColumn({...blankPanel("reference", spec.label), ref: spec.ref});
-	};
 	searchInput.addEventListener("input", paintHits);
 
 	const paintCard = (parent, column, panel, setCollapsed) => {
