@@ -21,6 +21,7 @@ import {bindInternalLinks} from "./entity-reader.js";
 import {getRenderer} from "./fiveetools-host.js";
 import {attachHoverCard} from "./hover-card.js";
 import {clearSearchInput, createSearchInput} from "./search-field.js";
+import {listQuickNotes} from "./quick-note-store.js";
 import {characterId} from "./dpr-view.js";
 import {loadEntity} from "./entity-loader.js";
 import {HOMEBREW_TYPES, listBrewEntities} from "./homebrew-store.js";
@@ -664,9 +665,13 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		}
 		if (term.length < 2) return;
 		const docs = pinDocs(term);
-		void findCampaignNotes(plugin, term).then((notes) => {
+		void Promise.all([findCampaignNotes(plugin, term), listQuickNotes(plugin, term)]).then(([campaignNotes, quickNotes]) => {
 			if (token !== hitToken) return;
 			hitsEl.empty();
+			const notes = [
+				...quickNotes.map(note => ({...note, campaign: ""})),
+				...campaignNotes,
+			];
 			if (!docs.length && !notes.length) {
 				hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No matches."});
 				return;

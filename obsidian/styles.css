@@ -242,6 +242,15 @@ a.fiveetools-inline-link {
 	margin: 0 0 4px;
 }
 
+.fiveetools-library__newnote {
+	display: block;
+	width: 100%;
+	margin: 0 0 8px;
+	padding: 2px 6px;
+	font-size: var(--font-ui-small, 0.85rem);
+	line-height: 1.2;
+}
+
 .fiveetools-library__fulltext {
 	display: flex;
 	align-items: center;
@@ -1699,6 +1708,54 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 
 .fiveetools-character-card__ability.is-proficient .fiveetools-character-card__ability-save {
 	font-weight: 600;
+}
+
+.fiveetools-library__list.fiveetools-notes {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding: 0;
+	height: 100%;
+}
+
+.fiveetools-notes__catalog {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	padding: 6px;
+	gap: 4px;
+}
+
+.fiveetools-notes__filter {
+	flex: 0 0 auto;
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0;
+}
+
+.fiveetools-notes__actions {
+	display: flex;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
+.fiveetools-notes__actions .fiveetools-btn {
+	flex: 1 1 auto;
+}
+
+.fiveetools-notes__list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+
+.fiveetools-notes__list .fiveetools-library__row-name {
+	white-space: normal;
 }
 
 .fiveetools-library__list.fiveetools-characters {

@@ -25,10 +25,13 @@ import {renderSimTool, stopSimTimer} from "./sim-view.js";
 import {renderDmScreen} from "./dm-screen-view.js";
 import {getDmScreenBoard} from "./dm-screen-store.js";
 import {renderHomebrewEditor} from "./homebrew-view.js";
+import {closeEmbeddedNote} from "./campaign-editor.js";
 import {renderCampaignManager, teardownCampaignManager} from "./campaign-view.js";
 import {renderCharacterManager} from "./character-view.js";
+import {renderNotesManager, teardownNotesManager} from "./notes-view.js";
 import {entryFromSavedEncounter, writeEntry} from "./campaign-store.js";
 import {clearSearchInput, createSearchInput} from "./search-field.js";
+import {createQuickNote, listQuickNotes} from "./quick-note-store.js";
 import {renderMapTool, teardownMapView} from "./map-view.js";
 import {renderReferenceMaps} from "./map-reference-view.js";
 
@@ -133,6 +136,24 @@ export class FiveEToolsLibraryView extends ItemView {
 		this.globalSearchEl = createSearchInput(this.navEl, {
 			cls: "fiveetools-library__globalsearch",
 			placeholder: "Search…",
+		});
+		const newNoteBtn = this.navEl.createEl("button", {
+			text: "+",
+			cls: "fiveetools-btn fiveetools-btn--ghost fiveetools-library__newnote",
+			attr: {type: "button", title: "New note"},
+		});
+		newNoteBtn.addEventListener("click", async () => {
+			try {
+				const file = await createQuickNote(this.plugin);
+				this.plugin._notesSession = {
+					...(this.plugin._notesSession || {}),
+					selectedPath: file.path,
+				};
+				this.selectNav("notes");
+			} catch (e) {
+				new Notice(e?.message || "Could not create that note.");
+				console.error(e);
+			}
 		});
 		const fulltextRow = this.navEl.createEl("label", {cls: "fiveetools-library__fulltext"});
 		this.fulltextBox = fulltextRow.createEl("input", {
@@ -258,6 +279,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (this._onListArrow) this.contentEl.removeEventListener("keydown", this._onListArrow);
 		if (this._closeFilterMenus) this.contentEl.removeEventListener("click", this._closeFilterMenus);
 		teardownCampaignManager(this.plugin);
+		teardownNotesManager(this.plugin);
 		teardownMapView(this.plugin, {closePlayer: true});
 		this.readerEl?.removeClass("fiveetools-campaign-reader");
 		this.readerEl?.removeClass("fiveetools-campaign-encounter");
@@ -457,6 +479,10 @@ export class FiveEToolsLibraryView extends ItemView {
 			this.readerEl?.removeClass("fiveetools-campaign-reader");
 			this.readerEl?.removeClass("fiveetools-campaign-encounter");
 		}
+		if (item?.tool !== "notes" || globalTerm.length >= 2) {
+			teardownNotesManager(this.plugin);
+			if (item?.tool !== "campaign") this.readerEl?.removeClass("fiveetools-campaign-reader");
+		}
 		if (item?.tool !== "dpr" && this.readerEl?.hasClass("fiveetools-dpr-reader")) {
 			this.readerEl.empty();
 			this.readerEl.removeClass("fiveetools-dpr-reader");
@@ -494,8 +520,13 @@ export class FiveEToolsLibraryView extends ItemView {
 			if (this.filterEl) this.filterEl.style.display = "none";
 			this.listEl.empty();
 			this.docs = searchEntities(globalTerm, {fulltext: !!this.plugin.settings?.fulltextSearch && fulltextReady()});
-			this.renderDocRows();
-			this.listEl.scrollTop = scrollTop;
+			void listQuickNotes(this.plugin, globalTerm).then((notes) => {
+				if (listToken !== this._listToken) return;
+				this.listEl.empty();
+				this.paintQuickNoteRows(notes);
+				this.renderDocRows({allowEmpty: !!notes.length});
+				this.listEl.scrollTop = scrollTop;
+			});
 			return;
 		}
 
@@ -677,6 +708,24 @@ export class FiveEToolsLibraryView extends ItemView {
 			return;
 		}
 
+		if (item?.tool === "notes") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			const session = this.plugin._notesSession || {selectedPath: "", filter: ""};
+			try {
+				renderNotesManager(this.listEl, this.readerEl, {
+					plugin: this.plugin,
+					session,
+					onSessionChange: (next) => { this.plugin._notesSession = next; },
+				});
+			} catch (e) {
+				this.listEl.empty();
+				this.listEl.createEl("p", {text: e.message || "Could not open Notes."});
+			}
+			this.docs = [];
+			return;
+		}
+
 		if (item?.tool === "campaign") {
 			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
@@ -829,10 +878,34 @@ export class FiveEToolsLibraryView extends ItemView {
 		});
 	}
 
-	renderDocRows () {
+	paintQuickNoteRows (notes) {
+		for (const note of notes || []) {
+			const row = this.listEl.createEl("button", {
+				cls: "fiveetools-library__row fiveetools-library__row--note",
+				attr: {type: "button"},
+			});
+			const top = row.createDiv({cls: "fiveetools-library__row-top"});
+			top.createEl("div", {cls: "fiveetools-library__row-name", text: note.title});
+			row.createEl("div", {cls: "fiveetools-library__row-sub", text: "Note"});
+			row.addEventListener("click", () => {
+				this.plugin._notesSession = {
+					...(this.plugin._notesSession || {}),
+					selectedPath: note.path,
+				};
+				this.selectNav("notes");
+			});
+		}
+	}
+
+	renderDocRows ({allowEmpty = false} = {}) {
 		if (!this.docs.length) {
-			this.listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No entries."});
-			if (!this.selectedDoc) this.readerEl.empty();
+			if (!allowEmpty) {
+				this.listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No entries."});
+				if (!this.selectedDoc) {
+					closeEmbeddedNote(this.plugin);
+					this.readerEl.empty();
+				}
+			}
 			return;
 		}
 
@@ -870,11 +943,15 @@ export class FiveEToolsLibraryView extends ItemView {
 	}
 
 	async openDoc (doc) {
+		closeEmbeddedNote(this.plugin);
 		this.selectedDoc = doc;
 		this.leaf.tabHeaderInnerTitleEl?.setText?.(doc.n || "5etools library");
 		this.listEl.querySelectorAll(".fiveetools-library__row").forEach(el => el.classList.remove("is-selected"));
 		const idx = this.docs.findIndex(it => it.u === doc.u && it.s === doc.s && it.n === doc.n);
-		if (idx >= 0) this.listEl.children[idx]?.classList.add("is-selected");
+		if (idx >= 0) {
+			const entityRows = [...this.listEl.querySelectorAll(".fiveetools-library__row:not(.fiveetools-library__row--note)")];
+			entityRows[idx]?.classList.add("is-selected");
+		}
 		await this.openEntityPanel(doc);
 	}
 
@@ -926,6 +1003,7 @@ function clearListToolClasses (el) {
 		"fiveetools-dmscreen",
 		"fiveetools-homebrew",
 		"fiveetools-campaign",
+		"fiveetools-notes",
 		"fiveetools-characters",
 		"fiveetools-map",
 		"fiveetools-refmaps",

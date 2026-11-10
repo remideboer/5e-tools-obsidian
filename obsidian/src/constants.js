@@ -57,6 +57,7 @@ export const LIBRARY_NAV = [
 		items: [
 			{id: "dmscreen", label: "DM screen", tool: "dmscreen"},
 			{id: "campaign", label: "Campaigns", tool: "campaign"},
+			{id: "notes", label: "Notes", tool: "notes"},
 			{id: "encounter", label: "Encounter Composer", tool: "encounter"},
 			{id: "size", label: "Encounter size", tool: "size"},
 			{id: "table", label: "Table", tool: "table"},

@@ -82,6 +82,7 @@ flowchart TB
 | Area | Key files |
 |------|-----------|
 | Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
+| Notes | `notes-view.js`, `quick-note-store.js` — Tools → Notes lists `{notesFolder}/notes/`; nav **+** (under Search) creates Untitled and switches into Notes with the embedded editor (`campaign-editor.js`); also reachable from library Search and DM Entry/note hits |
 | Characters | `character-view.js`, `character-store.js`, `ddb-import.js`, `character-creator-*.js`, `character-spells.js`, `character-spell-modal.js` (D&D Beyond/PDF import; level-1 2024 Create wizard; Edit mode for local name + Manage Spells with 2024 cantrip/prepared/known caps; cards in `{notesFolder}/_characters/{id}.md`; `local-…` ids; `snapshot.play` display name for initiative; campaigns link with `character: id`) |
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js`, `encounter-random.js` (Random encounter; roster kind groups + shared initiative / roll-all / reset order; a scaled or edited group stores that stat block on its copies; each saved encounter is `{notesFolder}/_encounters/{id}.json`, composer state `_instance.json`; [ADR 0010](adr/0010-per-entity-homebrew.md)) |
 | Encounter size | `encounter-size.js`, `encounter-size-view.js` (level-by-CR monster counts from the XP budget; attack actions set the classic multiplier; Players first discounts the attacks the party spends first) |

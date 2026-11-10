@@ -1,11 +1,15 @@
-export async function openCampaignNote (plugin, parentEl, file) {
+/**
+ * Mount an Obsidian markdown editor into a plugin pane (campaign body or library reader).
+ * Shared by campaign notes and quick notes so only one embed is live at a time.
+ */
+export async function openEmbeddedNote (plugin, parentEl, file) {
 	if (!plugin || !parentEl) return null;
 	if (!file || file.children) {
-		closeCampaignNote(plugin);
+		closeEmbeddedNote(plugin);
 		return null;
 	}
 	const app = plugin.app;
-	const existing = plugin._campaignEmbed;
+	const existing = plugin._embeddedNote;
 	if (existing?.leaf && existing.parentEl === parentEl) {
 		await existing.leaf.openFile(file, {
 			active: false,
@@ -16,7 +20,7 @@ export async function openCampaignNote (plugin, parentEl, file) {
 		placeCursorAfterHeading(existing.leaf);
 		return existing;
 	}
-	closeCampaignNote(plugin);
+	closeEmbeddedNote(plugin);
 	const WorkspaceSplit = app.workspace?.rootSplit?.constructor;
 	if (!WorkspaceSplit || typeof app.workspace.createLeafInParent !== "function") {
 		throw new Error("Could not open the Obsidian editor.");
@@ -38,8 +42,30 @@ export async function openCampaignNote (plugin, parentEl, file) {
 	hideNoteProperties(leaf);
 	placeCursorAfterHeading(leaf);
 	const embed = {leaf, rootSplit, parentEl, file};
+	plugin._embeddedNote = embed;
 	plugin._campaignEmbed = embed;
 	return embed;
+}
+
+export function closeEmbeddedNote (plugin) {
+	const embed = plugin?._embeddedNote || plugin?._campaignEmbed;
+	if (!embed) return;
+	plugin._embeddedNote = null;
+	plugin._campaignEmbed = null;
+	try { embed.leaf?.detach?.(); } catch (_) { /* already detached */ }
+	const el = embed.rootSplit?.containerEl;
+	if (el?.detach) el.detach();
+	else el?.remove?.();
+}
+
+/** @deprecated Prefer openEmbeddedNote — kept for campaign-view imports. */
+export async function openCampaignNote (plugin, parentEl, file) {
+	return openEmbeddedNote(plugin, parentEl, file);
+}
+
+/** @deprecated Prefer closeEmbeddedNote — kept for campaign-view imports. */
+export function closeCampaignNote (plugin) {
+	closeEmbeddedNote(plugin);
 }
 
 function hideNoteProperties (leaf) {
@@ -83,14 +109,4 @@ function placeCursorAfterHeading (leaf) {
 	go();
 	if (typeof requestAnimationFrame === "function") requestAnimationFrame(go);
 	setTimeout(go, 50);
-}
-
-export function closeCampaignNote (plugin) {
-	const embed = plugin?._campaignEmbed;
-	if (!embed) return;
-	plugin._campaignEmbed = null;
-	try { embed.leaf?.detach?.(); } catch (_) { /* already detached */ }
-	const el = embed.rootSplit?.containerEl;
-	if (el?.detach) el.detach();
-	else el?.remove?.();
 }
