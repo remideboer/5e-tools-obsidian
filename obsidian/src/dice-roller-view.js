@@ -1,4 +1,5 @@
 import {DIE_FACES, dieLabel, paintDieIcon} from "./dice-icons.js";
+import {unlockDiceSound} from "./dice-3d.js";
 import {formatRollNotice, presentRoll, rollPacked} from "./dice-roll.js";
 import {ensureTableSession} from "./table-session.js";
 import {castTableWindow} from "./table-view.js";
@@ -172,6 +173,7 @@ export function renderDiceRoller (listEl, readerEl, {
 		if (!plugin?.settings) return;
 		plugin.settings.diceSound = !!soundBox.checked;
 		void plugin.saveSettings?.();
+		if (plugin.settings.diceSound) unlockDiceSound(plugin);
 	});
 
 	const table = ensureTableSession(plugin);
@@ -208,6 +210,7 @@ export function renderDiceRoller (listEl, readerEl, {
 		paintDieIcon(icon, faces);
 		btn.createSpan({cls: "fiveetools-dice-roller__die-label", text: dieLabel(faces)});
 		btn.addEventListener("click", async () => {
+			unlockDiceSound(plugin);
 			const result = rollDie(faces, state);
 			await presentRoll(plugin, result);
 			state.history = [

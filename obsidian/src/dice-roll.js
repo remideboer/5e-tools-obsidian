@@ -1,4 +1,4 @@
-import {showDice3d} from "./dice-3d.js";
+import {showDice3d, unlockDiceSound} from "./dice-3d.js";
 import {mapPlayerDocument} from "./map-view.js";
 import {pushRollHistory} from "./roll-history.js";
 import {tableDocument} from "./table-session.js";
@@ -121,6 +121,8 @@ export function presentRoll (plugin, result) {
 export function presentRolls (plugin, results) {
 	const list = (results || []).filter(it => it?.total != null);
 	if (!list.length) return Promise.resolve(results || []);
+	// Sync with the click/touch that started this roll (required for iOS Web Audio).
+	if (plugin?.settings?.dice3d && plugin?.settings?.diceSound) unlockDiceSound(plugin);
 	const docs = rollDocuments(plugin);
 	const reveal = () => {
 		// Same moment as the popup — after 3D dice settle when enabled.

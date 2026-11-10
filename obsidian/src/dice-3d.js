@@ -17,17 +17,35 @@ let rollSoundLoad = null;
 const SOUND_STAGGER_SEC = 0.12;
 let rollSoundIndex = 0;
 
+/**
+ * Call from a click/touch handler (sync) so iOS unlocks Web Audio before awaits.
+ * Safe to call often; no-ops when sound is off or AudioContext is missing.
+ */
+export function unlockDiceSound (plugin) {
+	if (!plugin?.settings?.diceSound) return;
+	const ctx = ensureAudioContext();
+	if (!ctx) return;
+	playSilentUnlock(ctx);
+	if (ctx.state === "suspended") void ctx.resume?.();
+	void ensureRollSound(plugin);
+}
+
 export async function showDice3d (plugin, result, doc = document) {
 	const session = sessionFor(doc);
 	if (session.unavailable || !plugin || !doc?.body) return false;
 	const dice = (result?.dice || []).filter(it => SUPPORTED.has(Number(it.faces)));
 	if (!dice.length) return false;
+	// Still in the click/touch turn when presentRolls calls us — unlock before any await.
+	if (plugin.settings?.diceSound) unlockDiceSound(plugin);
 	try {
 		if (!hasWebGl(doc)) throw new Error("WebGL unavailable");
 		const roller = await getRoller(plugin, doc);
 		if (!roller) return false;
 		session.plugin = plugin;
-		await ensureRollSound(plugin);
+		if (plugin.settings?.diceSound) {
+			await ensureRollSound(plugin);
+			await resumeAudioContext();
+		}
 		rollSoundIndex = 0;
 		const overlay = ensureOverlay(doc);
 		showOverlay(overlay);
@@ -113,26 +131,77 @@ function audioContextCtor () {
 	return globalThis.AudioContext || globalThis.webkitAudioContext || null;
 }
 
-async function ensureRollSound (plugin) {
-	const dir = plugin?.manifest?.dir;
-	const adapter = plugin?.app?.vault?.adapter;
-	if (!dir || !adapter?.getResourcePath) return null;
-	const vaultPath = normalizePath(`${dir}/dice/rolling.mp3`);
-	const url = adapter.getResourcePath(vaultPath);
-	if (!url) return null;
-	if (rollSoundBuffer && rollSoundUrl === url) return rollSoundBuffer;
-	if (rollSoundLoad && rollSoundUrl === url) return rollSoundLoad;
-	rollSoundUrl = url;
-	rollSoundBuffer = null;
+function ensureAudioContext () {
 	const Ctor = audioContextCtor();
 	if (!Ctor) return null;
-	rollSoundLoad = (async () => {
+	if (!rollSoundCtx || rollSoundCtx.state === "closed") rollSoundCtx = new Ctor();
+	return rollSoundCtx;
+}
+
+function playSilentUnlock (ctx) {
+	if (!ctx) return;
+	try {
+		const buf = ctx.createBuffer(1, 1, ctx.sampleRate || 22050);
+		const src = ctx.createBufferSource();
+		src.buffer = buf;
+		src.connect(ctx.destination);
+		src.start(0);
+	} catch (_) { /* ignore */ }
+}
+
+async function resumeAudioContext () {
+	const ctx = ensureAudioContext();
+	if (!ctx) return null;
+	if (ctx.state === "suspended" && typeof ctx.resume === "function") {
+		try { await ctx.resume(); } catch (_) { /* ignore */ }
+	}
+	return ctx;
+}
+
+function rollSoundVaultPath (plugin) {
+	const dir = plugin?.manifest?.dir;
+	if (!dir) return "";
+	return normalizePath(`${dir}/dice/rolling.mp3`);
+}
+
+async function readRollSoundBytes (plugin) {
+	const vaultPath = rollSoundVaultPath(plugin);
+	if (!vaultPath) return null;
+	const adapter = plugin?.app?.vault?.adapter;
+	// Mobile Obsidian often cannot fetch() app-resource URLs; read the vault file instead.
+	if (typeof adapter?.readBinary === "function") {
 		try {
-			if (!rollSoundCtx || rollSoundCtx.state === "closed") rollSoundCtx = new Ctor();
+			const data = await adapter.readBinary(vaultPath);
+			if (data) return data instanceof ArrayBuffer ? data : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+		} catch (_) { /* fall through */ }
+	}
+	if (typeof adapter?.getResourcePath === "function") {
+		try {
+			const url = adapter.getResourcePath(vaultPath);
+			if (!url) return null;
 			const res = await fetch(url);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const raw = await res.arrayBuffer();
-			rollSoundBuffer = await rollSoundCtx.decodeAudioData(raw.slice(0));
+			return await res.arrayBuffer();
+		} catch (_) { /* fall through */ }
+	}
+	return null;
+}
+
+async function ensureRollSound (plugin) {
+	const vaultPath = rollSoundVaultPath(plugin);
+	if (!vaultPath) return null;
+	if (rollSoundBuffer && rollSoundUrl === vaultPath) return rollSoundBuffer;
+	if (rollSoundLoad && rollSoundUrl === vaultPath) return rollSoundLoad;
+	rollSoundUrl = vaultPath;
+	rollSoundBuffer = null;
+	if (!ensureAudioContext()) return null;
+	rollSoundLoad = (async () => {
+		try {
+			const ctx = await resumeAudioContext();
+			if (!ctx) return null;
+			const raw = await readRollSoundBytes(plugin);
+			if (!raw) throw new Error("rolling.mp3 missing or unreadable");
+			rollSoundBuffer = await ctx.decodeAudioData(raw.slice(0));
 			return rollSoundBuffer;
 		} catch (e) {
 			console.warn("5etools dice roll sound failed to load", e);
@@ -150,14 +219,13 @@ function playRollSound () {
 	const buffer = rollSoundBuffer;
 	if (!ctx || !buffer) return;
 	const index = rollSoundIndex++;
-	const startAt = () => {
+	const start = () => {
 		try {
-			if (ctx.state === "suspended") void ctx.resume?.();
 			const src = ctx.createBufferSource();
 			src.buffer = buffer;
 			// Slight rate/pan spread so voices don't cancel into one mono hit.
 			src.playbackRate.value = 0.94 + (index % 5) * 0.03;
-			const pan = ctx.createStereoPanner?.() || null;
+			const pan = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null;
 			const gain = ctx.createGain();
 			gain.gain.value = 0.85;
 			if (pan) {
@@ -171,7 +239,11 @@ function playRollSound () {
 			src.start(ctx.currentTime + index * SOUND_STAGGER_SEC);
 		} catch (_) { /* ignore autoplay / decode errors */ }
 	};
-	startAt();
+	if (ctx.state === "suspended") {
+		void ctx.resume?.().then(start).catch(() => {});
+		return;
+	}
+	start();
 }
 
 function scaleDie (die, factor) {
