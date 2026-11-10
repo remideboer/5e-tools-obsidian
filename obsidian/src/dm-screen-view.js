@@ -11,6 +11,7 @@ import {getBundledScreenTable, listBundledScreenTables} from "./roll-tables/bund
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
+import {isCorpusDoc} from "./dm-screen-pin.js";
 import {allocPanelId, getDmScreenBoard, queueSaveDmScreen, setDmScreenBoard} from "./dm-screen-store.js";
 import {getEncounterInstance, getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, setEncounterInstance} from "./encounter-store.js";
 import {addCombatants, adjustHp, appendSavedCombatants, combatantTag, listKindGroups, stepAmount} from "./encounter-view.js";
@@ -40,11 +41,6 @@ const PIN_CATEGORIES = [
 	"condition", "disease", "status", "rule",
 	"adventure", "book",
 ];
-
-function isCorpusDoc (doc) {
-	const cat = String(doc?.cf || "").toLowerCase();
-	return cat === "adventure" || cat === "book";
-}
 
 /**
  * Tools → DM screen: pinned entity / note / counter cards.

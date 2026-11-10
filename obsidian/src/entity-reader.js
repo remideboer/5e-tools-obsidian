@@ -3,6 +3,7 @@ import {loadEntity} from "./entity-loader.js";
 import {escapeHtml, isCorpusPage, loadPageForDoc, renderCompactHtml, siteUrlForDoc} from "./compact-render.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
+import {pinEntityDoc} from "./dm-screen-pin.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel, renderBookPanel} from "./adventure-reader.js";
@@ -35,6 +36,18 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 
 	const actions = header.createDiv({cls: "fiveetools-view__actions"});
 	const insertBtn = actions.createEl("button", {text: "Insert note", cls: "fiveetools-btn"});
+	const dmScreenBtn = actions.createEl("button", {
+		text: "DM screen",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Pin this entry on the DM screen"},
+	});
+	dmScreenBtn.addEventListener("click", () => {
+		try {
+			pinEntityDoc(plugin, doc);
+		} catch (e) {
+			new Notice(e.message || "Could not pin.");
+		}
+	});
 	const printBtn = actions.createEl("button", {text: "Print card", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	printBtn.setAttr("disabled", "true");
 	const openBtn = actions.createEl("button", {text: "Open on 5e.tools", cls: "fiveetools-btn fiveetools-btn--ghost"});

@@ -18,6 +18,7 @@ import {
 	snapshotCombatants,
 	writeEntry,
 } from "./campaign-store.js";
+import {pinCampaignNotePath} from "./dm-screen-pin.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
 import {applyTemplateToGroup, listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
@@ -83,6 +84,19 @@ export function renderCampaignManager (formEl, resultEl, {
 	});
 	const newBtn = actions.createEl("button", {text: "New", cls: "fiveetools-btn"});
 	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
+	const dmScreenBtn = actions.createEl("button", {
+		text: "DM screen",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Pin this note on the DM screen"},
+	});
+	dmScreenBtn.addEventListener("click", () => {
+		try {
+			const title = entryLabel({fields: parsed.fields, path: selectedPath});
+			pinCampaignNotePath(plugin, {path: selectedPath, title});
+		} catch (e) {
+			new Notice(e.message || "Could not pin.");
+		}
+	});
 	const characterRow = catalogEl.createDiv({cls: "fiveetools-homebrew__row"});
 	characterRow.style.display = "none";
 	const characterSel = characterRow.createEl("select", {cls: "fiveetools-campaign__select"});
@@ -201,6 +215,9 @@ export function renderCampaignManager (formEl, resultEl, {
 	const syncListSelection = () => {
 		deleteBtn.disabled = !selectedPath;
 		openComposerBtn.disabled = sectionId !== "encounters" || !selectedPath;
+		const canPinNote = !!selectedPath && sectionId !== "overview" && sectionId !== "encounters";
+		dmScreenBtn.disabled = !canPinNote;
+		dmScreenBtn.style.display = sectionId === "overview" || sectionId === "encounters" ? "none" : "";
 		listEl.querySelectorAll(".fiveetools-homebrew__hit").forEach((el) => {
 			el.classList.toggle("is-selected", el.dataset.path === selectedPath);
 		});

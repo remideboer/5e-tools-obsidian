@@ -785,6 +785,26 @@ function jpegWithDpi (dpi) {
 		draws: screenDraws.length,
 	});
 
+	if (typeof host.pinEntityDoc !== "function" || typeof host.appendDmScreenPanel !== "function") {
+		throw new Error("DM screen pin helpers missing from host");
+	}
+	if (typeof host.getDmScreenBoard !== "function" || typeof host.pinRollTableRef !== "function") {
+		throw new Error("getDmScreenBoard / pinRollTableRef missing from host");
+	}
+	const beforeCols = host.getDmScreenBoard().columns.length;
+	host.pinEntityDoc(hostPlugin, {n: "Goblin", u: "goblin_mm", s: "MM", c: 1, cf: "Bestiary"});
+	host.pinRollTableRef(hostPlugin, {bundledId: lightRef.id, title: lightRef.name, rollable: false});
+	host.pinCampaignNotePath(hostPlugin, {path: "5etools/Campaigns/test/notes/demo.md", title: "Demo note"});
+	const afterBoard = host.getDmScreenBoard();
+	if (afterBoard.columns.length < beforeCols + 3) {
+		throw new Error(`expected pinned panels on DM board, got ${afterBoard.columns.length}`);
+	}
+	const types = afterBoard.columns.flatMap(col => col.items.map(it => it.type));
+	if (!types.includes("entity") || !types.includes("refTable") || !types.includes("campaignNote")) {
+		throw new Error(`pin types missing: ${types.join(",")}`);
+	}
+	console.log("dm pins", {columns: afterBoard.columns.length, types});
+
 	if (typeof host.ensureSearchIndex !== "function") throw new Error("ensureSearchIndex missing from host");
 	if (typeof host.listEntities !== "function") throw new Error("listEntities missing from host");
 	if (typeof host.getMonsterMeta !== "function") throw new Error("getMonsterMeta missing from host");

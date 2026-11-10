@@ -10,6 +10,7 @@ import {
 	saveRollTableNote,
 	updateRollTableNote,
 } from "./roll-table-store.js";
+import {pinRollTableRef} from "../dm-screen-pin.js";
 import {parseItemRef, renderRollResultCards} from "../roll-result-card.js";
 import {appendTextWithDiceRollers, bindDiceRollers, textHasDiceNotation} from "../dice-roll.js";
 
@@ -48,6 +49,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 			importDraft: state.importDraft,
 		});
 		clearBtn.toggleAttribute("disabled", !state.results?.length);
+		syncPinButton();
 	};
 
 	const clearSelectionPatch = () => ({selectedPath: "", selectedBundledId: "", results: null});
@@ -60,11 +62,46 @@ export function renderRollTablesTool (listEl, readerEl, {
 	toolbar.createEl("h3", {text: "Roll tables"});
 	const actions = toolbar.createDiv({cls: "fiveetools-rolltables__actions"});
 	const importBtn = actions.createEl("button", {text: "Import", cls: "fiveetools-btn", attr: {type: "button"}});
+	const dmScreenBtn = actions.createEl("button", {
+		text: "DM screen",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Pin the selected table on the DM screen"},
+	});
 	const refreshBtn = actions.createEl("button", {
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Refresh", "aria-label": "Refresh"},
 	});
 	setIcon(refreshBtn, "refresh-cw");
+
+	const syncPinButton = () => {
+		dmScreenBtn.toggleAttribute("disabled", !state.selectedPath && !state.selectedBundledId);
+	};
+	syncPinButton();
+
+	dmScreenBtn.addEventListener("click", async () => {
+		try {
+			if (state.selectedBundledId) {
+				const table = await getBundledScreenTable(plugin, state.selectedBundledId);
+				if (!table) throw new Error("Table not found.");
+				pinRollTableRef(plugin, {
+					bundledId: table.id,
+					title: table.name,
+					rollable: table.rollable,
+				});
+				return;
+			}
+			if (!state.selectedPath) throw new Error("Select a table first.");
+			const parsed = state.parsed?.ok && state.parsed.path === state.selectedPath
+				? state.parsed
+				: await readRollTableNote(plugin, state.selectedPath);
+			pinRollTableRef(plugin, {
+				path: state.selectedPath,
+				title: parsed?.ok ? parsed.name : "Roll table",
+			});
+		} catch (e) {
+			new Notice(e.message || "Could not pin.");
+		}
+	});
 
 	const rollControls = listEl.createDiv({cls: "fiveetools-rolltables__rollbar"});
 	const countWrap = rollControls.createDiv({cls: "fiveetools-rolltables__row"});

@@ -73,6 +73,13 @@ export async function flushDmScreenSave (plugin) {
 	return saveDmScreenToVault(plugin);
 }
 
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	getDmScreenBoard,
+	setDmScreenBoard,
+	allocPanelId,
+	emptyBoard,
+});
+
 function normalizeBoard (raw) {
 	const source = Array.isArray(raw?.columns)
 		? raw.columns
