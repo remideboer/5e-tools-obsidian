@@ -63,7 +63,10 @@ function dieOf (count, faces) {
 }
 
 export function dieOfHeader (header) {
-	const match = DIE.exec(plainCell(header));
+	let text = plainCell(header);
+	const tagged = /^\{@dice\s+([^}|]+)(?:\|[^}]*)?\}$/i.exec(text);
+	if (tagged) text = plainCell(tagged[1]);
+	const match = DIE.exec(text);
 	return match ? dieOf(match[1], match[2]) : null;
 }
 

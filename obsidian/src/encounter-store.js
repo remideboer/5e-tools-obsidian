@@ -299,12 +299,12 @@ async function deleteVaultFile (plugin, filePath) {
 	if (existing && !existing.children) await vault.delete(existing);
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.applyEncountersJson = applyEncountersJson;
-	globalThis.FiveEToolsObsidian.listSavedEncounters = listSavedEncounters;
-	globalThis.FiveEToolsObsidian.getSavedEncounter = getSavedEncounter;
-	globalThis.FiveEToolsObsidian.upsertSavedEncounter = upsertSavedEncounter;
-	globalThis.FiveEToolsObsidian.deleteSavedEncounter = deleteSavedEncounter;
-	globalThis.FiveEToolsObsidian.getEncounterInstance = getEncounterInstance;
-	globalThis.FiveEToolsObsidian.setEncounterInstance = setEncounterInstance;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	applyEncountersJson,
+	listSavedEncounters,
+	getSavedEncounter,
+	upsertSavedEncounter,
+	deleteSavedEncounter,
+	getEncounterInstance,
+	setEncounterInstance,
+});

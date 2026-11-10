@@ -1,14 +1,15 @@
 import {renderCompactMarkdown, pageForDoc} from "./compact-render.js";
-import {getAdventureChapters, renderAdventureChapterMarkdown} from "./adventure-reader.js";
+import {getCorpusChapters, renderCorpusChapterMarkdown} from "./adventure-reader.js";
 import {resolveEntityImages} from "./image-resolver.js";
 import {readCachedBytes} from "./media-cache.js";
 
 export function entityNotePath (plugin, doc, ent) {
 	const folder = sanitizePathPart(plugin.settings?.notesFolder || "5etools");
-	if (ent?.__prop === "adventure") {
+	if (ent?.__prop === "adventure" || ent?.__prop === "book") {
+		const kind = ent.__prop === "book" ? "Book" : "Adventure";
 		const source = sanitizePathPart(ent.source || doc?.s || "Unknown");
-		const name = sanitizePathPart(ent.name || doc?.n || "Adventure");
-		return `${folder}/Adventure/${source}/${name}.md`;
+		const name = sanitizePathPart(ent.name || doc?.n || kind);
+		return `${folder}/${kind}/${source}/${name}.md`;
 	}
 	const category = sanitizePathPart(doc?.cf || "Other");
 	const source = sanitizePathPart(ent?.source || doc?.s || "Unknown");
@@ -25,7 +26,9 @@ export function wikilinkForFile (file, displayName) {
 }
 
 export async function insertEntityNote (plugin, {doc, ent, open = true} = {}) {
-	if (ent?.__prop === "adventure") return insertAdventureNotes(plugin, {doc, ent, open});
+	if (ent?.__prop === "adventure" || ent?.__prop === "book") {
+		return insertCorpusNotes(plugin, {doc, ent, open});
+	}
 
 	const folder = sanitizePathPart(plugin.settings?.notesFolder || "5etools");
 	const category = sanitizePathPart(doc?.cf || "Other");
@@ -82,7 +85,9 @@ export async function insertEntityNote (plugin, {doc, ent, open = true} = {}) {
 	return file;
 }
 
-async function insertAdventureNotes (plugin, {doc, ent, open = true} = {}) {
+async function insertCorpusNotes (plugin, {doc, ent, open = true} = {}) {
+	const kind = ent.__prop === "book" ? "Book" : "Adventure";
+	const kindKey = ent.__prop === "book" ? "book" : "adventure";
 	const indexPath = entityNotePath(plugin, doc, ent);
 	const noteFolder = indexPath.replace(/\/[^/]+$/, "");
 	const existing = plugin.app.vault.getAbstractFileByPath(indexPath);
@@ -92,21 +97,21 @@ async function insertAdventureNotes (plugin, {doc, ent, open = true} = {}) {
 	}
 
 	await ensureFolder(plugin.app, noteFolder);
-	const chapters = getAdventureChapters(ent);
+	const chapters = getCorpusChapters(ent);
 	const links = [];
 	for (const chapter of chapters) {
 		const chapterName = `${String(chapter.ix + 1).padStart(2, "0")} ${sanitizePathPart(chapter.name)}`;
 		const chapterPath = `${noteFolder}/${chapterName}.md`;
 		links.push(`- [[${chapterName}]]`);
 		if (plugin.app.vault.getAbstractFileByPath(chapterPath)) continue;
-		const body = renderAdventureChapterMarkdown(chapter.section).trim() || `# ${chapter.name}`;
+		const body = renderCorpusChapterMarkdown(chapter.section).trim() || `# ${chapter.name}`;
 		const content = [
 			"---",
 			`5etools_id: "${yamlEscape(`${String(ent.name || "").toLowerCase()}|${ent.source || ""}|${chapter.ix}`)}"`,
 			`name: "${yamlEscape(chapter.name)}"`,
 			`source: "${yamlEscape(ent.source || "")}"`,
-			`category: "Adventure"`,
-			`adventure: "${yamlEscape(ent.name || "")}"`,
+			`category: "${kind}"`,
+			`${kindKey}: "${yamlEscape(ent.name || "")}"`,
 			"---",
 			"",
 			body,
@@ -120,10 +125,10 @@ async function insertAdventureNotes (plugin, {doc, ent, open = true} = {}) {
 		`5etools_id: "${yamlEscape(`${String(ent.name || "").toLowerCase()}|${ent.source || ""}`)}"`,
 		`name: "${yamlEscape(ent.name || "")}"`,
 		`source: "${yamlEscape(ent.source || "")}"`,
-		`category: "Adventure"`,
+		`category: "${kind}"`,
 		"---",
 		"",
-		`# ${ent.name || "Adventure"}`,
+		`# ${ent.name || kind}`,
 		"",
 		...links,
 		"",
@@ -166,7 +171,7 @@ function yamlEscape (value) {
 	return String(value ?? "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.entityNotePath = entityNotePath;
-	globalThis.FiveEToolsObsidian.wikilinkForFile = wikilinkForFile;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	entityNotePath,
+	wikilinkForFile,
+});

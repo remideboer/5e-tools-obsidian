@@ -5,7 +5,7 @@ import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {insertEntityNote} from "./note-writer.js";
 import {printEntityCard} from "./print-card.js";
-import {parseAdventureHref, renderAdventurePanel} from "./adventure-reader.js";
+import {parseAdventureHref, renderAdventurePanel, renderBookPanel} from "./adventure-reader.js";
 import {docFromHref, docFromVetLink, indexHomebrewDocs} from "./search-index.js";
 import {bindDiceRollers} from "./dice-roll.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
@@ -82,7 +82,7 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 			: (bookEnt || displayEnt);
 		const shown = {ent: displayEnt, base: scaleSource};
 
-		if (bookEnt?.__prop === "adventure") {
+		if (bookEnt?.__prop === "adventure" || bookEnt?.__prop === "book") {
 			crRow.remove();
 			insertBtn.addEventListener("click", async () => {
 				insertBtn.setAttr("disabled", "true");
@@ -92,7 +92,8 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 					insertBtn.removeAttribute("disabled");
 				}
 			});
-			await renderAdventurePanel(body, plugin, bookEnt, {bindInternalLinks});
+			if (bookEnt.__prop === "book") await renderBookPanel(body, plugin, bookEnt, {bindInternalLinks});
+			else await renderAdventurePanel(body, plugin, bookEnt, {bindInternalLinks});
 			bindDiceRollers(body, plugin);
 			return;
 		}

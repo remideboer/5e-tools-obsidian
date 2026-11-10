@@ -41,8 +41,13 @@ export const CATEGORY_CHIPS = [
 	{id: "trapshazards", label: "Traps", aliases: ["trap", "hazard"]},
 	{id: "objects", label: "Object", aliases: ["object", "obj"]},
 	{id: "cultsboons", label: "Cults", aliases: ["cult", "boon"]},
+	{id: "deities", label: "Deity", aliases: ["deity", "god"]},
+	{id: "vehicles", label: "Vehicle", aliases: ["vehicle", "veh", "ship upgrade", "vehicle upgrade"]},
+	{id: "psionics", label: "Psionic", aliases: ["psionic"]},
+	{id: "rewards", label: "Reward", aliases: ["other reward", "reward"]},
 	{id: "rule", label: "Rule", aliases: ["rule"]},
 	{id: "adventure", label: "Adventure", aliases: ["adventure", "adv"]},
+	{id: "book", label: "Book", aliases: ["book", "bk"]},
 ];
 
 export const LIBRARY_NAV = [
@@ -82,17 +87,21 @@ export const LIBRARY_NAV = [
 			{id: "trapshazards", label: "Traps & Hazards", categories: ["trap", "hazard"]},
 			{id: "objects", label: "Objects", categories: ["object"]},
 			{id: "cultsboons", label: "Cults & Boons", categories: ["cult", "boon"]},
+			{id: "deities", label: "Deities", categories: ["deity"]},
+			{id: "vehicles", label: "Vehicles", categories: ["vehicle", "ship upgrade", "infernal war machine upgrade", "vehicle upgrade"]},
+			{id: "psionics", label: "Psionics", categories: ["psionic"]},
+			{id: "rewards", label: "Rewards", categories: ["other reward"]},
 			{id: "spell", label: "Spells", categories: ["spell"]},
 			{id: "item", label: "Items", categories: ["item"]},
 			{id: "condition", label: "Conditions", categories: ["condition", "disease", "status"]},
 			{id: "rule", label: "Rules", categories: ["rule"]},
 			{id: "adventure", label: "Adventures", categories: ["adventure"]},
+			{id: "book", label: "Books", categories: ["book"]},
 			{id: "maps", label: "Maps", tool: "maps"},
 		],
 	},
 ];
 
 export const CORPUS_PAGES = new Set([
-	"book.html",
 	"books.html",
 ]);

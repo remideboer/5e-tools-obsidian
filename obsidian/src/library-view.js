@@ -529,6 +529,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			if (this.filterEl) this.filterEl.style.display = "none";
 			const session = this.plugin._rolltablesSession || {
 				selectedPath: "",
+				selectedBundledId: "",
 				count: 1,
 				results: null,
 				importDraft: null,

@@ -122,6 +122,6 @@ export function toPreviewSrc (resolved) {
 	return resolved?.url || null;
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.resolveEntityImages = resolveEntityImages;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	resolveEntityImages,
+});

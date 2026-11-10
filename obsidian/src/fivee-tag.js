@@ -196,7 +196,7 @@ async function openTaggedDoc (plugin, a) {
 	if (doc) await plugin.openLibrary({doc});
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.fiveETagForDoc = fiveETagForDoc;
-	globalThis.FiveEToolsObsidian.parseFiveETag = parseFiveETag;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	fiveETagForDoc,
+	parseFiveETag,
+});

@@ -296,7 +296,7 @@ function nearestCr (value) {
 	return best;
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.estimateCreatureCr = estimateCreatureCr;
-	globalThis.FiveEToolsObsidian.applyCalculatedCr = applyCalculatedCr;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	estimateCreatureCr,
+	applyCalculatedCr,
+});

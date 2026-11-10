@@ -91,7 +91,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "initiative", "players", "time", "dice", "rollHistory"]);
+const PANEL_TYPES = new Set(["entity", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "refTable", "initiative", "players", "time", "dice", "rollHistory"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -99,9 +99,12 @@ function normalizePanel (raw) {
 	const type = PANEL_TYPES.has(raw.type) ? raw.type : "note";
 	const doc = slimDoc(raw.doc);
 	const path = String(raw.path || "");
+	const bundledId = String(raw.bundledId || "");
 	const ref = String(raw.ref || "");
 	if (type === "entity" && !doc) return null;
-	if ((type === "campaignNote" || type === "rollTable") && !path) return null;
+	if (type === "campaignNote" && !path) return null;
+	if (type === "rollTable" && !path && !bundledId) return null;
+	if (type === "refTable" && !bundledId) return null;
 	if (type === "reference" && !REFERENCE_IDS.has(ref)) return null;
 	const panel = {
 		id: String(raw.id || allocPanelId()),
@@ -114,6 +117,7 @@ function normalizePanel (raw) {
 		value: Number.isFinite(Number(raw.value)) ? Math.trunc(Number(raw.value)) : 0,
 		collapsed: !!raw.collapsed,
 	};
+	if ((type === "rollTable" || type === "refTable") && bundledId) panel.bundledId = bundledId;
 	if (type === "players") panel.characters = characterIds(raw.characters);
 	if (type === "time") Object.assign(panel, normalizeTime(raw));
 	if (type === "dice") panel.dice = normalizeDice(raw.dice);
@@ -173,6 +177,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "rollHistory") return "Roll history";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	if (type === "rollTable") return "Roll table";
+	if (type === "refTable") return "Reference table";
 	return "Note";
 }
 

@@ -67,7 +67,17 @@ const fs = require("fs");
 const host = globalThis.FiveEToolsObsidian;
 if (!host) throw new Error("FiveEToolsObsidian host missing");
 
-host.configureFiveEToolsRoot(pluginDir, {imageBaseUrl: "https://5e.tools"});
+const pluginDirPosix = pluginDir.replace(/\\/g, "/");
+const hostAdapter = new obsidianMock.FileSystemAdapter();
+hostAdapter.getBasePath = () => root;
+hostAdapter.exists = async (p) => fs.existsSync(p);
+hostAdapter.read = async (p) => fs.readFileSync(p, "utf8");
+const hostPlugin = {
+	manifest: {id: "5etools", dir: pluginDirPosix},
+	app: {vault: {configDir: ".obsidian", adapter: hostAdapter}},
+	settings: {imageBaseUrl: "https://5e.tools", notesFolder: "5etools"},
+};
+host.configureFiveEToolsRoot(hostPlugin, {imageBaseUrl: "https://5e.tools"});
 if (typeof host.setStyleHint === "function") host.setStyleHint("one");
 
 const elasticlunr = host.getElasticlunr();
@@ -148,6 +158,12 @@ function jpegWithDpi (dpi) {
 	if (!fs.existsSync(path.join(pluginDir, "data", "trapshazards.json"))) throw new Error("trapshazards.json missing from plugin");
 	if (!fs.existsSync(path.join(pluginDir, "data", "objects.json"))) throw new Error("objects.json missing from plugin");
 	if (!fs.existsSync(path.join(pluginDir, "data", "cultsboons.json"))) throw new Error("cultsboons.json missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "deities.json"))) throw new Error("deities.json missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "vehicles.json"))) throw new Error("vehicles.json missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "psionics.json"))) throw new Error("psionics.json missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "rewards.json"))) throw new Error("rewards.json missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "books.json"))) throw new Error("books.json missing from plugin");
+	if (!fs.existsSync(path.join(pluginDir, "data", "book"))) throw new Error("book data missing from plugin");
 	const dice3d = path.join(pluginDir, "dice", "dice-3d.js");
 	if (!fs.existsSync(dice3d)) throw new Error("3D dice bundle missing");
 	const diceSrc = fs.readFileSync(dice3d, "utf8");
@@ -275,7 +291,7 @@ function jpegWithDpi (dpi) {
 	if (typeof host.ensureSearchIndex !== "function" || typeof host.docFromVetLink !== "function") {
 		throw new Error("link helpers missing from host");
 	}
-	await host.ensureSearchIndex(pluginDir);
+	await host.ensureSearchIndex(hostPlugin);
 	const fireballDoc = host.findEntityDoc("Fireball", {categoriesExact: ["spell"]});
 	if (String(fireballDoc?.s || "").toUpperCase() !== "XPHB") {
 		throw new Error(`Fireball should prefer XPHB, got ${fireballDoc?.s}`);
@@ -330,6 +346,7 @@ function jpegWithDpi (dpi) {
 	if (typeof host.listLootTables !== "function" || typeof host.rollSelectedTables !== "function") {
 		throw new Error("loot table helpers missing from host");
 	}
+	if (typeof host.ensureLootData === "function") await host.ensureLootData(hostPlugin);
 	const lootTables = host.listLootTables();
 	const groups = [...new Set(lootTables.map(it => it.group))];
 	for (const group of ["Individual", "Hoard", "Dragon", "Gems", "Art objects", "Magic items", "Dragon mundane"]) {
@@ -654,7 +671,7 @@ function jpegWithDpi (dpi) {
 	brew.spell.push(hbSpell);
 	brew.monster.push(hbMon);
 	host.applyBrewJson(brew);
-	await host.ensureSearchIndex(pluginDir);
+	await host.ensureSearchIndex(hostPlugin);
 	if (typeof host.indexHomebrewDocs !== "function") throw new Error("indexHomebrewDocs missing from host");
 	const hbDocs = host.indexHomebrewDocs();
 	if (!hbDocs.some(d => d.n === "HB Spark") || !hbDocs.some(d => d.n === "HB Blob")) {
@@ -677,7 +694,15 @@ function jpegWithDpi (dpi) {
 	console.log("homebrew", {spell: loadedSpell.name, monster: loadedMon.name, hp: loadedMon.hp.average, cr: loadedMon.cr});
 
 	const books = packed.filter(it => it.c === 44);
-	if (books.length) throw new Error(`filtered index still has ${books.length} book docs`);
+	if (!books.length) throw new Error("filtered index missing book docs");
+	const bookDoc = books.find(d => /player'?s handbook/i.test(d.n) && String(d.s || "").toUpperCase() === "PHB")
+		|| books.find(d => /player'?s handbook/i.test(d.n))
+		|| books[0];
+	const bookPack = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[bookDoc.c], bookDoc.s, bookDoc.u, {isSilent: true});
+	const bookChapters = bookPack?.bookData?.data;
+	if (!Array.isArray(bookChapters) || !bookChapters.length) throw new Error("book chapters missing");
+	console.log("book", {name: bookPack.book?.name || bookDoc.n, chapters: bookChapters.length, source: bookDoc.s});
+
 	const advHits = search("lost mine").filter(d => String(d.cf).toLowerCase() === "adventure");
 	const advDoc = advHits.find(d => /phandelver/i.test(d.n)) || advHits[0];
 	if (!advDoc) throw new Error("no Lost Mine adventure in filtered index");
@@ -700,10 +725,70 @@ function jpegWithDpi (dpi) {
 	if (areaParts.length < 3) throw new Error(`area href too short: ${areaHref}`);
 	console.log("adventure", {name: advPack.adventure?.name, chapters: chapters.length, areaHref});
 
+	for (const [label, query, cat] of [
+		["deity", "bahamut", "deity"],
+		["vehicle", "galley", "vehicle"],
+		["psionic", "ego whip", "psionic"],
+		["reward", "blessing", "other reward"],
+	]) {
+		const hits = search(query).filter(d => String(d.cf || "").toLowerCase() === cat);
+		if (!hits.length) throw new Error(`no ${label} hits for ${query}`);
+		const hit = hits[0];
+		const loaded = await DataLoader.pCacheAndGet(UrlUtil.CAT_TO_PAGE[hit.c], hit.s, hit.u, {isSilent: true});
+		if (!loaded) throw new Error(`${label} failed to load: ${hit.n}`);
+		console.log(label, {name: loaded.name || hit.n, source: hit.s});
+	}
+
+	if (typeof host.listBundledScreenTables !== "function" || typeof host.getBundledScreenTable !== "function") {
+		throw new Error("bundled screen table helpers missing from host");
+	}
+	if (typeof host.listBundledRollableScreenTables !== "function") {
+		throw new Error("listBundledRollableScreenTables missing from host");
+	}
+	if (typeof host.listAllRollTables !== "function") throw new Error("listAllRollTables missing from host");
+	if (typeof host.rollTableResults !== "function") throw new Error("rollTableResults missing from host");
+	const screenTables = await host.listBundledScreenTables(hostPlugin);
+	if (!Array.isArray(screenTables) || screenTables.length < 8) {
+		throw new Error(`expected Screen catalog tables, got ${screenTables?.length}`);
+	}
+	const rollableScreen = await host.listBundledRollableScreenTables(hostPlugin);
+	if (!rollableScreen.length || rollableScreen.some(t => !t.rollable)) {
+		throw new Error("rollable Screen list empty or includes non-rollables");
+	}
+	if (rollableScreen.length >= screenTables.length) {
+		throw new Error(`expected reference tables among Screen catalog (${rollableScreen.length}/${screenTables.length})`);
+	}
+	const npcChars = screenTables.find(t => t.source === "Screen" && /NPC Characteristics/i.test(t.name || t.fullName || ""));
+	if (!npcChars || !npcChars.rollable) throw new Error("NPC Characteristics missing or not rollable");
+	const lightRef = screenTables.find(t => /Light/i.test(t.name || "") && !t.rollable);
+	if (!lightRef) throw new Error("expected a non-rollable Light reference table");
+	const allRoll = await host.listAllRollTables(hostPlugin);
+	if (!allRoll.some(t => t.kind === "bundled" && t.id === npcChars.id)) {
+		throw new Error("listAllRollTables missing NPC Characteristics");
+	}
+	if (allRoll.some(t => t.kind === "bundled" && t.id === lightRef.id)) {
+		throw new Error("listAllRollTables should omit reference tables");
+	}
+	const byId = await host.getBundledScreenTable(hostPlugin, npcChars.id);
+	if (!byId || byId.headers.length < 2 || byId.rows.length < 20) {
+		throw new Error("NPC Characteristics load failed");
+	}
+	const screenDraws = host.rollTableResults(byId.headers, byId.rows, byId.name);
+	if (!Array.isArray(screenDraws) || !screenDraws.length || !screenDraws[0].cells?.length) {
+		throw new Error("Screen table roll returned nothing");
+	}
+	console.log("screen tables", {
+		count: screenTables.length,
+		rollable: rollableScreen.length,
+		sample: byId.name,
+		ref: lightRef.name,
+		draws: screenDraws.length,
+	});
+
 	if (typeof host.ensureSearchIndex !== "function") throw new Error("ensureSearchIndex missing from host");
 	if (typeof host.listEntities !== "function") throw new Error("listEntities missing from host");
 	if (typeof host.getMonsterMeta !== "function") throw new Error("getMonsterMeta missing from host");
-	await host.ensureSearchIndex(pluginDir);
+	await host.ensureSearchIndex(hostPlugin);
 	const mmGoblinDoc = {
 		n: "Goblin",
 		s: "MM",
@@ -828,8 +913,22 @@ function jpegWithDpi (dpi) {
 	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "fiveetools-cache-"));
 	try {
 		const adapter = new obsidianMock.FileSystemAdapter();
+		const vaultAbs = (p) => path.join(tmpRoot, ...String(p || "").split(/[\\/]+/).filter(Boolean));
 		adapter.getBasePath = () => tmpRoot;
 		adapter.getResourcePath = (p) => `app://local/${String(p).replace(/\\/g, "/")}`;
+		adapter.exists = async (p) => fs.existsSync(vaultAbs(p));
+		adapter.mkdir = async (p) => { fs.mkdirSync(vaultAbs(p), {recursive: true}); };
+		adapter.read = async (p) => fs.readFileSync(vaultAbs(p), "utf8");
+		adapter.readBinary = async (p) => fs.readFileSync(vaultAbs(p));
+		adapter.writeBinary = async (p, bytes) => {
+			const abs = vaultAbs(p);
+			fs.mkdirSync(path.dirname(abs), {recursive: true});
+			fs.writeFileSync(abs, Buffer.from(bytes));
+		};
+		adapter.rmdir = async (p) => {
+			const abs = vaultAbs(p);
+			if (fs.existsSync(abs)) fs.rmSync(abs, {recursive: true, force: true});
+		};
 		const cachePlugin = {
 			settings: {imageBaseUrl: "https://5e.tools"},
 			manifest: {id: "5etools"},
@@ -843,7 +942,7 @@ function jpegWithDpi (dpi) {
 		const again = await host.cachedMediaSrc(cachePlugin, tokenUrl);
 		if (again !== localSrc) throw new Error("second cache lookup returned a different path");
 		console.log("image cache", {file: cachedFile, hits: 2});
-		host.clearMediaCache(cachePlugin);
+		await host.clearMediaCache(cachePlugin);
 		if (fs.existsSync(path.join(tmpRoot, ".obsidian", "plugins", "5etools", "cache"))) {
 			throw new Error("cache folder still present after clear");
 		}

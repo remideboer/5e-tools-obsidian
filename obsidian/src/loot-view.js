@@ -1013,12 +1013,13 @@ function cssEscape (value) {
 	return s.replace(/["\\]/g, "\\$&");
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.listLootTables = listLootTables;
-	globalThis.FiveEToolsObsidian.rollSelectedTables = rollSelectedTables;
-	globalThis.FiveEToolsObsidian.lootTableRarityWeight = lootTableRarityWeight;
-	globalThis.FiveEToolsObsidian.lootTableView = lootTableView;
-	globalThis.FiveEToolsObsidian.formatLootRowText = formatLootRowText;
-	globalThis.FiveEToolsObsidian.lootTableIdsForTreasure = lootTableIdsForTreasure;
-	globalThis.FiveEToolsObsidian.isRollableTreasure = isRollableTreasure;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	ensureLootData,
+	listLootTables,
+	rollSelectedTables,
+	lootTableRarityWeight,
+	lootTableView,
+	formatLootRowText,
+	lootTableIdsForTreasure,
+	isRollableTreasure,
+});

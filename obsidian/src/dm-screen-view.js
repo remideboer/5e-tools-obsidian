@@ -7,6 +7,7 @@ import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
 import {renderRollHistoryWidget} from "./roll-history.js";
+import {getBundledScreenTable, listBundledScreenTables} from "./roll-tables/bundled-screen-tables.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
 import {rollTableResults} from "./roll-tables/table-roll.js";
 import {addMinutes, clockParts, DAY_MINUTES, dayColumns, formatClock, LONG_REST, shiftLabel, SHORT_REST, stepsFor, TIME_MODES} from "./dm-time.js";
@@ -102,9 +103,9 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		attr: {type: "button"},
 	});
 	const addTableBtn = bar.createEl("button", {
-		text: "Roll table",
+		text: "Table",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Pin a roll table"},
+		attr: {type: "button", title: "Pin a roll or reference table"},
 	});
 	const addEncounterBtn = bar.createEl("button", {
 		text: "Encounter",
@@ -279,7 +280,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			const tableBtn = actions.createEl("button", {
 				text: "Table",
 				cls: "fiveetools-btn fiveetools-btn--ghost",
-				attr: {type: "button", title: "Add a roll table to this column"},
+				attr: {type: "button", title: "Add a table to this column"},
 			});
 			const addToColumn = (evt, panel) => {
 				evt.preventDefault();
@@ -443,7 +444,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		searchMode = mode;
 		pinColumn = column || null;
 		searchInput.placeholder = mode === "table"
-			? "Search roll tables…"
+			? "Search tables…"
 			: "Search creatures, items, homebrew, campaign notes…";
 		searchEl.removeClass("is-hidden");
 		searchInput.focus();
@@ -455,11 +456,25 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		hitsEl.empty();
 		const term = String(searchInput.value || "").trim();
 		if (searchMode === "table") {
-			void listRollTables(plugin).then((tables) => {
+			void Promise.all([listRollTables(plugin), listBundledScreenTables(plugin)]).then(([vault, bundled]) => {
 				if (token !== hitToken) return;
 				hitsEl.empty();
 				const needle = term.toLowerCase();
-				const hits = (tables || []).filter(table => !needle || String(table.name || "").toLowerCase().includes(needle));
+				const tables = [
+					...(vault || []).map(table => ({...table, kind: "vault"})),
+					...(bundled || []),
+				];
+				const hits = tables.filter((table) => {
+					if (!needle) return true;
+					const hay = [
+						table.name,
+						table.source,
+						table.fullName,
+						table.stem,
+						table.path,
+					].filter(Boolean).join(" ").toLowerCase();
+					return hay.includes(needle);
+				});
 				if (!hits.length) {
 					hitsEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No tables."});
 					return;
@@ -467,17 +482,23 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				for (const table of hits) {
 					const row = hitsEl.createDiv({cls: "fiveetools-dmscreen__hit"});
 					row.createEl("div", {cls: "fiveetools-modal__name", text: table.name || "Table"});
-					row.createEl("div", {cls: "fiveetools-modal__sub", text: "Roll table"});
+					const sub = table.kind === "bundled"
+						? (table.rollable ? "DM Screen · roll" : "DM Screen · reference")
+						: "Roll table";
+					row.createEl("div", {cls: "fiveetools-modal__sub", text: sub});
 					row.addEventListener("click", () => {
-						placePanel({
+						const isRef = table.kind === "bundled" && !table.rollable;
+						const panel = {
 							id: allocPanelId(),
-							type: "rollTable",
-							title: table.name || "Roll table",
+							type: isRef ? "refTable" : "rollTable",
+							title: table.name || (isRef ? "Reference table" : "Roll table"),
 							doc: null,
-							path: table.path,
+							path: table.kind === "vault" ? table.path : "",
 							text: "",
 							value: 0,
-						});
+						};
+						if (table.kind === "bundled") panel.bundledId = table.id;
+						placePanel(panel);
 					});
 				}
 			});
@@ -692,7 +713,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				}
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice" || panel.type === "rollHistory") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "refTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice" || panel.type === "rollHistory") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -744,6 +765,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		}
 		else if (panel.type === "reference") void paintReference(body, panel);
 		else if (panel.type === "rollTable") void paintRollTable(body, panel);
+		else if (panel.type === "refTable") void paintRefTable(body, panel);
 		else void paintEntity(body, panel);
 	};
 
@@ -980,6 +1002,44 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		stat("PP", statText(record?.snapshot?.rolls?.passivePerception));
 	};
 
+	const loadPanelTable = async (panel) => {
+		if (panel.bundledId) {
+			const bundled = await getBundledScreenTable(plugin, panel.bundledId);
+			return bundled
+				? {ok: true, name: bundled.name, headers: bundled.headers, rows: bundled.rows}
+				: {ok: false};
+		}
+		return readRollTableNote(plugin, panel.path);
+	};
+
+	const paintTableGrid = (host, parsed) => {
+		const table = host.createEl("table", {cls: "fiveetools-dmscreen__table"});
+		const head = table.createEl("thead").createEl("tr");
+		for (const header of parsed.headers) head.createEl("th", {text: header});
+		const tbody = table.createEl("tbody");
+		for (const cells of parsed.rows) {
+			const tr = tbody.createEl("tr");
+			for (const cell of cells) {
+				const td = tr.createEl("td");
+				appendTextWithDiceRollers(td, cell);
+			}
+		}
+		bindDiceRollers(host, plugin);
+	};
+
+	const paintRefTable = async (body, panel) => {
+		body.empty();
+		const tableHost = body.createDiv({cls: "fiveetools-dmscreen__rolltable"});
+		const parsed = await loadPanelTable(panel);
+		if (!body.isConnected) return;
+		if (!parsed.ok) {
+			tableHost.createEl("p", {text: "Table not found."});
+			return;
+		}
+		if (parsed.name) panel.title = parsed.name;
+		paintTableGrid(tableHost, parsed);
+	};
+
 	const paintRollTable = async (body, panel) => {
 		body.empty();
 		const rollBtn = body.createEl("button", {
@@ -991,25 +1051,14 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		const saved = savedRoll(panel.text);
 		if (saved) showRollResult(resultEl, saved);
 		const tableHost = body.createDiv({cls: "fiveetools-dmscreen__rolltable"});
-		const parsed = await readRollTableNote(plugin, panel.path);
+		const parsed = await loadPanelTable(panel);
 		if (!body.isConnected) return;
 		if (!parsed.ok) {
 			tableHost.createEl("p", {text: "Table not found."});
 			return;
 		}
 		if (parsed.name) panel.title = parsed.name;
-		const table = tableHost.createEl("table", {cls: "fiveetools-dmscreen__table"});
-		const head = table.createEl("thead").createEl("tr");
-		for (const header of parsed.headers) head.createEl("th", {text: header});
-		const tbody = table.createEl("tbody");
-		for (const cells of parsed.rows) {
-			const tr = tbody.createEl("tr");
-			for (const cell of cells) {
-				const td = tr.createEl("td");
-				appendTextWithDiceRollers(td, cell);
-			}
-		}
-		bindDiceRollers(tableHost, plugin);
+		paintTableGrid(tableHost, parsed);
 		rollBtn.addEventListener("click", () => {
 			try {
 				const draws = rollTableResults(parsed.headers, parsed.rows, parsed.name);

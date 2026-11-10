@@ -2562,6 +2562,35 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	gap: 6px;
 }
 
+.fiveetools-rolltables__group {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-bottom: 0.75rem;
+}
+
+.fiveetools-rolltables__grouphead {
+	font-size: 0.8rem;
+	font-weight: 600;
+	opacity: 0.75;
+	padding: 0.25rem 0.15rem;
+}
+
+.fiveetools-rolltables__hitmain {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	flex: 1;
+}
+
+.fiveetools-rolltables__hitsub {
+	font-size: 0.75rem;
+	opacity: 0.7;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .fiveetools-rolltables__list {
 	flex: 1 1 auto;
 	min-height: 0;

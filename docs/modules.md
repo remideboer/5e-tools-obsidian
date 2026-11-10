@@ -94,10 +94,12 @@ flowchart TB
 | ToV bestiary | Site data `data/bestiary/bestiary-tov.json`. Art stays in the vault at `5etools/_homebrew/img/tov-*.png` (not in git); the image resolver looks it up by name. Import with `npm run import:tov-bestiary`; PDF extract via `node/extract-tov-monsters.js`. |
 | Loot | `loot-view.js` (results via `roll-result-card.js`; treasure type → table ids for creature footer) |
 | Random | `random-view.js`, `random-generate.js`, `name-generate.js` (donjon’s 5.5 generator list, ten local rows; the 1d10 is rolled by hand to mark a row; names come from the Xanathar’s Guide tables, plus gith and lizardfolk; NPCs have a name and a short description; creature, spell, and item links; a marked encounter can be added to the composer) |
-| Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `roll-tables-view`), shared `roll-result-card.js` |
+| Roll tables | `roll-tables/` (`pasted-table`, `die-ranges`, `table-note`, `table-roll`, `roll-table-store`, `bundled-screen-tables`, `roll-tables-view`), shared `roll-result-card.js`. Vault notes plus rollable DM Screen / XScreen tables from `gendata-tables.json` (die / name-generator only). Reference Screen tables pin on the DM screen as `refTable` (no Roll). |
 | Library rows | `library-row.js` + `spell-meta.js` / `item-meta.js` / `bestiary-meta.js` (CR, rarity, level, type/alignment/habitat, classes; icon sort; spell/item/bestiary filters) |
 | Creature stats | `entity-reader.js` + `creature-stat-footer.js` + `creature-scale.js` (Habitat/Treasure on compact monsters; habitat → bestiary filter; treasure link/dice → Loot Generator / roll popup; CR slider scales a copy with the DMG scaler, stores it on the open encounter group, and can save it as new homebrew; on a narrow panel the slider and Save homebrew sit on the next line; a touch screen shows the hover card on press-and-hold, and a tap still opens the entry) |
 | Notes / tags | `note-writer.js`, `fivee-tag.js`, `link-suggest.js` |
+| Adventures / Books | `adventure-reader.js` + `entity-loader.js` (shared chapter TOC for `__prop` adventure/book; Insert note writes chapter files under `{notesFolder}/Adventure|Book/…`) |
+| Extra references | Deities, Vehicles (+ upgrades), Psionics, Rewards — standard list + compact via bundled JSON and search CAT allowlist in `node/build-obsidian.js` |
 
 ## Import rules of thumb
 

@@ -455,19 +455,19 @@ async function ensureFolder (app, folderPath) {
 	}
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.parseCampaignMarkdown = parseCampaignMarkdown;
-	globalThis.FiveEToolsObsidian.serializeCampaignMarkdown = serializeCampaignMarkdown;
-	globalThis.FiveEToolsObsidian.encounterSnapshotFromSaved = encounterSnapshotFromSaved;
-	globalThis.FiveEToolsObsidian.entryFromSavedEncounter = entryFromSavedEncounter;
-	globalThis.FiveEToolsObsidian.sessionFromCampaignEncounter = sessionFromCampaignEncounter;
-	globalThis.FiveEToolsObsidian.combatantsFromSnapshot = combatantsFromSnapshot;
-	globalThis.FiveEToolsObsidian.snapshotCombatants = snapshotCombatants;
-	globalThis.FiveEToolsObsidian.planSaveEntryText = planSaveEntryText;
-	globalThis.FiveEToolsObsidian.saveEntryText = saveEntryText;
-	globalThis.FiveEToolsObsidian.slugify = slugify;
-	globalThis.FiveEToolsObsidian.nextSessionCode = nextSessionCode;
-	globalThis.FiveEToolsObsidian.nextNumberedCode = nextNumberedCode;
-	globalThis.FiveEToolsObsidian.dutchDate = dutchDate;
-	globalThis.FiveEToolsObsidian.entryLabel = entryLabel;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	parseCampaignMarkdown,
+	serializeCampaignMarkdown,
+	encounterSnapshotFromSaved,
+	entryFromSavedEncounter,
+	sessionFromCampaignEncounter,
+	combatantsFromSnapshot,
+	snapshotCombatants,
+	planSaveEntryText,
+	saveEntryText,
+	slugify,
+	nextSessionCode,
+	nextNumberedCode,
+	dutchDate,
+	entryLabel,
+});

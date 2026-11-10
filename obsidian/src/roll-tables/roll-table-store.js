@@ -1,6 +1,8 @@
 import {TABLE_LIMITS} from "./table-limits.js";
+import {listBundledRollableScreenTables} from "./bundled-screen-tables.js";
 import {parseTableNote, tableNoteText, tablesFolder} from "./table-note.js";
 import {readPastedTable} from "./pasted-table.js";
+import {rollTableResults} from "./table-roll.js";
 
 export {tablesFolder};
 
@@ -44,7 +46,7 @@ async function writeFile (plugin, filePath, text) {
  */
 export async function listRollTables (plugin) {
 	const vault = plugin?.app?.vault;
-	if (!vault) return [];
+	if (!vault || typeof vault.getAbstractFileByPath !== "function") return [];
 	const folder = tablesFolder(plugin);
 	const dir = vault.getAbstractFileByPath(folder);
 	if (!dir?.children) return [];
@@ -60,6 +62,16 @@ export async function listRollTables (plugin) {
 		out.push({path: child.path, name, stem});
 	}
 	return out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+/**
+ * Vault notes plus rollable bundled DM Screen / XScreen tables (not reference lookups).
+ * @returns {Promise<Array<{kind:"vault",path:string,name:string,stem:string}|{kind:"bundled",id:string,source:string,name:string,fullName:string,headers:string[],rows:string[][],rollable:boolean}>>}
+ */
+export async function listAllRollTables (plugin) {
+	const vault = (await listRollTables(plugin)).map(table => ({...table, kind: "vault"}));
+	const bundled = await listBundledRollableScreenTables(plugin);
+	return [...vault, ...bundled];
 }
 
 /**
@@ -144,3 +156,10 @@ export async function deleteRollTableNote (plugin, path) {
 	if (!file || file.children) throw new Error("Table note not found.");
 	await vault.delete(file);
 }
+
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	listRollTables,
+	listAllRollTables,
+	readRollTableNote,
+	rollTableResults,
+});

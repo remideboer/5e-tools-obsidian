@@ -29,5 +29,17 @@ export async function loadEntity (doc) {
 			},
 		};
 	}
+	if (ent?.book && ent?.bookData) {
+		const book = ent.book;
+		return {
+			ent: {
+				name: book.name,
+				source: book.source,
+				__prop: "book",
+				book,
+				bookData: ent.bookData,
+			},
+		};
+	}
 	return {ent: ent || null};
 }

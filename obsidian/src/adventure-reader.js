@@ -3,24 +3,70 @@ import {getRenderer} from "./fiveetools-host.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {docFromHref} from "./search-index.js";
 
+function corpusKind (ent) {
+	if (ent?.__prop === "book" || ent?.book) return "book";
+	return "adventure";
+}
+
+function corpusMeta (ent) {
+	const kind = corpusKind(ent);
+	if (kind === "book") {
+		return {
+			kind,
+			head: ent.book || {},
+			body: ent.bookData,
+			page: "book.html",
+			jumpKey: "_bookJump",
+			emptyText: "No chapters found for this book.",
+			folderLabel: "Book",
+		};
+	}
+	return {
+		kind,
+		head: ent.adventure || {},
+		body: ent.adventureData,
+		page: "adventure.html",
+		jumpKey: "_adventureJump",
+		emptyText: "No chapters found for this adventure.",
+		folderLabel: "Adventure",
+	};
+}
+
 export function getAdventureChapters (ent) {
-	const data = ent?.adventureData?.data;
+	return getCorpusChapters(ent);
+}
+
+export function getBookChapters (ent) {
+	return getCorpusChapters(ent);
+}
+
+export function getCorpusChapters (ent) {
+	const meta = corpusMeta(ent);
+	const data = meta.body?.data;
 	if (!Array.isArray(data)) return [];
 	return data.map((section, ix) => ({
 		ix,
-		name: section?.name || ent.adventure?.contents?.[ix]?.name || `Chapter ${ix + 1}`,
+		name: section?.name || meta.head?.contents?.[ix]?.name || `Chapter ${ix + 1}`,
 		section,
 	}));
 }
 
 export function coverUrlForAdventure (adventure, imageBaseUrl) {
-	const rel = adventure?.cover?.path;
+	return coverUrlForCorpus(adventure, imageBaseUrl);
+}
+
+export function coverUrlForCorpus (head, imageBaseUrl) {
+	const rel = head?.cover?.path;
 	if (!rel) return "";
 	const base = String(imageBaseUrl || "https://5e.tools").replace(/\/+$/, "");
 	return `${base}/img/${String(rel).replace(/^\/+/, "")}`;
 }
 
 export function renderAdventureChapterHtml (section) {
+	return renderCorpusChapterHtml(section);
+}
+
+export function renderCorpusChapterHtml (section) {
 	if (!section) return "";
 	const Renderer = getRenderer().get();
 	Renderer.setTrackTitles(true);
@@ -31,6 +77,10 @@ export function renderAdventureChapterHtml (section) {
 }
 
 export function renderAdventureChapterMarkdown (section) {
+	return renderCorpusChapterMarkdown(section);
+}
+
+export function renderCorpusChapterMarkdown (section) {
 	if (!section) return "";
 	const RendererMarkdown = globalThis.RendererMarkdown;
 	try {
@@ -39,41 +89,50 @@ export function renderAdventureChapterMarkdown (section) {
 			if (md.trim()) return md.trim();
 		}
 	} catch (_) { /* fall through */ }
-	return htmlToMarkdown(renderAdventureChapterHtml(section));
+	return htmlToMarkdown(renderCorpusChapterHtml(section));
 }
 
 export async function renderAdventurePanel (bodyEl, plugin, ent, {bindInternalLinks} = {}) {
-	const adv = ent.adventure || {};
-	const chapters = getAdventureChapters(ent);
+	return renderCorpusPanel(bodyEl, plugin, ent, {bindInternalLinks});
+}
+
+export async function renderBookPanel (bodyEl, plugin, ent, {bindInternalLinks} = {}) {
+	return renderCorpusPanel(bodyEl, plugin, ent, {bindInternalLinks});
+}
+
+export async function renderCorpusPanel (bodyEl, plugin, ent, {bindInternalLinks} = {}) {
+	const meta = corpusMeta(ent);
+	const head = meta.head;
+	const chapters = getCorpusChapters(ent);
 	syncBookUtilRender(ent, 0);
 
-	const meta = [
-		adv.author,
-		adv.storyline,
-		adv.level ? `Levels ${adv.level.start ?? "?"}${adv.level.end != null ? `–${adv.level.end}` : ""}` : "",
+	const bits = [
+		head.author,
+		head.storyline,
+		head.level ? `Levels ${head.level.start ?? "?"}${head.level.end != null ? `–${head.level.end}` : ""}` : "",
 	].filter(Boolean);
-	if (meta.length) {
-		bodyEl.createEl("p", {cls: "fiveetools-view__meta", text: meta.join(" · ")});
+	if (bits.length) {
+		bodyEl.createEl("p", {cls: "fiveetools-view__meta", text: bits.join(" · ")});
 	}
 
-	const coverSrc = coverUrlForAdventure(adv, plugin.settings.imageBaseUrl);
+	const coverSrc = coverUrlForCorpus(head, plugin.settings.imageBaseUrl);
 	if (coverSrc) {
 		const imgWrap = bodyEl.createDiv({cls: "fiveetools-view__images"});
-		const coverImg = imgWrap.createEl("img", {attr: {alt: adv.name || "Cover"}});
+		const coverImg = imgWrap.createEl("img", {attr: {alt: head.name || "Cover"}});
 		void cachedMediaSrc(plugin, coverSrc).then(src => {
 			if (src) coverImg.setAttr("src", src);
 		});
 	}
 
 	if (!chapters.length) {
-		bodyEl.createEl("p", {text: "No chapters found for this adventure."});
+		bodyEl.createEl("p", {text: meta.emptyText});
 		return;
 	}
 
 	const toc = bodyEl.createDiv({cls: "fiveetools-adventure__toc"});
 	const chapterBody = bodyEl.createDiv({cls: "fiveetools-adventure__chapter"});
 	let selected = 0;
-	const currentId = String(adv.id || "").toLowerCase();
+	const currentId = String(head.id || "").toLowerCase();
 
 	let chapterGen = 0;
 	const showChapter = async (ix, header, headerNumber) => {
@@ -88,7 +147,7 @@ export async function renderAdventurePanel (bodyEl, plugin, ent, {bindInternalLi
 		chapterBody.empty();
 		chapterBody.createEl("h3", {text: chapter.name});
 		const prose = chapterBody.createDiv({cls: "fiveetools-adventure__prose"});
-		prose.innerHTML = renderAdventureChapterHtml(chapter.section);
+		prose.innerHTML = renderCorpusChapterHtml(chapter.section);
 		await rewriteMediaUrls(plugin, prose);
 		if (myGen !== chapterGen) return;
 		if (header) scrollToHeader(prose, header, headerNumber);
@@ -98,14 +157,14 @@ export async function renderAdventurePanel (bodyEl, plugin, ent, {bindInternalLi
 		const a = evt.target.closest?.("a");
 		if (!a || !bodyEl.contains(a)) return;
 		const href = a.getAttribute("href") || "";
-		const loc = parseAdventureHref(href);
+		const loc = parseCorpusHref(href, meta.page);
 		if (loc) {
 			evt.preventDefault();
 			evt.stopPropagation();
 			if (loc.id && loc.id !== currentId) {
-				const next = docFromHref(`adventure.html#${loc.id}`, {linkText: (a.textContent || "").trim()});
+				const next = docFromHref(`${meta.page}#${loc.id}`, {linkText: (a.textContent || "").trim()});
 				if (next) {
-					plugin._adventureJump = loc;
+					plugin[meta.jumpKey] = loc;
 					plugin.openLibrary({doc: next});
 				}
 				return;
@@ -130,8 +189,8 @@ export async function renderAdventurePanel (bodyEl, plugin, ent, {bindInternalLi
 		btn.addEventListener("click", () => showChapter(chapter.ix));
 	}
 
-	const jump = plugin._adventureJump;
-	plugin._adventureJump = null;
+	const jump = plugin[meta.jumpKey];
+	plugin[meta.jumpKey] = null;
 	if (jump && jump.id === currentId) {
 		await showChapter(jump.chapter ?? 0, jump.header, jump.headerNumber);
 		return;
@@ -140,29 +199,39 @@ export async function renderAdventurePanel (bodyEl, plugin, ent, {bindInternalLi
 }
 
 function syncBookUtilRender (ent, chapterIx) {
-	const data = ent?.adventureData?.data || [];
+	const meta = corpusMeta(ent);
+	const data = meta.body?.data || [];
 	const Renderer = getRenderer();
 	globalThis.BookUtil = globalThis.BookUtil || {};
 	globalThis.BookUtil.curRender = {
 		data,
-		fromIndex: ent.adventure,
-		curBookId: String(ent.adventure?.id || "").toLowerCase(),
+		fromIndex: meta.head,
+		curBookId: String(meta.head?.id || "").toLowerCase(),
 		chapter: chapterIx,
 		headerMap: Renderer.adventureBook.getEntryIdLookup(data, {isSilent: true}),
 	};
 }
 
 export function parseAdventureHref (href) {
+	return parseCorpusHref(href, "adventure.html");
+}
+
+export function parseBookHref (href) {
+	return parseCorpusHref(href, "book.html");
+}
+
+export function parseCorpusHref (href, expectedPage) {
 	const raw = String(href || "").trim();
 	if (!raw || /^javascript:/i.test(raw) || /^mailto:/i.test(raw)) return null;
-	if (/^https?:\/\//i.test(raw) && !/adventure\.html/i.test(raw)) return null;
+	const pageNeedle = String(expectedPage || "adventure.html").replace(/\.html$/i, "");
+	if (/^https?:\/\//i.test(raw) && !new RegExp(`${pageNeedle}\\.html`, "i").test(raw)) return null;
 
 	const hashIdx = raw.indexOf("#");
 	if (hashIdx === -1) return null;
 
 	const before = raw.slice(0, hashIdx).replace(/\\/g, "/").replace(/\/+$/, "");
 	const page = before.split("/").pop() || "";
-	if (page && page !== "adventure.html") return null;
+	if (page && page !== expectedPage) return null;
 
 	let hash = raw.slice(hashIdx + 1);
 	const amp = hash.indexOf("&");

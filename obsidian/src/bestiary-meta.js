@@ -267,9 +267,9 @@ function alignmentKeys (ent) {
 	return [letters || "U"];
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.docMatchesBestiaryFilters = docMatchesBestiaryFilters;
-	globalThis.FiveEToolsObsidian.getMonsterMeta = getMonsterMeta;
-	globalThis.FiveEToolsObsidian.hasBestiaryFilters = hasBestiaryFilters;
-	globalThis.FiveEToolsObsidian.ensureMonsterMeta = ensureMonsterMeta;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	docMatchesBestiaryFilters,
+	getMonsterMeta,
+	hasBestiaryFilters,
+	ensureMonsterMeta,
+});

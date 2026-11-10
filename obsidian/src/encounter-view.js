@@ -1452,20 +1452,20 @@ export function appendSavedCombatants (session, saved) {
 	};
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.addCombatants = addCombatants;
-	globalThis.FiveEToolsObsidian.addCombatantsFromEntity = addCombatantsFromEntity;
-	globalThis.FiveEToolsObsidian.hpMaxFromEnt = hpMaxFromEnt;
-	globalThis.FiveEToolsObsidian.acFromEnt = acFromEnt;
-	globalThis.FiveEToolsObsidian.initiativeFromEnt = initiativeFromEnt;
-	globalThis.FiveEToolsObsidian.dexFromEnt = dexFromEnt;
-	globalThis.FiveEToolsObsidian.passiveFromEnt = passiveFromEnt;
-	globalThis.FiveEToolsObsidian.groupCombatants = groupCombatants;
-	globalThis.FiveEToolsObsidian.listKindGroups = listKindGroups;
-	globalThis.FiveEToolsObsidian.sortGroupsByInitiative = sortGroupsByInitiative;
-	globalThis.FiveEToolsObsidian.adjustHp = adjustHp;
-	globalThis.FiveEToolsObsidian.combatantTag = combatantTag;
-	globalThis.FiveEToolsObsidian.stepAmount = stepAmount;
-	globalThis.FiveEToolsObsidian.encounterDifficulty = encounterDifficulty;
-	globalThis.FiveEToolsObsidian.normalizeParty = normalizeParty;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	addCombatants,
+	addCombatantsFromEntity,
+	hpMaxFromEnt,
+	acFromEnt,
+	initiativeFromEnt,
+	dexFromEnt,
+	passiveFromEnt,
+	groupCombatants,
+	listKindGroups,
+	sortGroupsByInitiative,
+	adjustHp,
+	combatantTag,
+	stepAmount,
+	encounterDifficulty,
+	normalizeParty,
+});

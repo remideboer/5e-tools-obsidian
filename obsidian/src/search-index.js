@@ -29,11 +29,19 @@ const CATEGORY_ALIAS = {
 	boon: ["boon"],
 	cultsboon: ["cult", "boon"],
 	god: ["deity"],
+	deity: ["deity"],
+	psionic: ["psionic"],
+	reward: ["other reward"],
+	"other reward": ["other reward"],
+	"ship upgrade": ["ship upgrade"],
+	"vehicle upgrade": ["vehicle upgrade"],
+	"infernal war machine upgrade": ["infernal war machine upgrade"],
 	rcp: ["recipe"],
 	tbl: ["table"],
 	cf: ["class feature"],
 	scf: ["subclass feature"],
 	rule: ["rule"],
+	book: ["book"],
 };
 
 let loadedRoot = "";
@@ -483,15 +491,15 @@ function catIdForPage (page) {
 	return mapped ? Number(mapped[0]) : null;
 }
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.docFromHref = docFromHref;
-	globalThis.FiveEToolsObsidian.docFromVetLink = docFromVetLink;
-	globalThis.FiveEToolsObsidian.ensureSearchIndex = ensureSearchIndex;
-	globalThis.FiveEToolsObsidian.findEntityDoc = findEntityDoc;
-	globalThis.FiveEToolsObsidian.findEditionDoc = findEditionDoc;
-	globalThis.FiveEToolsObsidian.findNamedFeature = findNamedFeature;
-	globalThis.FiveEToolsObsidian.sourceAbbr = sourceAbbr;
-	globalThis.FiveEToolsObsidian.indexHomebrewDocs = indexHomebrewDocs;
-	globalThis.FiveEToolsObsidian.brewDocFromEntity = brewDocFromEntity;
-	globalThis.FiveEToolsObsidian.listEntities = listEntities;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	docFromHref,
+	docFromVetLink,
+	ensureSearchIndex,
+	findEntityDoc,
+	findEditionDoc,
+	findNamedFeature,
+	sourceAbbr,
+	indexHomebrewDocs,
+	brewDocFromEntity,
+	listEntities,
+});

@@ -1269,14 +1269,14 @@ function titleCase (value) {
 
 installBrewUtil();
 
-if (globalThis.FiveEToolsObsidian) {
-	globalThis.FiveEToolsObsidian.hpAverageFromFormula = hpAverageFromFormula;
-	globalThis.FiveEToolsObsidian.emptyBrew = emptyBrew;
-	globalThis.FiveEToolsObsidian.entityToForm = entityToForm;
-	globalThis.FiveEToolsObsidian.buildEntity = buildEntity;
-	globalThis.FiveEToolsObsidian.applyBrewJson = applyBrewJson;
-	globalThis.FiveEToolsObsidian.getBrewJson = getBrewJson;
-	globalThis.FiveEToolsObsidian.upsertEntity = upsertEntity;
-	globalThis.FiveEToolsObsidian.cacheBrewInDataLoader = cacheBrewInDataLoader;
-	globalThis.FiveEToolsObsidian.cacheEntityInDataLoader = cacheEntityInDataLoader;
-}
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
+	hpAverageFromFormula,
+	emptyBrew,
+	entityToForm,
+	buildEntity,
+	applyBrewJson,
+	getBrewJson,
+	upsertEntity,
+	cacheBrewInDataLoader,
+	cacheEntityInDataLoader,
+});

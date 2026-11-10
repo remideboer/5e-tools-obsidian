@@ -1,10 +1,11 @@
 import {Notice, setIcon} from "obsidian";
 import {TABLE_LIMITS} from "./table-limits.js";
+import {getBundledScreenTable} from "./bundled-screen-tables.js";
 import {previewPastedNote} from "./table-note.js";
 import {rollTableResults} from "./table-roll.js";
 import {
 	deleteRollTableNote,
-	listRollTables,
+	listAllRollTables,
 	readRollTableNote,
 	saveRollTableNote,
 	updateRollTableNote,
@@ -13,7 +14,7 @@ import {parseItemRef, renderRollResultCards} from "../roll-result-card.js";
 import {appendTextWithDiceRollers, bindDiceRollers, textHasDiceNotation} from "../dice-roll.js";
 
 /**
- * Tools → Roll tables: list vault notes, paste import, roll → result cards.
+ * Tools → Roll tables: list vault notes + DM Screen catalog, paste import, roll → result cards.
  * Per-row Roll / View mirrors the loot generator; count is shared like loot Items.
  */
 export function renderRollTablesTool (listEl, readerEl, {
@@ -28,6 +29,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 
 	const state = {
 		selectedPath: session.selectedPath || "",
+		selectedBundledId: session.selectedBundledId || "",
 		count: Math.max(1, Math.min(TABLE_LIMITS.results, Number(session.count) || 1)),
 		results: session.results || null,
 		importDraft: session.importDraft || null,
@@ -40,12 +42,19 @@ export function renderRollTablesTool (listEl, readerEl, {
 		Object.assign(state, patch);
 		onSessionChange?.({
 			selectedPath: state.selectedPath,
+			selectedBundledId: state.selectedBundledId,
 			count: state.count,
 			results: state.results,
 			importDraft: state.importDraft,
 		});
 		clearBtn.toggleAttribute("disabled", !state.results?.length);
 	};
+
+	const clearSelectionPatch = () => ({selectedPath: "", selectedBundledId: "", results: null});
+
+	const isSelected = (table) => table?.kind === "bundled"
+		? table.id === state.selectedBundledId
+		: !!table?.path && table.path === state.selectedPath;
 
 	const toolbar = listEl.createDiv({cls: "fiveetools-rolltables__toolbar"});
 	toolbar.createEl("h3", {text: "Roll tables"});
@@ -78,13 +87,42 @@ export function renderRollTablesTool (listEl, readerEl, {
 
 	const syncListSelection = () => {
 		listHost.querySelectorAll(".fiveetools-rolltables__hit").forEach((el) => {
-			el.classList.toggle("is-selected", el.dataset.path === state.selectedPath);
+			const selected = state.selectedBundledId
+				? el.dataset.bundledId === state.selectedBundledId
+				: !!state.selectedPath && el.dataset.path === state.selectedPath;
+			el.classList.toggle("is-selected", selected);
 		});
 	};
 
-	const setViewedRow = (path) => {
-		state.selectedPath = path || "";
+	const setViewedRow = (table) => {
+		if (table?.kind === "bundled") {
+			state.selectedBundledId = table.id || "";
+			state.selectedPath = "";
+		} else {
+			state.selectedPath = table?.path || "";
+			state.selectedBundledId = "";
+		}
 		syncListSelection();
+	};
+
+	const loadParsed = async () => {
+		if (state.selectedBundledId) {
+			const table = await getBundledScreenTable(plugin, state.selectedBundledId);
+			if (!table) return {ok: false, error: "Table not found."};
+			return {
+				ok: true,
+				bundledId: table.id,
+				name: table.name,
+				headers: table.headers,
+				rows: table.rows,
+				readOnly: true,
+				source: table.source,
+			};
+		}
+		if (!state.selectedPath) return null;
+		const parsed = await readRollTableNote(plugin, state.selectedPath);
+		if (!parsed.ok) return parsed;
+		return {...parsed, readOnly: false};
 	};
 
 	const renderTablePreview = (parsed) => {
@@ -95,6 +133,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 			return;
 		}
 		const path = parsed.path || state.selectedPath;
+		const readOnly = !!parsed.readOnly;
 		let name = parsed.name || "Table";
 		let headers = (parsed.headers || []).map(cell => String(cell ?? ""));
 		let rows = (parsed.rows || []).map(row => headers.map((_, i) => String(row?.[i] ?? "")));
@@ -105,7 +144,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 		};
 
 		const openEditor = (cellEl, value, apply) => {
-			if (cellEl.querySelector(".fiveetools-rolltables__edit")) return;
+			if (readOnly || cellEl.querySelector(".fiveetools-rolltables__edit")) return;
 			cellEl.empty();
 			const input = cellEl.createEl("textarea", {cls: "fiveetools-rolltables__edit"});
 			input.value = value;
@@ -133,29 +172,36 @@ export function renderRollTablesTool (listEl, readerEl, {
 			readerEl.empty();
 			readerEl.addClass("fiveetools-rolltables__reader");
 			const title = readerEl.createEl("h3", {cls: "fiveetools-rolltables__title", text: name});
-			title.addEventListener("click", () => openEditor(title, name, (next) => {
-				const titled = next.trim() || "Table";
-				if (titled === name) {
-					paint();
-					return;
-				}
-				void save(titled, headers, rows);
-			}));
+			if (parsed.source) {
+				readerEl.createEl("p", {cls: "fiveetools-view__meta", text: `DM Screen · ${parsed.source}`});
+			}
+			if (!readOnly) {
+				title.addEventListener("click", () => openEditor(title, name, (next) => {
+					const titled = next.trim() || "Table";
+					if (titled === name) {
+						paint();
+						return;
+					}
+					void save(titled, headers, rows);
+				}));
+			}
 			const wrap = readerEl.createDiv({cls: "fiveetools-rolltables__tablewrap"});
 			const table = wrap.createEl("table", {cls: "fiveetools-rolltables__table"});
 			const hr = table.createEl("thead").createEl("tr");
 			headers.forEach((header, c) => {
 				const th = hr.createEl("th");
 				showCell(th, header);
-				th.addEventListener("click", () => openEditor(th, header, (next) => {
-					if (next === header) {
-						paint();
-						return;
-					}
-					const nextHeaders = headers.slice();
-					nextHeaders[c] = next;
-					void save(name, nextHeaders, rows);
-				}));
+				if (!readOnly) {
+					th.addEventListener("click", () => openEditor(th, header, (next) => {
+						if (next === header) {
+							paint();
+							return;
+						}
+						const nextHeaders = headers.slice();
+						nextHeaders[c] = next;
+						void save(name, nextHeaders, rows);
+					}));
+				}
 			});
 			const tbody = table.createEl("tbody");
 			const paintRow = (row, r, blank) => {
@@ -164,6 +210,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 					const td = tr.createEl("td");
 					const value = blank ? "" : (row[c] || "");
 					showCell(td, value);
+					if (readOnly) return;
 					td.addEventListener("click", () => openEditor(td, value, (next) => {
 						if (blank) {
 							if (!next.trim()) {
@@ -193,7 +240,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 				});
 			};
 			rows.forEach((row, r) => paintRow(row, r, false));
-			paintRow(null, rows.length, true);
+			if (!readOnly) paintRow(null, rows.length, true);
 			if (plugin) bindDiceRollers(readerEl, plugin);
 		};
 
@@ -207,7 +254,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 				name = saved.name;
 				headers = saved.headers.map(cell => String(cell ?? ""));
 				rows = saved.rows.map(row => headers.map((_, i) => String(row?.[i] ?? "")));
-				state.parsed = {ok: true, path, name: saved.name, headers: saved.headers, rows: saved.rows};
+				state.parsed = {ok: true, path, name: saved.name, headers: saved.headers, rows: saved.rows, readOnly: false};
 				const listed = state.tables.find(table => table.path === path);
 				if (listed) listed.name = saved.name;
 				const esc = window.CSS?.escape ? CSS.escape(path) : String(path).replace(/"/g, "\\\"");
@@ -273,28 +320,54 @@ export function renderRollTablesTool (listEl, readerEl, {
 	};
 
 	const showSelected = async () => {
-		if (!state.selectedPath) {
+		if (!state.selectedPath && !state.selectedBundledId) {
 			state.parsed = null;
 			if (state.results?.length) renderResults(state.results);
 			else showPlaceholder();
 			return;
 		}
-		const parsed = await readRollTableNote(plugin, state.selectedPath);
-		state.parsed = parsed.ok ? parsed : null;
-		if (!parsed.ok) {
+		const parsed = await loadParsed();
+		state.parsed = parsed?.ok ? parsed : null;
+		if (!parsed?.ok) {
 			readerEl.empty();
-			readerEl.createEl("p", {text: parsed.error || "Could not read table."});
+			readerEl.createEl("p", {text: parsed?.error || "Could not read table."});
 			return;
 		}
 		if (state.results?.length) renderResults(state.results, parsed.name);
 		else renderTablePreview(parsed);
 	};
 
-	const rollTableAt = async (path) => {
-		const parsed = await readRollTableNote(plugin, path);
-		if (!parsed.ok) {
-			new Notice(parsed.error || "Could not read table.");
-			return;
+	const selectPatchFor = (table) => {
+		if (table?.kind === "bundled") {
+			return {selectedBundledId: table.id, selectedPath: "", results: null};
+		}
+		return {selectedPath: table?.path || "", selectedBundledId: "", results: null};
+	};
+
+	const rollTableAt = async (table) => {
+		let parsed;
+		if (table?.kind === "bundled") {
+			const bundled = await getBundledScreenTable(plugin, table.id);
+			if (!bundled) {
+				new Notice("Table not found.");
+				return;
+			}
+			parsed = {
+				ok: true,
+				bundledId: bundled.id,
+				name: bundled.name,
+				headers: bundled.headers,
+				rows: bundled.rows,
+				readOnly: true,
+				source: bundled.source,
+			};
+		} else {
+			parsed = await readRollTableNote(plugin, table.path);
+			if (!parsed.ok) {
+				new Notice(parsed.error || "Could not read table.");
+				return;
+			}
+			parsed = {...parsed, readOnly: false};
 		}
 		const n = Math.max(1, Math.min(TABLE_LIMITS.results, Number(countSel.value) || 1));
 		try {
@@ -303,7 +376,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 				draws.push(...rollTableResults(parsed.headers, parsed.rows, parsed.name));
 			}
 			state.parsed = parsed;
-			emit({selectedPath: path, count: n, results: draws});
+			emit({...selectPatchFor(table), count: n, results: draws});
 			syncListSelection();
 			renderResults(draws, parsed.name);
 		} catch (e) {
@@ -311,63 +384,57 @@ export function renderRollTablesTool (listEl, readerEl, {
 		}
 	};
 
-	const viewTableAt = async (path) => {
-		emit({selectedPath: path, results: null});
+	const viewTableAt = async (table) => {
+		emit(selectPatchFor(table));
 		syncListSelection();
-		const parsed = await readRollTableNote(plugin, path);
-		state.parsed = parsed.ok ? parsed : null;
-		if (!parsed.ok) {
+		const parsed = await loadParsed();
+		state.parsed = parsed?.ok ? parsed : null;
+		if (!parsed?.ok) {
 			readerEl.empty();
-			readerEl.createEl("p", {text: parsed.error || "Could not read table."});
+			readerEl.createEl("p", {text: parsed?.error || "Could not read table."});
 			return;
 		}
 		renderTablePreview(parsed);
 	};
 
-	const rebuildList = async () => {
-		const scrollTop = listHost.scrollTop;
-		listHost.empty();
-		try {
-			state.tables = await listRollTables(plugin);
-		} catch (e) {
-			listHost.createEl("p", {text: e.message || "Could not list tables."});
-			return;
+	const paintTableRow = (host, table) => {
+		const attr = table.kind === "bundled"
+			? {"data-bundled-id": table.id}
+			: {"data-path": table.path};
+		const row = host.createDiv({
+			cls: `fiveetools-rolltables__hit${isSelected(table) ? " is-selected" : ""}`,
+			attr,
+		});
+		const label = row.createDiv({cls: "fiveetools-rolltables__hitmain"});
+		label.createSpan({cls: "fiveetools-rolltables__hitname", text: table.name});
+		if (table.kind === "bundled") {
+			label.createSpan({cls: "fiveetools-rolltables__hitsub", text: table.source});
 		}
-		if (!state.tables.length) {
-			listHost.createEl("p", {cls: "fiveetools-view__meta", text: "No tables yet. Import a paste."});
-			listHost.scrollTop = scrollTop;
-			return;
-		}
-		for (const table of state.tables) {
-			const row = listHost.createDiv({
-				cls: `fiveetools-rolltables__hit${table.path === state.selectedPath ? " is-selected" : ""}`,
-				attr: {"data-path": table.path},
-			});
-			row.createSpan({cls: "fiveetools-rolltables__hitname", text: table.name});
 
-			const rollOneBtn = row.createEl("button", {
-				cls: "fiveetools-rolltables__roll fiveetools-iconbtn fiveetools-iconbtn--roll",
-				attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
-			});
-			setIcon(rollOneBtn, "dices");
-			rollOneBtn.addEventListener("click", (evt) => {
-				evt.preventDefault();
-				evt.stopPropagation();
-				void rollTableAt(table.path);
-			});
+		const rollOneBtn = row.createEl("button", {
+			cls: "fiveetools-rolltables__roll fiveetools-iconbtn fiveetools-iconbtn--roll",
+			attr: {type: "button", title: "Roll table", "aria-label": "Roll table"},
+		});
+		setIcon(rollOneBtn, "dices");
+		rollOneBtn.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			void rollTableAt(table);
+		});
 
-			const viewBtn = row.createEl("button", {
-				cls: "fiveetools-rolltables__view fiveetools-iconbtn fiveetools-iconbtn--view",
-				attr: {type: "button", title: "View table", "aria-label": "View table"},
-			});
-			setIcon(viewBtn, "eye");
-			viewBtn.addEventListener("click", (evt) => {
-				evt.preventDefault();
-				evt.stopPropagation();
-				setViewedRow(table.path);
-				void viewTableAt(table.path);
-			});
+		const viewBtn = row.createEl("button", {
+			cls: "fiveetools-rolltables__view fiveetools-iconbtn fiveetools-iconbtn--view",
+			attr: {type: "button", title: "View table", "aria-label": "View table"},
+		});
+		setIcon(viewBtn, "eye");
+		viewBtn.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			setViewedRow(table);
+			void viewTableAt(table);
+		});
 
+		if (table.kind === "vault") {
 			const del = row.createEl("button", {
 				cls: "fiveetools-rolltables__del fiveetools-iconbtn fiveetools-iconbtn--delete",
 				attr: {type: "button", title: "Delete", "aria-label": "Delete"},
@@ -380,7 +447,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 				try {
 					await deleteRollTableNote(plugin, table.path);
 					if (state.selectedPath === table.path) {
-						emit({selectedPath: "", results: null});
+						emit(clearSelectionPatch());
 						state.parsed = null;
 					}
 					await rebuildList();
@@ -390,6 +457,38 @@ export function renderRollTablesTool (listEl, readerEl, {
 					new Notice(e.message || "Could not delete.");
 				}
 			});
+		}
+	};
+
+	const rebuildList = async () => {
+		const scrollTop = listHost.scrollTop;
+		listHost.empty();
+		try {
+			state.tables = await listAllRollTables(plugin);
+		} catch (e) {
+			listHost.createEl("p", {text: e.message || "Could not list tables."});
+			return;
+		}
+		const vault = state.tables.filter(table => table.kind === "vault");
+		const bundled = state.tables.filter(table => table.kind === "bundled");
+		if (!vault.length && !bundled.length) {
+			listHost.createEl("p", {cls: "fiveetools-view__meta", text: "No tables yet. Import a paste."});
+			listHost.scrollTop = scrollTop;
+			return;
+		}
+
+		const vaultGroup = listHost.createDiv({cls: "fiveetools-rolltables__group"});
+		vaultGroup.createEl("div", {cls: "fiveetools-rolltables__grouphead", text: "Vault"});
+		if (!vault.length) {
+			vaultGroup.createEl("p", {cls: "fiveetools-view__meta", text: "No vault tables yet. Import a paste."});
+		} else {
+			for (const table of vault) paintTableRow(vaultGroup, table);
+		}
+
+		if (bundled.length) {
+			const screenGroup = listHost.createDiv({cls: "fiveetools-rolltables__group"});
+			screenGroup.createEl("div", {cls: "fiveetools-rolltables__grouphead", text: "DM Screen"});
+			for (const table of bundled) paintTableRow(screenGroup, table);
 		}
 		listHost.scrollTop = scrollTop;
 	};
@@ -473,6 +572,7 @@ export function renderRollTablesTool (listEl, readerEl, {
 				});
 				emit({
 					selectedPath: saved.path,
+					selectedBundledId: "",
 					results: null,
 					importDraft: null,
 					mode: "browse",

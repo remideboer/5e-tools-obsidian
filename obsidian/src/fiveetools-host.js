@@ -130,7 +130,7 @@ function bindObsidianLinkPlugin (renderer) {
 	});
 }
 
-globalThis.FiveEToolsObsidian = {
+Object.assign(globalThis.FiveEToolsObsidian ||= {}, {
 	configureFiveEToolsRoot,
 	getConfiguredRoot,
 	getConfiguredAbsoluteRoot,
@@ -153,4 +153,4 @@ globalThis.FiveEToolsObsidian = {
 	mapDpiFromInches,
 	cellPxFromMapDpi,
 	detectImageDpi,
-};
+});
