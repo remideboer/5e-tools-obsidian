@@ -1,5 +1,5 @@
 import {planTurn} from "./dpr-ai.js";
-import {beamsAt, canCastOption, classLevel, damageFactor, expectedDamage, rageDamage, spellAtSlot, spendSlot} from "./dpr-calc.js";
+import {abilityMod, beamsAt, canCastOption, classLevel, damageFactor, expectedDamage, rageDamage, spellAtSlot, spendSlot} from "./dpr-calc.js";
 import {rollDice} from "./dice-roll.js";
 import {xpFromCr} from "./encounter-difficulty.js";
 
@@ -324,6 +324,13 @@ function actorsFrom (list, side) {
 		...classResources(actor),
 		cr: actor.cr || "",
 		int: Number.isFinite(Number(actor.int)) ? Number(actor.int) : null,
+		dex: Number.isFinite(Number(actor.dex)) ? Number(actor.dex) : null,
+		reactionUsed: false,
+		shieldBonus: 0,
+		mageArmor: false,
+		blessed: false,
+		blessFrom: "",
+		concentrating: null,
 		defenses: {
 			immune: [...(actor.defenses?.immune || [])],
 			resist: [...(actor.defenses?.resist || [])],
@@ -520,9 +527,11 @@ function opportunity (fight, actor, next) {
 	if (actor.traits?.flyby) return;
 	const enemies = fight.actors.filter(it => it.side !== actor.side && it.hp > 0 && feetBetween(actor, it) <= 5 && feetBetween(next, it) > 5);
 	for (const enemy of enemies) {
+		if (enemy.reactionUsed) continue;
 		const melee = (enemy.options || []).find(option => option.kind === "attack" && option.melee !== false && !option.spell && (option.rangeFeet || 5) <= 10 && !option.repeats);
 		const swing = melee || (enemy.options || []).find(option => option.repeats)?.repeats?.find(option => option.melee !== false);
 		if (!swing) continue;
+		enemy.reactionUsed = true;
 		log(fight, enemy, `${enemy.name} makes an opportunity attack against ${actor.name}.`);
 		applyCast(fight, enemy, swing, actor, {feet: 5, melee: true, aoe: 0}, [actor]);
 		if (actor.hp <= 0 || actor.dead) return;
@@ -578,6 +587,7 @@ function resolveChoice (fight, actor, choice) {
 		return;
 	}
 	if (resolveFeature(fight, actor, choice)) return;
+	let spent = null;
 	if (cast.atWill) {
 		cast = spellAtSlot(cast, cast.level > 0 ? cast.level : 0, actor.characterLevel);
 	} else if (cast.usesMax > 0) {
@@ -587,12 +597,22 @@ function resolveChoice (fight, actor, choice) {
 		const missing = cast.kind === "heal" ? missingHp(choice.targets) : Infinity;
 		const slot = spendSlot(actor.pool, cast, {missing, disciple: !!actor.disciple, characterLevel: actor.characterLevel});
 		if (!slot) return;
+		spent = slot;
 		actor.spent.push({level: slot.level, pact: !!slot.pact});
 		cast = spellAtSlot(cast, slot.level, actor.characterLevel);
 		cast.castLevel = slot.level;
 		if (cast.kind === "heal" && actor.disciple && slot.level > 0) cast.flat = (cast.flat || 0) + 2 + slot.level;
 	} else if (cast.spell && !(cast.level > 0)) {
 		cast = spellAtSlot(cast, 0, actor.characterLevel);
+	}
+	if (cast.spell && cast.level > 0 && cast.effect !== "counterspell" && stopWithCounterspell(fight, actor, cast, spent)) return;
+	if (cast.effect === "mage-armor") {
+		applyMageArmor(fight, actor, cast, choice.targets);
+		return;
+	}
+	if (cast.effect === "bless") {
+		applyBless(fight, actor, cast, choice.targets);
+		return;
 	}
 	if (cast.beams?.length) {
 		const count = beamsAt(cast.beams, actor.characterLevel);
@@ -636,6 +656,10 @@ function applyCast (fight, actor, cast, target, range, area) {
 		for (const victim of victims) {
 			const rolled = adjustedAmount(cast, victim, false);
 			if (cast.kind === "auto") {
+				if (magicMissile(cast) && (victim.shieldBonus || castShield(fight, victim))) {
+					log(fight, actor, `${actor.name}'s Magic Missile does nothing against ${victim.name}'s Shield.`);
+					continue;
+				}
 				hurt(fight, actor, victim, rolled.amount, false, false, cast.damage);
 				dealtTotal += rolled.amount;
 				connected = true;
@@ -649,7 +673,7 @@ function applyCast (fight, actor, cast, target, range, area) {
 			if (failed || dealt > 0) connected = true;
 			hurt(fight, actor, victim, dealt, false, false, cast.damage);
 			const named = failed ? applyCondition(victim, cast) : "";
-			log(fight, actor, `${actor.name} casts ${cast.name}. ${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${rolledSave.save.total}) and takes ${dealt}${rolled.note}${named}.`);
+			log(fight, actor, `${actor.name} casts ${cast.name}. ${victim.name} ${failed ? "fails" : "saves"} DC ${cast.dc || 10} (${rolledSave.save.total})${blessNote(rolledSave.save)} and takes ${dealt}${rolled.note}${named}.`);
 		}
 		noteUse(actor, cast.name, {kind: "attack", hit: connected, miss: !connected, damage: dealtTotal});
 		return;
@@ -660,16 +684,22 @@ function applyCast (fight, actor, cast, target, range, area) {
 		actor.rageAttacked = true;
 	} else if (!cast.spell && cast.kind === "attack") actor.rageAttacked = true;
 	if (cast.kind === "save") actor.rageForced = true;
-	const attack = rollD20(swing.bonus || 0, mode);
+	const attack = rollD20(swing.bonus || 0, mode, actor);
 	const close = feetBetween(actor, target) <= 5;
 	const unconscious = target.hp <= 0 && !target.dead && (target.dying || target.stable);
 	const autoCrit = (range.melee && (target.conditions.has("paralyzed") || target.conditions.has("stunned")))
 		|| (unconscious && close);
-	const crit = attack.nat === 20 || (autoCrit && attack.nat !== 1 && attack.total >= target.ac);
-	const hit = attack.nat !== 1 && (attack.nat === 20 || attack.total >= target.ac);
+	let ac = armorClass(target);
+	const nat20 = attack.nat === 20;
+	let hit = attack.nat !== 1 && (nat20 || attack.total >= ac);
+	if (hit && !nat20 && attack.total < ac + 5 && castShield(fight, target)) {
+		ac = armorClass(target);
+		hit = attack.total >= ac;
+	}
+	const crit = nat20 || (autoCrit && attack.nat !== 1 && attack.total >= ac);
 	if (!hit) {
 		noteUse(actor, cast.name, {kind: "attack", miss: true});
-		log(fight, actor, `${actor.name} misses ${target.name} with ${cast.name} (${attack.total} vs AC ${target.ac}).`);
+		log(fight, actor, `${actor.name} misses ${target.name} with ${cast.name} (${attack.total} vs AC ${ac})${blessNote(attack)}.`);
 		return;
 	}
 	const rolled = adjustedAmount(swing, target, crit);
@@ -683,7 +713,7 @@ function applyCast (fight, actor, cast, target, range, area) {
 	applyOnHit(fight, actor, swing, target, crit);
 	if (!cast.spell && cast.kind === "attack") applySneak(fight, actor, target, mode, range);
 	applyMark(fight, actor, target, crit);
-	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${rolled.amount}${crit ? " (critical)" : ""}${rolled.note}${extra}.`);
+	log(fight, actor, `${actor.name} hits ${target.name} with ${cast.name} for ${rolled.amount}${crit ? " (critical)" : ""}${rolled.note}${blessNote(attack)}${extra}.`);
 	if (actor.landed.weapon && range.melee !== false) tryStun(fight, actor, target);
 	if (!cast.spell && range.melee !== false) pounce(fight, actor, target);
 	if (!cast.spell && range.melee !== false && (target.hp <= 0 || target.dead)) rampage(fight, actor);
@@ -716,6 +746,7 @@ function hurt (fight, actor, target, amount, crit, holdDeath, type) {
 	target.hp = Math.max(0, before - amount);
 	actor.dealt += amount;
 	noteRegen(fight, target, type, amount);
+	if (amount > 0) stressConcentration(fight, target, amount);
 	if (amount > 0 && target.conditions.has("turned")) {
 		target.conditions.delete("turned");
 		log(fight, target, `${target.name} is no longer turned.`);
@@ -846,13 +877,193 @@ function rollAmount (cast, crit) {
 	return Math.max(0, (rolled.total || 0) + (Number(cast.flat) || 0));
 }
 
-function rollD20 (bonus, mode) {
+function rollD20 (bonus, mode, blessActor) {
 	const first = rollDice("1d20");
 	const second = rollDice("1d20");
 	let nat = first.total || 1;
 	if (mode === "advantage") nat = Math.max(first.total || 1, second.total || 1);
 	if (mode === "disadvantage") nat = Math.min(first.total || 1, second.total || 1);
-	return {nat, total: nat + (Number(bonus) || 0)};
+	const bless = blessActor?.blessed ? (rollDice("1d4").total || 0) : 0;
+	return {nat, total: nat + (Number(bonus) || 0) + bless, bless};
+}
+
+function blessNote (roll) {
+	return roll?.bless ? ` (bless +${roll.bless})` : "";
+}
+
+function armorClass (actor) {
+	return (Number(actor?.ac) || 0) + (Number(actor?.shieldBonus) || 0);
+}
+
+function magicMissile (cast) {
+	return /magic missile/i.test(cast?.name || "");
+}
+
+function canReact (actor) {
+	if (!actor || actor.reactionUsed || actor.dead || actor.hp <= 0) return false;
+	const conditions = actor.conditions;
+	if (conditions?.has("stunned") || conditions?.has("paralyzed") || conditions?.has("incapacitated")) return false;
+	return true;
+}
+
+function spendReactionSpell (actor, option) {
+	if (option?.atWill) return {level: option.level || 1, atWill: true};
+	if (option?.usesMax > 0) {
+		if (!takeSpellUse(actor, option)) return null;
+		return {level: option.level || 1, uses: true};
+	}
+	const slot = spendSlot(actor.pool, option, {characterLevel: actor.characterLevel});
+	if (!slot) return null;
+	actor.spent.push({level: slot.level, pact: !!slot.pact});
+	return slot;
+}
+
+function castShield (fight, target) {
+	if (!canReact(target) || target.shieldBonus) return false;
+	const option = (target.options || []).find(it => it.effect === "shield");
+	if (!option || !canCastOption(target, option)) return false;
+	if (!spendReactionSpell(target, option)) return false;
+	target.reactionUsed = true;
+	target.shieldBonus = 5;
+	noteUse(target, option.name || "Shield", {kind: "attack", hit: true});
+	log(fight, target, `${target.name} casts Shield. AC is ${armorClass(target)} until its next turn.`);
+	return true;
+}
+
+function stopWithCounterspell (fight, caster, cast, spent) {
+	const spellLevel = Number(cast.castLevel || cast.level) || 0;
+	if (!(spellLevel > 0)) return false;
+	let best = null;
+	for (const foe of fight.actors) {
+		if (foe.side === caster.side || !canReact(foe) || feetBetween(foe, caster) > 60) continue;
+		const option = (foe.options || []).find(it => it.effect === "counterspell");
+		if (!option || !canCastOption(foe, option)) continue;
+		const picked = counterSlot(foe, option, spellLevel);
+		if (!picked) continue;
+		const dist = feetBetween(foe, caster);
+		if (!best || dist < best.dist) best = {foe, option, picked, dist};
+	}
+	if (!best) return false;
+	const {foe, option, picked} = best;
+	if (!picked.special) foe.pool.splice(picked.index, 1);
+	else if (!picked.atWill) spendReactionSpell(foe, option);
+	if (!picked.special) foe.spent.push({level: picked.slot.level, pact: !!picked.slot.pact});
+	foe.reactionUsed = true;
+	const slotLevel = picked.special ? (Number(option.level) || 3) : picked.slot.level;
+	let stopped = false;
+	if (option.counter === "save") {
+		const dc = Number(option.dc) || foe.spellDc || 10;
+		const rolled = rollSave(fight, caster, "con", dc, {spell: true, matters: true});
+		stopped = rolled.failed;
+		log(fight, foe, `${foe.name} casts Counterspell. ${caster.name} ${stopped ? "fails" : "saves"} DC ${dc} (${rolled.save.total}).`);
+	} else if (slotLevel >= spellLevel) {
+		stopped = true;
+		log(fight, foe, `${foe.name} casts Counterspell. ${caster.name}'s ${cast.name} fails.`);
+	} else {
+		const dc = 10 + spellLevel;
+		const roll = rollD20(Number(option.abilityMod) || 0, "normal");
+		stopped = roll.total >= dc;
+		log(fight, foe, `${foe.name} casts Counterspell (${roll.total} vs DC ${dc}). ${caster.name}'s ${cast.name} ${stopped ? "fails" : "continues"}.`);
+	}
+	noteUse(foe, option.name || "Counterspell", {kind: "attack", hit: stopped, miss: !stopped});
+	if (!stopped) return false;
+	if (option.counter === "save" && spent) {
+		caster.pool.push(spent);
+		caster.spent.pop();
+	}
+	log(fight, caster, `${caster.name}'s ${cast.name} is countered and does nothing.`);
+	return true;
+}
+
+function counterSlot (actor, option, spellLevel) {
+	if (option.atWill || option.usesMax > 0) {
+		if (!canCastOption(actor, option)) return null;
+		return {special: true, atWill: !!option.atWill};
+	}
+	const min = Number(option.level) || 1;
+	const ready = (actor.pool || [])
+		.map((slot, index) => ({slot, index}))
+		.filter(it => (it.slot.level || 0) >= min);
+	if (!ready.length) return null;
+	const auto = option.counter === "save" ? [] : ready.filter(it => it.slot.level >= spellLevel);
+	const list = auto.length ? auto : ready;
+	list.sort((a, b) => a.slot.level - b.slot.level || (a.slot.pact ? 1 : 0) - (b.slot.pact ? 1 : 0));
+	return list[0];
+}
+
+function applyMageArmor (fight, actor, cast, targets) {
+	const target = (targets || []).find(it => it && !it.dead && it.hp > 0) || actor;
+	if (!Number.isFinite(Number(target.dex))) {
+		log(fight, actor, `${actor.name} casts Mage Armor, but ${target.name} has no Dexterity to use it.`);
+		return;
+	}
+	const next = 13 + abilityMod(target.dex);
+	if (target.mageArmor || next <= target.ac) {
+		log(fight, actor, `${actor.name}'s Mage Armor does not raise ${target.name}'s AC.`);
+		return;
+	}
+	target.ac = next;
+	target.mageArmor = true;
+	noteUse(actor, cast.name || "Mage Armor", {kind: "heal", hit: true});
+	log(fight, actor, `${actor.name} casts Mage Armor on ${target.name}. AC is ${target.ac}.`);
+}
+
+function applyBless (fight, actor, cast, chosen) {
+	if (actor.concentrating) endConcentration(fight, actor);
+	const level = Number(cast.castLevel || cast.level) || 1;
+	const cap = 3 + Math.max(0, level - 1);
+	const targets = [];
+	const add = (it) => {
+		if (!it || targets.includes(it) || targets.length >= cap) return;
+		if (it.dead || it.hp <= 0 || it.side !== actor.side) return;
+		if (feetBetween(actor, it) > 30) return;
+		targets.push(it);
+	};
+	for (const it of chosen || []) add(it);
+	for (const it of fight.actors) add(it);
+	if (!targets.length) {
+		log(fight, actor, `${actor.name} casts Bless, but nobody is in range.`);
+		return;
+	}
+	for (const it of targets) {
+		it.blessed = true;
+		it.blessFrom = actor.id;
+	}
+	actor.concentrating = {effect: "bless", name: cast.name || "Bless", targets: targets.map(it => it.id)};
+	noteUse(actor, cast.name || "Bless", {kind: "heal", hit: true});
+	log(fight, actor, `${actor.name} casts Bless on ${targets.map(it => it.name).join(", ")}.`);
+}
+
+function endConcentration (fight, actor) {
+	const conc = actor?.concentrating;
+	if (!conc) return;
+	actor.concentrating = null;
+	if (conc.effect === "bless") {
+		for (const id of conc.targets || []) {
+			const ally = fight.actors.find(it => it.id === id);
+			if (ally?.blessFrom === actor.id) {
+				ally.blessed = false;
+				ally.blessFrom = "";
+			}
+		}
+	}
+	log(fight, actor, `${actor.name}'s ${conc.name || "spell"} ends.`);
+}
+
+function stressConcentration (fight, target, amount) {
+	if (!target?.concentrating) return;
+	if (target.hp <= 0 || target.dead) {
+		endConcentration(fight, target);
+		return;
+	}
+	const dc = Math.max(10, Math.floor(amount / 2));
+	const rolled = rollSave(fight, target, "con", dc, {matters: true});
+	if (rolled.failed) {
+		log(fight, target, `${target.name} fails a DC ${dc} concentration save (${rolled.save.total}).`);
+		endConcentration(fight, target);
+		return;
+	}
+	log(fight, target, `${target.name} holds concentration (DC ${dc}, ${rolled.save.total}).`);
 }
 
 function attackMode (actor, target, melee, actors) {
@@ -1012,6 +1223,8 @@ function openTurn (fight, actor) {
 	actor.rageForced = false;
 	actor.rageExtended = false;
 	actor.rageHurt = false;
+	actor.reactionUsed = false;
+	actor.shieldBonus = 0;
 	actor.sneakUsed = false;
 	actor.smiteUsed = false;
 	actor.stunUsed = false;
@@ -1450,7 +1663,7 @@ function saveMode (target, detail) {
 }
 
 function rollSave (fight, target, ability, dc, detail) {
-	const save = rollD20(saveOf(target, ability), saveMode(target, detail));
+	const save = rollD20(saveOf(target, ability), saveMode(target, detail), target);
 	let failed = save.nat === 1 || (save.nat !== 20 && save.total < (Number(dc) || 10));
 	if (failed && detail?.matters && target.legendaryUses > 0) {
 		target.legendaryUses -= 1;

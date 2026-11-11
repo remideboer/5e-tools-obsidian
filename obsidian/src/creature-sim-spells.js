@@ -29,9 +29,8 @@ export async function creatureSpellKit (plugin, ent) {
 		if (stats.dc > spellDc) spellDc = stats.dc;
 		if (stats.hit) spellAttack = stats.hit;
 		if (level > casterLevel) casterLevel = level;
-		const time = activation === "bonus" ? "bonus action" : "action";
 		const listed = [];
-		collectLeveled(block.spells, pool, listed);
+		collectLeveled(block.spells, activation === "reaction" ? null : pool, listed);
 		collectNamed(block.will, listed, null, true);
 		collectFrequency(block, listed);
 		for (const ref of listed) {
@@ -45,7 +44,7 @@ export async function creatureSpellKit (plugin, ent) {
 				name: ref.name,
 				idName: ref.name,
 				level: spellLevel,
-				castingTime: time,
+				castingTime: listedTime(activation, spellEnt),
 				attack: hasSpellAttack(spellEnt),
 				save: saveAbilityName(spellEnt),
 				hit: stats.hit,
@@ -55,6 +54,7 @@ export async function creatureSpellKit (plugin, ent) {
 				uses: ref.uses,
 				usesMax: ref.usesMax,
 				atWill: !!ref.atWill,
+				abilityMod: stats.mod,
 			});
 			if (!isCombatSpell(option)) continue;
 			seen.add(key);
@@ -67,8 +67,16 @@ export async function creatureSpellKit (plugin, ent) {
 
 function blockActivation (block) {
 	const as = String(block?.displayAs || "action").toLowerCase();
-	if (as === "reaction" || as === "legendary" || as === "mythic") return null;
+	if (as === "legendary" || as === "mythic") return null;
+	if (as === "reaction") return "reaction";
 	if (as === "bonus") return "bonus";
+	return "action";
+}
+
+function listedTime (activation, spellEnt) {
+	const unit = String(spellEnt?.time?.[0]?.unit || "").toLowerCase();
+	if (unit === "reaction" || activation === "reaction") return "reaction";
+	if (activation === "bonus") return "bonus action";
 	return "action";
 }
 
@@ -79,7 +87,7 @@ function collectLeveled (spells, pool, listed) {
 		if (!Number.isFinite(level)) continue;
 		const row = value && !Array.isArray(value) ? value : {spells: value};
 		const slots = Number(row?.slots) || 0;
-		if (level > 0) {
+		if (level > 0 && pool) {
 			for (let i = 0; i < slots; i++) pool.push({level, pact: row?.lower != null});
 		}
 		for (const ref of spellRefs(row?.spells || row)) {
@@ -148,6 +156,7 @@ function castingStats (block, ent) {
 	return {
 		dc: dcMatch ? Number(dcMatch[1]) : 8 + mod + pb,
 		hit: hitMatch ? Number(hitMatch[1]) : mod + pb,
+		mod,
 	};
 }
 
@@ -195,7 +204,9 @@ function rangeText (range) {
 }
 
 function isCombatSpell (option) {
-	if (!option || option.hidden || option.rider || option.kind === "rider" || option.kind === "utility") return false;
+	if (!option || option.rider || option.kind === "rider" || option.kind === "utility") return false;
+	if (option.effect) return true;
+	if (option.hidden) return false;
 	if (option.kind === "heal") return true;
 	if (hasCondition(option)) return true;
 	const harm = (Number(option.baseDice) || Number(option.dice) || 0) + Math.abs(Number(option.baseFlat) || 0);

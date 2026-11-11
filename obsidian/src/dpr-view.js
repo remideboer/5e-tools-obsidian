@@ -861,6 +861,8 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		} catch (_) { /* the card snippet still describes the spell */ }
 	}
 	const line = casting.find(it => String(it.className || "").toLowerCase() === String(spell.list || "").toLowerCase()) || casting[0];
+	const attackBonus = Number(line?.attack) || 0;
+	const proficiency = Math.floor((Math.max(1, Number(characterLevel) || 1) - 1) / 4) + 2;
 	return spellOptionFromEntity(ent, {
 		name: spell.label || spell.name || "Spell",
 		idName: spell.name || spell.label || "Spell",
@@ -869,10 +871,11 @@ async function spellSource (spell, casting, edition, characterLevel) {
 		castingTime: spell.castingTime || "",
 		attack: spell.attack,
 		save: spell.save,
-		hit: Number(line?.attack) || 0,
+		hit: attackBonus,
 		dc: parseDc(spell.save) ?? (Number(line?.dc) || 0),
 		range: spell.range || "",
 		characterLevel,
+		abilityMod: attackBonus ? attackBonus - proficiency : null,
 	});
 }
 
@@ -892,9 +895,44 @@ export function spellOptionFromEntity (ent, {
 	uses = null,
 	usesMax = null,
 	atWill = false,
+	abilityMod = null,
 } = {}) {
 	const extras = spellExtras(ent);
 	const text = `${snippet || ""} ${extras.text || ""}`.trim();
+	const effect = combatEffect(name, ent);
+	if (effect) {
+		const time = effect.activation;
+		const castLevel = Number.isFinite(Number(level)) ? Number(level) : (Number(ent?.level) || 0);
+		return {
+			id: `spell:${idName}`,
+			name,
+			spell: true,
+			hidden: true,
+			effect: effect.effect,
+			...(effect.counter ? {counter: effect.counter} : {}),
+			...(effect.concentration ? {concentration: true} : {}),
+			...(Number.isFinite(Number(abilityMod)) ? {abilityMod: Number(abilityMod)} : {}),
+			activation: time,
+			slot: economySlot(time),
+			level: castLevel,
+			kind: "buff",
+			bonus: Number(hit) || 0,
+			dc: parseDc(save) ?? (Number(dc) || 0),
+			dice: 0,
+			flat: 0,
+			count: 0,
+			faces: 0,
+			baseDice: 0,
+			baseFlat: 0,
+			baseCount: 0,
+			baseFaces: 0,
+			damage: "",
+			range: range || effect.range,
+			blurb: text.slice(0, 240),
+			...(usesMax > 0 ? {uses, usesMax} : {}),
+			...(atWill ? {atWill: true} : {}),
+		};
+	}
 	const fromBook = extras.base;
 	const fromSnippet = averageFromText(snippet);
 	let parts = fromBook || fromSnippet;
@@ -945,6 +983,20 @@ export function spellOptionFromEntity (ent, {
 		faces: shown.faces || row.faces,
 		notation: cantripLabel || (extras.scale ? `${baseText} +${extras.scale.label}/slot` : baseText),
 	};
+}
+
+/** Shield, Counterspell, Mage Armor, and Bless. Other zero-dice spells stay out. */
+function combatEffect (name, ent) {
+	const label = String(name || "").trim();
+	if (/^shield$/i.test(label)) return {effect: "shield", activation: "reaction", range: "self"};
+	if (/^counterspell$/i.test(label)) {
+		const saves = Array.isArray(ent?.savingThrow) ? ent.savingThrow : [];
+		const con = saves.some(it => /^con(stitution)?$/i.test(String(it || "")));
+		return {effect: "counterspell", activation: "reaction", counter: con ? "save" : "check", range: "60 ft"};
+	}
+	if (/^mage armor$/i.test(label)) return {effect: "mage-armor", activation: "action", range: "touch"};
+	if (/^bless$/i.test(label)) return {effect: "bless", activation: "action", concentration: true, range: "30 ft"};
+	return null;
 }
 
 function riderFields (name, text, ent) {

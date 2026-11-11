@@ -1,4 +1,4 @@
-import {attackOdds, canCastOption, classLevel, damageFactor, expectedDamage, failChance, peekSlot, rageDamage, spellAtSlot} from "./dpr-calc.js";
+import {abilityMod, attackOdds, canCastOption, classLevel, damageFactor, expectedDamage, failChance, peekSlot, rageDamage, spellAtSlot} from "./dpr-calc.js";
 
 const COLS = 10;
 const ROWS = 8;
@@ -142,6 +142,11 @@ function bestAttack (actor, attacks, actors, foes, friends, steps, role) {
 		if (skipOption(option, actor)) continue;
 		if (optionSlot(option) !== "action") continue;
 		if (!canCastOption(actor, option)) continue;
+		if (option.effect === "mage-armor" || option.effect === "bless") {
+			const found = buffChoice(actor, option, actors, steps);
+			if (found && (!best || found.score > best.score)) best = found;
+			continue;
+		}
 		const found = bestCell(actor, option, actors, foes, friends, steps, role);
 		if (found && (!best || found.score > best.score)) best = found;
 	}
@@ -442,7 +447,57 @@ function rangeOf (option) {
 
 function optionSlot (option) {
 	if (option?.activation === "bonus" || option?.slot === "bonus") return "bonus";
+	if (option?.slot === "reaction" || /\breaction\b/i.test(option?.activation || "")) return "reaction";
 	return "action";
+}
+
+function livingSide (actor, actors) {
+	return (actors || []).filter(it => it.side === actor.side && !it.dead && it.hp > 0);
+}
+
+function buffChoice (actor, option, actors, steps) {
+	if (option?.effect === "mage-armor") return mageArmorChoice(actor, option, actors, steps);
+	if (option?.effect === "bless") return blessChoice(actor, option, actors, steps);
+	return null;
+}
+
+function mageArmorChoice (actor, option, actors, steps) {
+	let best = null;
+	for (const ally of livingSide(actor, actors)) {
+		if (ally.mageArmor || !Number.isFinite(Number(ally.dex))) continue;
+		const gain = 13 + abilityMod(ally.dex) - (Number(ally.ac) || 0);
+		if (gain < 1) continue;
+		const cell = ally === actor ? {x: actor.x, y: actor.y} : approach(actor, ally, actors, steps, 5);
+		if (!cell) continue;
+		const score = gain * 6 + threatBias(actor, cell, actors);
+		if (!best || score > best.score) best = {score, cell, option, targets: [ally]};
+	}
+	return best;
+}
+
+function blessChoice (actor, option, actors, steps) {
+	if (actor.concentrating?.effect === "bless") return null;
+	const allies = livingSide(actor, actors);
+	let cell = {x: actor.x, y: actor.y};
+	let near = allies.filter(it => feetBetween(cell, it) <= 30);
+	if (near.length < 2) {
+		const other = allies.filter(it => it !== actor).sort((a, b) => feetBetween(actor, a) - feetBetween(actor, b))[0];
+		if (!other) return null;
+		const walked = approach(actor, other, actors, steps, 30);
+		if (!walked) return null;
+		cell = walked;
+		near = allies.filter(it => feetBetween(cell, it) <= 30);
+	}
+	if (near.length < 2) return null;
+	const count = Math.min(near.length, 3);
+	return {score: 8 + 3 * count + threatBias(actor, cell, actors), cell, option, targets: near.slice(0, count)};
+}
+
+function threatBias (actor, cell, actors) {
+	const foes = (actors || []).filter(it => it.side !== actor.side && it.hp > 0 && !it.dead);
+	if (!foes.length) return 0;
+	const goal = [...foes].sort((a, b) => feetBetween(cell, a) - feetBetween(cell, b))[0];
+	return aimBias(actor, goal, actors) + positionBias(roleOf(actor), cell, foes);
 }
 
 function isLeveled (option) {

@@ -303,6 +303,7 @@ async function loadAdded (plugin, added) {
 			speed,
 			defenses,
 			int,
+			dex: Number.isFinite(Number(ent?.dex)) ? Number(ent.dex) : (Number.isFinite(Number(row.dex)) ? Number(row.dex) : null),
 			saveMods,
 			type,
 			traits,
@@ -944,6 +945,7 @@ function simSides (state, plugin) {
 			medicineMod: medicineModOf(record),
 			spellDc: Number(record.snapshot?.spellcasting?.[0]?.dc) || (8 + abilityMod(record.snapshot?.abilities?.wis) + (Number(record.snapshot?.rolls?.proficiency) || 2)),
 			pb: Number(record.snapshot?.rolls?.proficiency) || 2,
+			dex: Number(record.snapshot?.abilities?.dex),
 			type: "humanoid",
 		};
 	});
@@ -969,6 +971,7 @@ function simEnemies (state) {
 			characterLevel: creature.characterLevel || 1,
 			cr: creature.cr || "",
 			int: Number.isFinite(Number(creature.int)) ? Number(creature.int) : null,
+			dex: Number.isFinite(Number(creature.dex)) ? Number(creature.dex) : (Number.isFinite(Number(creature.ent?.dex)) ? Number(creature.ent.dex) : null),
 			defenses: creature.defenses || normalizeDefenses(null),
 			saveBonus: crProfile(creature.cr)?.save || 0,
 			saveMods: creature.saveMods || null,
