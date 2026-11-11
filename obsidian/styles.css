@@ -5134,6 +5134,36 @@ body.is-mobile [data-fiveetools-hover="1"] {
 .fiveetools-view .ve-rd__list { margin: 0 0 6px 1.2em; }
 .fiveetools-view .ve-print__hidden { display: none !important; }
 
+/* Mobile Print card: off-screen until @media print */
+.fiveetools-print-root {
+	position: fixed;
+	left: -10000px;
+	top: 0;
+	z-index: -1;
+	pointer-events: none;
+	-webkit-print-color-adjust: exact;
+	print-color-adjust: exact;
+}
+
+@media print {
+	body.fiveetools-printing > *:not(.fiveetools-print-root) {
+		display: none !important;
+	}
+	body.fiveetools-printing {
+		margin: 0 !important;
+		padding: 0 !important;
+		background: #fff !important;
+	}
+	body.fiveetools-printing .fiveetools-print-root {
+		position: static !important;
+		left: auto !important;
+		top: auto !important;
+		z-index: auto !important;
+		pointer-events: auto !important;
+		display: block !important;
+	}
+}
+
 .fiveetools-adventure__toc {
 	display: flex;
 	flex-wrap: wrap;

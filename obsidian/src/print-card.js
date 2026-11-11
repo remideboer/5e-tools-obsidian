@@ -1,20 +1,10 @@
+import {Platform} from "obsidian";
 import {escapeHtml} from "./compact-render.js";
 
 const CARD_W = "12.5cm";
 const CARD_H = "8.7cm";
 
-const PRINT_CSS = `
-@page {
-	size: ${CARD_W} ${CARD_H};
-	margin: 0;
-}
-html, body {
-	margin: 0;
-	padding: 0;
-	background: #fff;
-	-webkit-print-color-adjust: exact;
-	print-color-adjust: exact;
-}
+const CARD_RULES = `
 .card {
 	box-sizing: border-box;
 	width: ${CARD_W};
@@ -98,10 +88,55 @@ a { color: inherit; text-decoration: none; }
 [class*="source-"] { color: #922610; font-weight: 700; }
 `;
 
-export function printEntityCard ({html, imageSrc} = {}) {
+const PRINT_CSS = `
+@page {
+	size: ${CARD_W} ${CARD_H};
+	margin: 0;
+}
+html, body {
+	margin: 0;
+	padding: 0;
+	background: #fff;
+	-webkit-print-color-adjust: exact;
+	print-color-adjust: exact;
+}
+${CARD_RULES}
+`;
+
+function scopeCss (css, prefix) {
+	return String(css || "").replace(/([^{}]+)\{/g, (full, selectors) => {
+		const trimmed = String(selectors || "").trim();
+		if (!trimmed || trimmed.startsWith("@")) return full;
+		const scoped = trimmed.split(",").map((part) => {
+			const sel = part.trim();
+			return sel ? `${prefix} ${sel}` : sel;
+		}).join(", ");
+		return `${scoped} {`;
+	});
+}
+
+/** Scope card selectors under the mobile print root. */
+const MOBILE_PRINT_CSS = `
+@page {
+	size: ${CARD_W} ${CARD_H};
+	margin: 0;
+}
+${scopeCss(CARD_RULES, ".fiveetools-print-root")}
+`;
+
+function cardMarkup ({html, imageSrc} = {}) {
 	const art = imageSrc
 		? `<div class="card__art"><img src="${escapeHtml(imageSrc)}" alt=""></div>`
 		: "";
+	return `<div class="card">${art}<div class="card__body">${html || ""}</div></div>`;
+}
+
+export function printEntityCard ({html, imageSrc} = {}) {
+	if (Platform.isMobile) printOnMainWindow({html, imageSrc});
+	else printInIframe({html, imageSrc});
+}
+
+function printInIframe ({html, imageSrc} = {}) {
 	const frame = document.createElement("iframe");
 	frame.setAttribute("aria-hidden", "true");
 	frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
@@ -109,7 +144,7 @@ export function printEntityCard ({html, imageSrc} = {}) {
 
 	const doc = frame.contentDocument;
 	doc.open();
-	doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print card</title><style>${PRINT_CSS}</style></head><body><div class="card">${art}<div class="card__body">${html || ""}</div></div></body></html>`);
+	doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print card</title><style>${PRINT_CSS}</style></head><body>${cardMarkup({html, imageSrc})}</body></html>`);
 	doc.close();
 
 	const win = frame.contentWindow;
@@ -117,18 +152,61 @@ export function printEntityCard ({html, imageSrc} = {}) {
 	win.addEventListener("afterprint", cleanup);
 	window.setTimeout(cleanup, 60_000);
 
-	waitForImages(doc).then(() => {
+	const run = () => {
 		win.focus();
 		win.print();
-	});
+	};
+	if (imagesReady(doc)) run();
+	else waitForImages(doc).then(run);
 }
 
-function waitForImages (doc) {
-	const images = [...doc.images];
+function printOnMainWindow ({html, imageSrc} = {}) {
+	document.querySelectorAll(".fiveetools-print-root, .fiveetools-print-style").forEach((el) => el.remove());
+	document.body.classList.remove("fiveetools-printing");
+
+	const style = document.createElement("style");
+	style.className = "fiveetools-print-style";
+	style.textContent = MOBILE_PRINT_CSS;
+	document.head.appendChild(style);
+
+	const root = document.createElement("div");
+	root.className = "fiveetools-print-root";
+	root.setAttribute("aria-hidden", "true");
+	root.innerHTML = cardMarkup({html, imageSrc});
+	document.body.appendChild(root);
+	document.body.classList.add("fiveetools-printing");
+
+	const cleanup = () => {
+		root.remove();
+		style.remove();
+		document.body.classList.remove("fiveetools-printing");
+	};
+	window.addEventListener("afterprint", cleanup, {once: true});
+	window.setTimeout(cleanup, 60_000);
+
+	const run = () => {
+		window.focus();
+		window.print();
+	};
+	if (imagesReady(root)) run();
+	else waitForImages(root).then(run);
+}
+
+function listImages (root) {
+	if (root?.images) return [...root.images];
+	return [...(root?.querySelectorAll?.("img") || [])];
+}
+
+function imagesReady (root) {
+	return listImages(root).every((img) => img.complete);
+}
+
+function waitForImages (root) {
+	const images = listImages(root);
 	if (!images.length) return Promise.resolve();
-	return Promise.all(images.map(img => {
+	return Promise.all(images.map((img) => {
 		if (img.complete) return Promise.resolve();
-		return new Promise(resolve => {
+		return new Promise((resolve) => {
 			img.addEventListener("load", resolve, {once: true});
 			img.addEventListener("error", resolve, {once: true});
 		});

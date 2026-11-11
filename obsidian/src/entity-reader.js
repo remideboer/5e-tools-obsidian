@@ -170,11 +170,14 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 					insertBtn.removeAttribute("disabled");
 				}
 			});
+			const printImageSrc = images[0]
+				? (await cachedMediaSrc(plugin, toPreviewSrc(images[0]))) || ""
+				: "";
 			printBtn.removeAttribute("disabled");
-			printBtn.addEventListener("click", async () => {
+			printBtn.addEventListener("click", () => {
 				printEntityCard({
 					html: compactHtml || `<p><strong>${escapeHtml((shown.ent || displayEnt).name || doc.n || "")}</strong></p>`,
-					imageSrc: images[0] ? await cachedMediaSrc(plugin, toPreviewSrc(images[0])) : "",
+					imageSrc: printImageSrc,
 				});
 			});
 			if (addEncounterBtn && isCreatureEntity(displayEnt, doc)) {
