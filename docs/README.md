@@ -25,6 +25,7 @@ Upstream 5etools (`js/`, `data/`) is only covered where the plugin depends on it
 | Table window vs map player view | [0008](adr/0008-table-window.md) |
 | 3D dice on mobile | [0009](adr/0009-mobile-3d-dice.md) |
 | Per-entity homebrew / encounters | [0010](adr/0010-per-entity-homebrew.md) |
+| iPad print | [0011](adr/0011-ios-print-share.md) |
 
 ## Build and install
 

@@ -75,6 +75,7 @@
 		"esbuild": "^0.27.3",
 		"handlebars": "^4.7.8",
 		"heic2any": "^0.0.4",
+		"html2canvas-pro": "^2.6.4",
 		"http-server": "^14.1.1",
 		"jest": "^30.2.0",
 		"json-source-map": "^0.6.1",

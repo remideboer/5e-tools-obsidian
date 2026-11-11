@@ -1,5 +1,7 @@
-import {Platform} from "obsidian";
+import html2canvas from "html2canvas-pro";
+import {Modal, Notice, Platform} from "obsidian";
 import {escapeHtml} from "./compact-render.js";
+import {readCachedBytes} from "./media-cache.js";
 
 const CARD_W = "12.5cm";
 const CARD_H = "8.7cm";
@@ -131,9 +133,180 @@ function cardMarkup ({html, imageSrc} = {}) {
 	return `<div class="card">${art}<div class="card__body">${html || ""}</div></div>`;
 }
 
-export function printEntityCard ({html, imageSrc} = {}) {
+let preparedCard = {key: "", file: null, promise: null};
+
+function cardKey ({html, imageSrc, imageUrl} = {}) {
+	return `${imageUrl || ""}\0${imageSrc || ""}\0${html || ""}`;
+}
+
+/** Start the iPad card image while the stat block is open, so Print can share on the tap. */
+export function prepareCardPrint (args = {}) {
+	if (!Platform.isIosApp) return;
+	const key = cardKey(args);
+	if (preparedCard.key === key && (preparedCard.file || preparedCard.promise)) return;
+	const promise = renderCardFile(args).then((file) => {
+		if (preparedCard.promise !== promise) return file;
+		preparedCard.file = file;
+		preparedCard.promise = null;
+		return file;
+	}).catch(() => {
+		if (preparedCard.promise === promise) {
+			preparedCard.file = null;
+			preparedCard.promise = null;
+		}
+		return null;
+	});
+	preparedCard = {key, file: null, promise};
+}
+
+export function printEntityCard (args = {}) {
+	if (Platform.isIosApp) {
+		shareIosCard(args);
+		return;
+	}
+	const {html, imageSrc} = args;
 	if (Platform.isMobile) printOnMainWindow({html, imageSrc});
 	else printInIframe({html, imageSrc});
+}
+
+function shareIosCard (args) {
+	const key = cardKey(args);
+	if (preparedCard.key === key && preparedCard.file) {
+		shareCardFile(preparedCard.file);
+		return;
+	}
+	prepareCardPrint(args);
+	const promise = preparedCard.key === key ? preparedCard.promise : null;
+	if (!promise) {
+		if (preparedCard.key === key && preparedCard.file) shareCardFile(preparedCard.file);
+		else new Notice("Could not prepare the card.");
+		return;
+	}
+	void promise.then((file) => {
+		if (preparedCard.key !== key) return;
+		if (!file) {
+			new Notice("Could not prepare the card.");
+			return;
+		}
+		const app = args.plugin?.app;
+		if (!app) {
+			new Notice("Could not open the share sheet.");
+			return;
+		}
+		new IosPrintModal(app, file).open();
+	});
+}
+
+class IosPrintModal extends Modal {
+	constructor (app, file) {
+		super(app);
+		this.file = file;
+	}
+
+	onOpen () {
+		const {contentEl} = this;
+		contentEl.empty();
+		contentEl.createEl("h2", {text: "Ready to print"});
+		contentEl.createEl("p", {text: "Open the share sheet, then choose Print."});
+		const button = contentEl.createEl("button", {text: "Continue to print", cls: "fiveetools-btn"});
+		button.addEventListener("click", () => {
+			if (shareCardFile(this.file)) this.close();
+		});
+	}
+
+	onClose () {
+		this.contentEl.empty();
+	}
+}
+
+function shareCardFile (file) {
+	if (!file || typeof navigator.share !== "function" || typeof navigator.canShare !== "function") {
+		new Notice("This device cannot share the card.");
+		return false;
+	}
+	let allowed = false;
+	try { allowed = navigator.canShare({files: [file]}); }
+	catch (_) { allowed = false; }
+	if (!allowed) {
+		new Notice("This device cannot share the card.");
+		return false;
+	}
+	try {
+		const pending = navigator.share({files: [file], title: "Print card"});
+		void Promise.resolve(pending).catch((error) => {
+			if (error?.name === "AbortError") return;
+			new Notice("Could not open the share sheet.");
+		});
+		return true;
+	} catch (_) {
+		new Notice("Could not open the share sheet.");
+		return false;
+	}
+}
+
+async function renderCardFile ({html, imageSrc, imageUrl, plugin} = {}) {
+	const src = await iosImageSrc({plugin, imageUrl, imageSrc});
+	const frame = document.createElement("iframe");
+	frame.className = "fiveetools-print-frame";
+	frame.setAttribute("aria-hidden", "true");
+	frame.style.cssText = `position:fixed;left:0;top:0;width:${CARD_W};height:${CARD_H};border:0;pointer-events:none;z-index:-1;`;
+	document.body.appendChild(frame);
+	try {
+		const doc = frame.contentDocument;
+		if (!doc) return null;
+		doc.open();
+		doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Print card</title><style>${PRINT_CSS}</style></head><body>${cardMarkup({html, imageSrc: src})}</body></html>`);
+		doc.close();
+		if (!imagesReady(doc)) {
+			await Promise.race([
+				waitForImages(doc),
+				new Promise((resolve) => window.setTimeout(resolve, 1500)),
+			]);
+		}
+		const card = doc.querySelector(".card");
+		if (!card) return null;
+		const canvas = await html2canvas(card, {
+			backgroundColor: "#fdf1dc",
+			scale: 2,
+			useCORS: true,
+			allowTaint: false,
+			logging: false,
+		});
+		const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+		if (!blob) return null;
+		return new File([blob], "card.png", {type: "image/png"});
+	} finally {
+		frame.remove();
+	}
+}
+
+async function iosImageSrc ({plugin, imageUrl, imageSrc}) {
+	if (plugin && imageUrl) {
+		const bytes = await readCachedBytes(plugin, imageUrl);
+		const url = await dataUrlFromBytes(bytes);
+		if (url) return url;
+	}
+	return imageSrc || "";
+}
+
+async function dataUrlFromBytes (bytes) {
+	if (!bytes || !bytes.byteLength) return "";
+	const blob = new Blob([bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)], {type: imageMime(bytes)});
+	return await new Promise((resolve) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+		reader.onerror = () => resolve("");
+		reader.readAsDataURL(blob);
+	});
+}
+
+function imageMime (bytes) {
+	const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+	if (view[0] === 0x89 && view[1] === 0x50) return "image/png";
+	if (view[0] === 0xff && view[1] === 0xd8) return "image/jpeg";
+	if (view[0] === 0x47 && view[1] === 0x49) return "image/gif";
+	if (view[0] === 0x52 && view[1] === 0x49) return "image/webp";
+	return "image/png";
 }
 
 function printInIframe ({html, imageSrc} = {}) {
@@ -184,12 +357,8 @@ function printOnMainWindow ({html, imageSrc} = {}) {
 	window.addEventListener("afterprint", cleanup, {once: true});
 	window.setTimeout(cleanup, 60_000);
 
-	const run = () => {
-		window.focus();
-		window.print();
-	};
-	if (imagesReady(root)) run();
-	else waitForImages(root).then(run);
+	window.focus();
+	window.print();
 }
 
 function listImages (root) {

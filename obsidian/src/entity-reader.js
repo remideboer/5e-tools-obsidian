@@ -5,7 +5,7 @@ import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {cachedMediaSrc, rewriteMediaUrls} from "./media-cache.js";
 import {pinEntityDoc} from "./dm-screen-pin.js";
 import {insertEntityNote} from "./note-writer.js";
-import {printEntityCard} from "./print-card.js";
+import {prepareCardPrint, printEntityCard} from "./print-card.js";
 import {parseAdventureHref, renderAdventurePanel, renderBookPanel} from "./adventure-reader.js";
 import {docFromHref, docFromVetLink, indexHomebrewDocs} from "./search-index.js";
 import {bindDiceRollers} from "./dice-roll.js";
@@ -115,18 +115,27 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 			const images = await resolveEntityImages(bookEnt || displayEnt, {
 				imageBaseUrl: plugin.settings.imageBaseUrl,
 			});
+			let previewSrcs = [];
 			if (images.length) {
 				const imgWrap = body.createDiv({cls: "fiveetools-view__images"});
 				const preview = images.slice(0, 2);
-				const srcs = await Promise.all(preview.map(image => cachedMediaSrc(plugin, toPreviewSrc(image))));
+				previewSrcs = await Promise.all(preview.map(image => cachedMediaSrc(plugin, toPreviewSrc(image))));
 				preview.forEach((image, i) => {
-					const src = srcs[i];
+					const src = previewSrcs[i];
 					if (!src) return;
 					imgWrap.createEl("img", {attr: {src, alt: displayEnt.name || doc.n || ""}});
 				});
 			}
+			const printImageUrl = images[0] ? toPreviewSrc(images[0]) : "";
+			const printImageSrc = printImageUrl ? (previewSrcs[0] || "") : "";
 
 			let compactHtml = "";
+			const cardPrint = () => ({
+				html: compactHtml || `<p><strong>${escapeHtml((shown.ent || displayEnt).name || doc.n || "")}</strong></p>`,
+				imageSrc: printImageSrc,
+				imageUrl: printImageUrl,
+				plugin,
+			});
 			if (!isCorpusPage(page)) {
 				compactHtml = renderCompactHtml(displayEnt, page);
 				const statWrap = body.createDiv({cls: "fiveetools-view__stats"});
@@ -149,7 +158,10 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 					crSlider,
 					crValue,
 					saveBrewBtn,
-					setPrintHtml: (html) => { compactHtml = html; },
+					setPrintHtml: (html) => {
+						compactHtml = html;
+						prepareCardPrint(cardPrint());
+					},
 					onShown: (ent) => { shown.ent = ent; },
 					onApplyStats: opts.onApplyStats,
 				});
@@ -170,15 +182,10 @@ export async function renderEntityPanel (containerEl, plugin, doc, opts = {}) {
 					insertBtn.removeAttribute("disabled");
 				}
 			});
-			const printImageSrc = images[0]
-				? (await cachedMediaSrc(plugin, toPreviewSrc(images[0]))) || ""
-				: "";
+			prepareCardPrint(cardPrint());
 			printBtn.removeAttribute("disabled");
 			printBtn.addEventListener("click", () => {
-				printEntityCard({
-					html: compactHtml || `<p><strong>${escapeHtml((shown.ent || displayEnt).name || doc.n || "")}</strong></p>`,
-					imageSrc: printImageSrc,
-				});
+				printEntityCard(cardPrint());
 			});
 			if (addEncounterBtn && isCreatureEntity(displayEnt, doc)) {
 				addEncounterBtn.removeAttribute("disabled");
