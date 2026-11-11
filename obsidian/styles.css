@@ -1193,12 +1193,10 @@ a.fiveetools-inline-link {
 
 .fiveetools-library__listcol--encounter .fiveetools-library__list,
 .fiveetools-library__listcol--homebrew .fiveetools-library__list {
-	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 	padding: 0;
-}
-
-/* Keep catalog + creator readable; scroll the pair instead of crushing the form. */
-.fiveetools-library__listcol--homebrew .fiveetools-library__list {
 	overflow-x: auto;
 	overflow-y: hidden;
 }
@@ -1216,6 +1214,7 @@ a.fiveetools-inline-link {
 .fiveetools-library__list.fiveetools-campaign {
 	display: flex;
 	flex-direction: column;
+	min-height: 0;
 	overflow: hidden;
 	padding: 0;
 }
@@ -1223,8 +1222,8 @@ a.fiveetools-inline-link {
 .fiveetools-campaign {
 	display: flex;
 	flex-direction: column;
+	flex: 1 1 auto;
 	min-height: 0;
-	height: 100%;
 }
 
 .fiveetools-campaign > .fiveetools-homebrew__catalog {
@@ -1713,9 +1712,9 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 .fiveetools-library__list.fiveetools-notes {
 	display: flex;
 	flex-direction: column;
+	min-height: 0;
 	overflow: hidden;
 	padding: 0;
-	height: 100%;
 }
 
 .fiveetools-notes__catalog {
@@ -1761,9 +1760,9 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 .fiveetools-library__list.fiveetools-characters {
 	display: flex;
 	flex-direction: column;
+	min-height: 0;
 	overflow: hidden;
 	padding: 0;
-	height: 100%;
 }
 
 .fiveetools-characters__catalog {
@@ -2057,7 +2056,8 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 }
 
 .fiveetools-library__list {
-	flex: 1;
+	flex: 1 1 auto;
+	min-height: 0;
 	overflow: auto;
 	padding: 0 8px 12px;
 }
@@ -2874,8 +2874,8 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 .fiveetools-encounter {
 	display: flex;
 	flex-direction: row;
+	flex: 1 1 auto;
 	min-height: 0;
-	height: 100%;
 }
 
 .fiveetools-dpr,
@@ -4019,6 +4019,7 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	position: relative;
 	flex: 1 1 50%;
 	min-width: 0;
+	min-height: 0;
 	overflow: auto;
 	padding: 8px;
 	border-right: 1px solid var(--background-modifier-border);
@@ -4435,9 +4436,9 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 .fiveetools-homebrew {
 	display: flex;
 	flex-direction: row;
+	flex: 1 1 auto;
 	min-width: 560px;
 	min-height: 0;
-	height: 100%;
 }
 
 .fiveetools-homebrew h3 {
@@ -4497,6 +4498,7 @@ body.fiveetools-table-window .fiveetools-roll-popup {
 	width: 100%;
 	min-width: 0;
 	box-sizing: border-box;
+	flex: 0 0 auto;
 }
 
 .fiveetools-homebrew__results {
@@ -4945,6 +4947,13 @@ body.is-mobile [data-fiveetools-hover="1"] {
 	overflow: auto;
 }
 
+/* Library readers (homebrew, encounter, campaign, bestiary) get a sliver beside a wide column. Keep the stat block readable and scroll the reader. */
+.fiveetools-library .fiveetools-library__reader .fiveetools-view__stats {
+	width: max(100%, 40rem);
+	min-width: 40rem;
+	max-width: none;
+}
+
 .fiveetools-view__fluff,
 .fiveetools-view__creature-tables {
 	margin-top: 16px;
@@ -5278,6 +5287,7 @@ body.is-mobile [data-fiveetools-hover="1"] {
 .fiveetools-library__list.fiveetools-refmaps {
 	display: flex;
 	flex-direction: column;
+	min-height: 0;
 	overflow: hidden;
 }
 
