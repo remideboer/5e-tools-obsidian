@@ -932,7 +932,7 @@ function castShield (fight, target) {
 
 function stopWithCounterspell (fight, caster, cast, spent) {
 	const spellLevel = Number(cast.castLevel || cast.level) || 0;
-	if (!(spellLevel > 0)) return false;
+	if (!(spellLevel > 0) || !damagingCast(cast)) return false;
 	let best = null;
 	for (const foe of fight.actors) {
 		if (foe.side === caster.side || !canReact(foe) || feetBetween(foe, caster) > 60) continue;
@@ -940,16 +940,17 @@ function stopWithCounterspell (fight, caster, cast, spent) {
 		if (!option || !canCastOption(foe, option)) continue;
 		const picked = counterSlot(foe, option, spellLevel);
 		if (!picked) continue;
+		const slotLevel = picked.special ? (Number(option.level) || 3) : picked.slot.level;
+		if (meleeBeside(fight, foe) && incomingHarm(cast) <= slotDamage(foe, slotLevel)) continue;
 		const dist = feetBetween(foe, caster);
-		if (!best || dist < best.dist) best = {foe, option, picked, dist};
+		if (!best || dist < best.dist) best = {foe, option, picked, dist, slotLevel};
 	}
 	if (!best) return false;
-	const {foe, option, picked} = best;
+	const {foe, option, picked, slotLevel} = best;
 	if (!picked.special) foe.pool.splice(picked.index, 1);
 	else if (!picked.atWill) spendReactionSpell(foe, option);
 	if (!picked.special) foe.spent.push({level: picked.slot.level, pact: !!picked.slot.pact});
 	foe.reactionUsed = true;
-	const slotLevel = picked.special ? (Number(option.level) || 3) : picked.slot.level;
 	let stopped = false;
 	if (option.counter === "save") {
 		const dc = Number(option.dc) || foe.spellDc || 10;
@@ -973,6 +974,40 @@ function stopWithCounterspell (fight, caster, cast, spent) {
 	}
 	log(fight, caster, `${caster.name}'s ${cast.name} is countered and does nothing.`);
 	return true;
+}
+
+function damagingCast (cast) {
+	if (!cast || cast.kind === "heal" || cast.effect) return false;
+	return (Number(cast.dice) || 0) > 0 || (Number(cast.flat) || 0) > 0;
+}
+
+function incomingHarm (cast) {
+	const times = cast?.repeats?.length || 1;
+	return expectedDamage(cast) * times;
+}
+
+function meleeBeside (fight, actor) {
+	return (fight.actors || []).some(it =>
+		it !== actor
+		&& it.side !== actor.side
+		&& it.hp > 0
+		&& !it.dead
+		&& feetBetween(it, actor) <= 5
+		&& (it.options || []).some(option => option.kind === "attack" && option.melee !== false && !option.spell && (option.rangeFeet || 5) <= 10)
+	);
+}
+
+function slotDamage (actor, level) {
+	let best = 0;
+	for (const option of actor.options || []) {
+		if (!option?.spell || option.effect || option.kind === "heal" || option.kind === "utility") continue;
+		const min = Number(option.level) || 0;
+		if (!(min > 0) || min > level) continue;
+		const cast = spellAtSlot(option, level, actor.characterLevel);
+		const harm = incomingHarm(cast);
+		if (harm > best) best = harm;
+	}
+	return best;
 }
 
 function counterSlot (actor, option, spellLevel) {
