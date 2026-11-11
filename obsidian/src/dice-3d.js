@@ -1,4 +1,4 @@
-import {normalizePath} from "obsidian";
+import {normalizePath, Platform} from "obsidian";
 
 const SUPPORTED = new Set([4, 6, 8, 10, 12, 20, 100]);
 const DIE_SCALE = 1.5;
@@ -13,9 +13,14 @@ let rollSoundCtx = null;
 let rollSoundBuffer = null;
 let rollSoundUrl = "";
 let rollSoundLoad = null;
-/** Gap between per-die throw SFX so overlaps stay audible as separate voices. */
-const SOUND_STAGGER_SEC = 0.12;
+/** All dice in one throw start inside this window, so a large pool still finishes with the roll. */
+const SOUND_WINDOW_SEC = 0.2;
 let rollSoundIndex = 0;
+/** @type {AudioBufferSourceNode | null} */
+let rollSoundKeep = null;
+/** Silent media element. iPad silent mode mutes Web Audio on the speaker and still plays Bluetooth. */
+let iosSpeakerRoute = null;
+const IOS_SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
 /**
  * Call from a click/touch handler (sync) so iOS unlocks Web Audio before awaits.
@@ -25,7 +30,9 @@ export function unlockDiceSound (plugin) {
 	if (!plugin?.settings?.diceSound) return;
 	const ctx = ensureAudioContext();
 	if (!ctx) return;
+	if (Platform.isIosApp) routeIosSpeaker();
 	playSilentUnlock(ctx);
+	holdAudioContext(ctx);
 	if (ctx.state === "suspended") void ctx.resume?.();
 	void ensureRollSound(plugin);
 }
@@ -134,8 +141,25 @@ function audioContextCtor () {
 function ensureAudioContext () {
 	const Ctor = audioContextCtor();
 	if (!Ctor) return null;
-	if (!rollSoundCtx || rollSoundCtx.state === "closed") rollSoundCtx = new Ctor();
+	if (!rollSoundCtx || rollSoundCtx.state === "closed") {
+		rollSoundKeep = null;
+		rollSoundCtx = new Ctor();
+	}
 	return rollSoundCtx;
+}
+
+function routeIosSpeaker () {
+	const session = globalThis.navigator?.audioSession;
+	if (session && "type" in session) {
+		try { session.type = "playback"; } catch (_) { /* ignore */ }
+	}
+	if (iosSpeakerRoute) return;
+	const el = new Audio(IOS_SILENT_WAV);
+	el.setAttribute("playsinline", "");
+	el.loop = true;
+	iosSpeakerRoute = el;
+	const pending = el.play();
+	if (pending && typeof pending.catch === "function") void pending.catch(() => { iosSpeakerRoute = null; });
 }
 
 function playSilentUnlock (ctx) {
@@ -146,6 +170,22 @@ function playSilentUnlock (ctx) {
 		src.buffer = buf;
 		src.connect(ctx.destination);
 		src.start(0);
+	} catch (_) { /* ignore */ }
+}
+
+function holdAudioContext (ctx) {
+	if (!ctx || rollSoundKeep) return;
+	try {
+		const buf = ctx.createBuffer(1, 1, ctx.sampleRate || 22050);
+		const src = ctx.createBufferSource();
+		src.buffer = buf;
+		src.loop = true;
+		const gain = ctx.createGain();
+		gain.gain.value = 0;
+		src.connect(gain);
+		gain.connect(ctx.destination);
+		src.start();
+		rollSoundKeep = src;
 	} catch (_) { /* ignore */ }
 }
 
@@ -164,27 +204,41 @@ function rollSoundVaultPath (plugin) {
 	return normalizePath(`${dir}/dice/rolling.mp3`);
 }
 
-async function readRollSoundBytes (plugin) {
+async function readBinaryRollSound (plugin) {
 	const vaultPath = rollSoundVaultPath(plugin);
-	if (!vaultPath) return null;
 	const adapter = plugin?.app?.vault?.adapter;
-	// Mobile Obsidian often cannot fetch() app-resource URLs; read the vault file instead.
-	if (typeof adapter?.readBinary === "function") {
-		try {
-			const data = await adapter.readBinary(vaultPath);
-			if (data) return data instanceof ArrayBuffer ? data : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-		} catch (_) { /* fall through */ }
+	if (!vaultPath || typeof adapter?.readBinary !== "function") return null;
+	try {
+		const data = await adapter.readBinary(vaultPath);
+		if (!data) return null;
+		return data instanceof ArrayBuffer ? data : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+	} catch (_) {
+		return null;
 	}
-	if (typeof adapter?.getResourcePath === "function") {
-		try {
-			const url = adapter.getResourcePath(vaultPath);
-			if (!url) return null;
-			const res = await fetch(url);
-			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			return await res.arrayBuffer();
-		} catch (_) { /* fall through */ }
+}
+
+async function fetchRollSoundBytes (plugin) {
+	const vaultPath = rollSoundVaultPath(plugin);
+	const adapter = plugin?.app?.vault?.adapter;
+	if (!vaultPath || typeof adapter?.getResourcePath !== "function") return null;
+	try {
+		const url = adapter.getResourcePath(vaultPath);
+		if (!url) return null;
+		const res = await fetch(url);
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		return await res.arrayBuffer();
+	} catch (_) {
+		return null;
 	}
-	return null;
+}
+
+async function decodeRollSound (ctx, raw) {
+	if (!ctx || !raw) return null;
+	try {
+		return await ctx.decodeAudioData(raw.slice(0));
+	} catch (_) {
+		return null;
+	}
 }
 
 async function ensureRollSound (plugin) {
@@ -199,9 +253,9 @@ async function ensureRollSound (plugin) {
 		try {
 			const ctx = await resumeAudioContext();
 			if (!ctx) return null;
-			const raw = await readRollSoundBytes(plugin);
-			if (!raw) throw new Error("rolling.mp3 missing or unreadable");
-			rollSoundBuffer = await ctx.decodeAudioData(raw.slice(0));
+			rollSoundBuffer = await decodeRollSound(ctx, await readBinaryRollSound(plugin));
+			if (!rollSoundBuffer) rollSoundBuffer = await decodeRollSound(ctx, await fetchRollSoundBytes(plugin));
+			if (!rollSoundBuffer) throw new Error("rolling.mp3 missing or unreadable");
 			return rollSoundBuffer;
 		} catch (e) {
 			console.warn("5etools dice roll sound failed to load", e);
@@ -218,32 +272,26 @@ function playRollSound () {
 	const ctx = rollSoundCtx;
 	const buffer = rollSoundBuffer;
 	if (!ctx || !buffer) return;
+	if (ctx.state === "suspended") void ctx.resume?.();
 	const index = rollSoundIndex++;
-	const start = () => {
-		try {
-			const src = ctx.createBufferSource();
-			src.buffer = buffer;
-			// Slight rate/pan spread so voices don't cancel into one mono hit.
-			src.playbackRate.value = 0.94 + (index % 5) * 0.03;
-			const pan = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null;
-			const gain = ctx.createGain();
-			gain.gain.value = 0.85;
-			if (pan) {
-				pan.pan.value = ((index % 5) - 2) * 0.28;
-				src.connect(pan);
-				pan.connect(gain);
-			} else {
-				src.connect(gain);
-			}
-			gain.connect(ctx.destination);
-			src.start(ctx.currentTime + index * SOUND_STAGGER_SEC);
-		} catch (_) { /* ignore autoplay / decode errors */ }
-	};
-	if (ctx.state === "suspended") {
-		void ctx.resume?.().then(start).catch(() => {});
-		return;
-	}
-	start();
+	try {
+		const src = ctx.createBufferSource();
+		src.buffer = buffer;
+		// Slight rate/pan spread so voices don't cancel into one mono hit.
+		src.playbackRate.value = 0.94 + (index % 5) * 0.03;
+		const pan = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null;
+		const gain = ctx.createGain();
+		gain.gain.value = 0.85;
+		if (pan) {
+			pan.pan.value = ((index % 5) - 2) * 0.28;
+			src.connect(pan);
+			pan.connect(gain);
+		} else {
+			src.connect(gain);
+		}
+		gain.connect(ctx.destination);
+		src.start(ctx.currentTime + Math.random() * SOUND_WINDOW_SEC);
+	} catch (_) { /* ignore autoplay / decode errors */ }
 }
 
 function scaleDie (die, factor) {
