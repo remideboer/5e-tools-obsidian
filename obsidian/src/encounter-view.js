@@ -334,6 +334,39 @@ export function addCombatantsFromEntity (session, ent, count = 1) {
 	};
 }
 
+/** One more creature of the same kind, at full HP, placed in that group. */
+export function withCombatantCopy (combatants, sample) {
+	const list = [...(combatants || [])];
+	if (!sample) return {combatants: list, added: null};
+	bumpIdCounter(list);
+	const base = groupBaseLabel(sample);
+	const copy = {
+		id: `c${nextCombatantId++}`,
+		label: nextLabel(base, list),
+		doc: sample.doc ? {...sample.doc} : null,
+		ent: sample.ent ? JSON.parse(JSON.stringify(sample.ent)) : null,
+		...(sample.scaleBase ? {scaleBase: JSON.parse(JSON.stringify(sample.scaleBase))} : {}),
+		...(sample.custom ? {custom: true} : {}),
+		hpMax: sample.hpMax,
+		hpCurrent: sample.hpMax,
+		tempHp: 0,
+		condition: "",
+		cr: sample.cr,
+		ac: sample.ac,
+		initiative: sample.initiative,
+		dex: sample.dex,
+		passive: sample.passive,
+		initScore: finiteScore(sample.initScore),
+	};
+	const key = kindKey(sample);
+	let ix = list.length - 1;
+	for (let i = 0; i < list.length; i++) {
+		if (kindKey(list[i]) === key) ix = i;
+	}
+	list.splice(ix + 1, 0, copy);
+	return {combatants: finalizeRosterOrder(list), added: copy};
+}
+
 function sharedInitScoreForDoc (combatants, doc, ent = null) {
 	const probe = {doc: serializeDoc(doc), ent, label: doc?.n || ent?.name};
 	const key = kindKey(probe);
@@ -671,6 +704,23 @@ export function renderEncounterComposer (formEl, resultEl, {
 			},
 			onInit: (group) => {
 				void rollGroupInitiative(group, {reorder: false});
+			},
+			onAdd: (group) => {
+				const sample = group.members[group.members.length - 1];
+				const next = withCombatantCopy(combatants, sample);
+				combatants = next.combatants;
+				if (next.added) {
+					previewKey = null;
+					selectedId = next.added.id;
+					if (initOrderBaseline?.length) {
+						const at = initOrderBaseline.indexOf(sample.id);
+						if (at >= 0) initOrderBaseline.splice(at + 1, 0, next.added.id);
+						else initOrderBaseline.push(next.added.id);
+					}
+				}
+				emit();
+				paintRoster();
+				openSelected();
 			},
 			onRemoveGroup: (group) => {
 				const ids = new Set(group.members.map(member => member.id));
@@ -1082,6 +1132,7 @@ export function paintKindRoster (rosterEl, combatants, {
 	onSelect,
 	onSelectGroup,
 	onInit,
+	onAdd,
 	onRemoveGroup,
 	onHp,
 	onTempHp,
@@ -1105,7 +1156,7 @@ export function paintKindRoster (rosterEl, combatants, {
 			cls: "fiveetools-encounter__group-name",
 			text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
 		});
-		if (onInit || onRemoveGroup) {
+		if (onInit || onAdd || onRemoveGroup) {
 			const headActions = head.createDiv({cls: "fiveetools-encounter__group-actions"});
 			if (onInit) {
 				const initBtn = headActions.createEl("button", {
@@ -1122,6 +1173,18 @@ export function paintKindRoster (rosterEl, combatants, {
 					cls: `fiveetools-encounter__init-score${group.initScore != null ? " has-score" : ""}`,
 					text: group.initScore != null ? String(group.initScore) : "—",
 					attr: {title: "Initiative score"},
+				});
+			}
+			if (onAdd) {
+				const addBtn = headActions.createEl("button", {
+					text: "+",
+					cls: "fiveetools-encounter__hpbtn",
+					attr: {type: "button", title: "Add another"},
+				});
+				addBtn.addEventListener("click", (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					onAdd(group);
 				});
 			}
 			if (onRemoveGroup) {

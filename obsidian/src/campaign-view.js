@@ -21,7 +21,7 @@ import {
 import {pinCampaignNotePath} from "./dm-screen-pin.js";
 import {renderEntityPanel} from "./entity-reader.js";
 import {listSavedEncounters, setEncounterInstance} from "./encounter-store.js";
-import {applyTemplateToGroup, listKindGroups, paintGroupSharedStats, renderCombatantRow} from "./encounter-view.js";
+import {applyTemplateToGroup, listKindGroups, paintGroupSharedStats, renderCombatantRow, withCombatantCopy} from "./encounter-view.js";
 import {renderCharacterCard} from "./character-view.js";
 import {listCharacters} from "./character-store.js";
 import {createSearchInput} from "./search-field.js";
@@ -447,7 +447,27 @@ export function renderCampaignManager (formEl, resultEl, {
 					cls: "fiveetools-encounter__group-name",
 					text: group.members.length > 1 ? `${group.label} ×${group.members.length}` : group.label,
 				});
-				head.addEventListener("click", () => selectGroup());
+				const headActions = head.createDiv({cls: "fiveetools-encounter__group-actions"});
+				const addBtn = headActions.createEl("button", {
+					text: "+",
+					cls: "fiveetools-encounter__hpbtn",
+					attr: {type: "button", title: "Add another"},
+				});
+				addBtn.addEventListener("click", (evt) => {
+					evt.preventDefault();
+					evt.stopPropagation();
+					const sample = group.members[group.members.length - 1];
+					const next = withCombatantCopy(combatants, sample);
+					combatants = next.combatants;
+					if (next.added) selectedId = next.added.id;
+					paintRoster();
+					openSelected();
+					void persist().catch((e) => new Notice(e.message || "Could not save encounter."));
+				});
+				head.addEventListener("click", (evt) => {
+					if (evt.target.closest(".fiveetools-encounter__group-actions")) return;
+					selectGroup();
+				});
 				const statsEl = paintGroupSharedStats(shell, group.members[0]);
 				statsEl?.addEventListener("click", () => selectGroup());
 				const body = shell.createDiv({cls: "fiveetools-encounter__group-body"});

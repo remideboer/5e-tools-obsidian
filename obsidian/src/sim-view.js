@@ -19,7 +19,7 @@ import {
 import {getSavedEncounter, listSavedEncounters, loadEncountersFromVault, queueSaveEncountersToVault, saveSavedEncounter, setEncounterInstance, upsertSavedEncounter} from "./encounter-store.js";
 import {encounterDifficulty} from "./encounter-difficulty.js";
 import {clearSearchInput, createSearchInput} from "./search-field.js";
-import {addCombatants, initiativeFromEnt, kindKey, listKindGroups, paintKindRoster} from "./encounter-view.js";
+import {addCombatants, initiativeFromEnt, kindKey, listKindGroups, paintKindRoster, withCombatantCopy} from "./encounter-view.js";
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
@@ -513,6 +513,11 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 				combatant.condition = nextCond;
 				commitAdded();
 			},
+			onAdd: (group) => {
+				const sample = group.members[group.members.length - 1];
+				state.added = withCombatantCopy(state.added, sample).combatants;
+				commitAdded();
+			},
 			onRemove: (combatant) => {
 				state.added = state.added.filter(it => it.id !== combatant.id);
 				commitAdded();
@@ -689,6 +694,11 @@ function paintParty (host, state, plugin, onParty, onThreat) {
 			onCondition: (combatant, nextCond) => editSaved((combatants) => {
 				const hit = combatants.find(it => it.id === combatant.id);
 				if (hit) hit.condition = nextCond;
+			}),
+			onAdd: (group) => editSaved((combatants) => {
+				const sample = group.members[group.members.length - 1];
+				const next = withCombatantCopy(combatants, sample);
+				combatants.splice(0, combatants.length, ...next.combatants);
 			}),
 			onRemove: (combatant) => editSaved((combatants) => {
 				const ix = combatants.findIndex(it => it.id === combatant.id);
