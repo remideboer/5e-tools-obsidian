@@ -23,6 +23,7 @@ import {addCombatants, initiativeFromEnt, kindKey, listKindGroups, paintKindRost
 import {listCampaigns, listEntries} from "./campaign-store.js";
 import {ensureSearchIndex, indexHomebrewDocs, searchEntities} from "./search-index.js";
 import {loadEntity} from "./entity-loader.js";
+import {creatureSpellKit} from "./creature-sim-spells.js";
 import {resolveTokenImage} from "./image-resolver.js";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -159,15 +160,24 @@ function foesFor (state, plugin) {
 async function savedEncounterFoes (plugin, encounterId) {
 	const creatures = await encounterCreatures(plugin, encounterId);
 	const saved = getSavedEncounter(encounterId);
-	return creatures.map((creature, index) => {
+	const out = [];
+	for (let index = 0; index < creatures.length; index++) {
+		const creature = creatures[index];
 		const current = Number(saved?.combatants?.[index]?.hpCurrent);
 		const maxHp = creature.hp;
-		return {
+		const kit = await creatureSpellKit(plugin, creature.ent);
+		out.push({
 			...creature,
 			maxHp,
 			hp: Number.isFinite(current) ? current : maxHp,
-		};
-	});
+			attacks: [...(creature.attacks || []), ...(kit.options || [])],
+			pool: kit.pool,
+			spellDc: kit.spellDc,
+			spellAttack: kit.spellAttack,
+			characterLevel: kit.casterLevel,
+		});
+	}
+	return out;
 }
 
 function storedCombatant (row) {
@@ -242,6 +252,7 @@ async function loadAdded (plugin, added) {
 	for (const row of added || []) {
 		let ent = row.ent || null;
 		let attacks = [];
+		let kit = {options: [], pool: [], spellDc: 10, spellAttack: 0, casterLevel: 1};
 		let image = "";
 		let speed = 30;
 		let defenses = normalizeDefenses(null);
@@ -256,7 +267,8 @@ async function loadAdded (plugin, added) {
 		let initMod = null;
 		try {
 			if (!ent && row.doc) ent = (await loadEntity(row.doc))?.ent || null;
-			attacks = creatureTurn(ent);
+			kit = await creatureSpellKit(plugin, ent);
+			attacks = [...creatureTurn(ent), ...(kit.options || [])];
 			defenses = normalizeDefenses(ent);
 			saveMods = ent ? creatureSaves(ent) : null;
 			type = creatureType(ent);
@@ -283,6 +295,10 @@ async function loadAdded (plugin, added) {
 			maxHp,
 			cr,
 			attacks,
+			pool: kit.pool,
+			spellDc: kit.spellDc,
+			spellAttack: kit.spellAttack,
+			characterLevel: kit.casterLevel,
 			image,
 			speed,
 			defenses,
@@ -937,6 +953,10 @@ function simEnemies (state) {
 			image: creature.image || "",
 			options: enemyOptions(creature.attacks),
 			extraSwings: 1,
+			pool: creature.pool || [],
+			spellDc: creature.spellDc || 10,
+			spellAttack: creature.spellAttack || 0,
+			characterLevel: creature.characterLevel || 1,
 			cr: creature.cr || "",
 			int: Number.isFinite(Number(creature.int)) ? Number(creature.int) : null,
 			defenses: creature.defenses || normalizeDefenses(null),
@@ -968,8 +988,10 @@ function simEnemies (state) {
 }
 
 function enemyOptions (attacks) {
-	const action = (attacks || []).filter(attack => attack.activation !== "bonus" && !attack.separate && attack.kind !== "utility");
-	const extras = (attacks || []).filter(attack => attack.separate || attack.kind === "utility" || attack.activation === "bonus");
+	const spells = (attacks || []).filter(attack => attack.spell);
+	const weapons = (attacks || []).filter(attack => !attack.spell);
+	const action = weapons.filter(attack => attack.activation !== "bonus" && !attack.separate && attack.kind !== "utility");
+	const extras = weapons.filter(attack => attack.separate || attack.kind === "utility" || attack.activation === "bonus");
 	const options = [];
 	if (action.length) {
 		options.push({
@@ -980,6 +1002,7 @@ function enemyOptions (attacks) {
 		});
 	}
 	for (const item of extras) options.push(item);
+	for (const spell of spells) options.push(spell);
 	return options;
 }
 

@@ -1,4 +1,4 @@
-import {attackOdds, classLevel, damageFactor, expectedDamage, failChance, peekSlot, rageDamage, spellAtSlot} from "./dpr-calc.js";
+import {attackOdds, canCastOption, classLevel, damageFactor, expectedDamage, failChance, peekSlot, rageDamage, spellAtSlot} from "./dpr-calc.js";
 
 const COLS = 10;
 const ROWS = 8;
@@ -99,6 +99,7 @@ function skipOption (option, actor) {
 	if (option.utility === "shape-heal" && !actor?.shaped) return true;
 	if (option.utility === "lay" && !(actor?.layPool > 0)) return true;
 	if (actor?.raging && option.spell) return true;
+	if (option.usesMax > 0 && !(option.uses > 0)) return true;
 	return false;
 }
 
@@ -140,7 +141,7 @@ function bestAttack (actor, attacks, actors, foes, friends, steps, role) {
 	for (const option of attacks) {
 		if (skipOption(option, actor)) continue;
 		if (optionSlot(option) !== "action") continue;
-		if (isLeveled(option) && !(actor.pool || []).some(slot => slot.level >= option.level)) continue;
+		if (!canCastOption(actor, option)) continue;
 		const found = bestCell(actor, option, actors, foes, friends, steps, role);
 		if (found && (!best || found.score > best.score)) best = found;
 	}
@@ -154,7 +155,7 @@ function bestBonus (actor, attacks, actors, foes, friends, cell, role, action) {
 		if (skipOption(option, actor)) continue;
 		if (optionSlot(option) !== "bonus") continue;
 		if (blocked && isLeveled(option)) continue;
-		if (isLeveled(option) && !(actor.pool || []).some(slot => slot.level >= option.level)) continue;
+		if (!canCastOption(actor, option)) continue;
 		const range = rangeOf(option);
 		const groups = fightGoals(option, foes, friends);
 		let picked = null;
@@ -299,6 +300,7 @@ function bossOf (actor, actors) {
 
 function castAtPool (swing, actor, target) {
 	if (!swing?.spell && swing?.utility !== "spark") return swing;
+	if (swing.atWill || swing.usesMax > 0) return spellAtSlot(swing, swing.level > 0 ? swing.level : 0, actor.characterLevel);
 	if (swing.cantrip?.length || !(swing.level > 0)) return spellAtSlot(swing, 0, actor.characterLevel);
 	const missing = target ? Math.max(0, target.max - target.hp) : Infinity;
 	const slot = peekSlot(actor.pool, swing, {missing, disciple: !!actor.disciple, characterLevel: actor.characterLevel});
@@ -546,7 +548,7 @@ function bonusHealReaches (actor, options, cell, target) {
 	if (!cell || !target) return false;
 	return (options || []).some(option => {
 		if (skipOption(option, actor) || optionSlot(option) !== "bonus" || !isHealOption(option)) return false;
-		if (isLeveled(option) && !(actor.pool || []).some(slot => slot.level >= option.level)) return false;
+		if (!canCastOption(actor, option)) return false;
 		const reach = isTouch(option) ? 0 : rangeOf(option).feet;
 		return feetBetween(cell, target) <= reach;
 	});
@@ -558,7 +560,7 @@ function canReachWithHeal (healer, target, actors) {
 		if (skipOption(option, healer)) return false;
 		const spare = /spare the dying/i.test(option.name || "");
 		if (!isHealOption(option) && !spare) return false;
-		if (isLeveled(option) && !(healer.pool || []).some(slot => slot.level >= option.level)) return false;
+		if (!canCastOption(healer, option)) return false;
 		if ((option.utility === "preserve" || option.utility === "spark") && !(healer.channelUses > 0)) return false;
 		const reach = spare || isTouch(option) ? 0 : rangeOf(option).feet;
 		return !!approach(healer, target, actors, steps, reach);

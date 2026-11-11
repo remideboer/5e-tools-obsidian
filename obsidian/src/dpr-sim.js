@@ -1,5 +1,5 @@
 import {planTurn} from "./dpr-ai.js";
-import {beamsAt, classLevel, damageFactor, expectedDamage, rageDamage, spellAtSlot, spendSlot} from "./dpr-calc.js";
+import {beamsAt, canCastOption, classLevel, damageFactor, expectedDamage, rageDamage, spellAtSlot, spendSlot} from "./dpr-calc.js";
 import {rollDice} from "./dice-roll.js";
 import {xpFromCr} from "./encounter-difficulty.js";
 
@@ -320,6 +320,7 @@ function actorsFrom (list, side) {
 		wisMod: Number(actor.wisMod) || 0,
 		medicineMod: Number.isFinite(Number(actor.medicineMod)) ? Number(actor.medicineMod) : (Number(actor.wisMod) || 0),
 		spellDc: Number(actor.spellDc) || 10,
+		spellAttack: Number(actor.spellAttack) || 0,
 		...classResources(actor),
 		cr: actor.cr || "",
 		int: Number.isFinite(Number(actor.int)) ? Number(actor.int) : null,
@@ -447,7 +448,7 @@ function bestOption (actor, actors, slot, blockLeveled) {
 		const optionSlot = option.activation === "bonus" || option.slot === "bonus" ? "bonus" : "action";
 		if (optionSlot !== slot) continue;
 		if (blockLeveled && isLeveled(option)) continue;
-		if (isLeveled(option) && !actor.pool.some(item => item.level >= option.level)) continue;
+		if (!canCastOption(actor, option)) continue;
 		const scored = scoreOption(actor, option, actors);
 		if (!scored) continue;
 		if (!best || scored.score > best.score) best = scored;
@@ -560,6 +561,15 @@ function stabilizeAlly (fight, actor, choice) {
 	log(fight, actor, `${actor.name} makes a Medicine check: ${total} vs DC 10. ${target.name} is still dying.`);
 }
 
+function takeSpellUse (actor, option) {
+	if (!(option?.usesMax > 0)) return true;
+	const live = (actor.options || []).find(it => it.id && it.id === option.id) || option;
+	if (!(live.uses > 0)) return false;
+	live.uses -= 1;
+	if (option !== live) option.uses = live.uses;
+	return true;
+}
+
 function resolveChoice (fight, actor, choice) {
 	let cast = choice?.option;
 	if (!cast) return;
@@ -568,7 +578,12 @@ function resolveChoice (fight, actor, choice) {
 		return;
 	}
 	if (resolveFeature(fight, actor, choice)) return;
-	if (isLeveled(cast)) {
+	if (cast.atWill) {
+		cast = spellAtSlot(cast, cast.level > 0 ? cast.level : 0, actor.characterLevel);
+	} else if (cast.usesMax > 0) {
+		if (!takeSpellUse(actor, choice.option)) return;
+		cast = spellAtSlot(cast, cast.level > 0 ? cast.level : 0, actor.characterLevel);
+	} else if (isLeveled(cast)) {
 		const missing = cast.kind === "heal" ? missingHp(choice.targets) : Infinity;
 		const slot = spendSlot(actor.pool, cast, {missing, disciple: !!actor.disciple, characterLevel: actor.characterLevel});
 		if (!slot) return;

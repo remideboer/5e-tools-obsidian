@@ -165,8 +165,9 @@ export async function encounterCreatures (plugin, encounterId) {
 		let type = "";
 		let traits = null;
 		let initMod = null;
+		let ent = null;
 		try {
-			const ent = combatant.ent || (combatant.doc ? (await loadEntity(combatant.doc))?.ent : null);
+			ent = combatant.ent || (combatant.doc ? (await loadEntity(combatant.doc))?.ent : null);
 			attacks = creatureTurn(ent);
 			defenses = normalizeDefenses(ent);
 			saveMods = ent ? creatureSaves(ent) : null;
@@ -194,6 +195,7 @@ export async function encounterCreatures (plugin, encounterId) {
 			traits,
 			kind: kindKey({doc: combatant.doc, label: combatant.label, ent: combatant.ent}),
 			initMod: Number.isFinite(initMod) ? initMod : 2,
+			ent,
 		});
 	}
 	return creatures;
@@ -858,50 +860,82 @@ async function spellSource (spell, casting, edition, characterLevel) {
 			ent = (await loadEntity(doc))?.ent || null;
 		} catch (_) { /* the card snippet still describes the spell */ }
 	}
+	const line = casting.find(it => String(it.className || "").toLowerCase() === String(spell.list || "").toLowerCase()) || casting[0];
+	return spellOptionFromEntity(ent, {
+		name: spell.label || spell.name || "Spell",
+		idName: spell.name || spell.label || "Spell",
+		snippet: spell.snippet || "",
+		level: spell.level,
+		castingTime: spell.castingTime || "",
+		attack: spell.attack,
+		save: spell.save,
+		hit: Number(line?.attack) || 0,
+		dc: parseDc(spell.save) ?? (Number(line?.dc) || 0),
+		range: spell.range || "",
+		characterLevel,
+	});
+}
+
+/** Shared spell → sim option used by characters and creature stat blocks. */
+export function spellOptionFromEntity (ent, {
+	name = "Spell",
+	idName = name,
+	snippet = "",
+	level,
+	castingTime = "",
+	attack = false,
+	save = "",
+	hit = 0,
+	dc = 0,
+	range = "",
+	characterLevel = 1,
+	uses = null,
+	usesMax = null,
+	atWill = false,
+} = {}) {
 	const extras = spellExtras(ent);
-	const text = `${spell?.snippet || ""} ${extras.text || ""}`.trim();
+	const text = `${snippet || ""} ${extras.text || ""}`.trim();
 	const fromBook = extras.base;
-	const fromSnippet = averageFromText(spell?.snippet);
+	const fromSnippet = averageFromText(snippet);
 	let parts = fromBook || fromSnippet;
 	if (fromBook && fromSnippet?.flat) parts = {...fromBook, flat: fromSnippet.flat, average: fromBook.dice + fromSnippet.flat};
-	if (!parts && !extras.cantrip.length && !/^divine smite\b/i.test(spell?.name || spell?.label || "")) return null;
-	const name = spell.label || spell.name || "Spell";
-	if (!parts && /^divine smite\b/i.test(name)) {
-		parts = {dice: 9, flat: 0, average: 9};
-	}
+	if (!parts && !extras.cantrip.length && !/^divine smite\b/i.test(name)) return null;
+	if (!parts && /^divine smite\b/i.test(name)) parts = {dice: 9, flat: 0, average: 9};
 	parts = parts || {dice: 0, flat: 0, average: 0};
-	const line = casting.find(it => String(it.className || "").toLowerCase() === String(spell.list || "").toLowerCase()) || casting[0];
 	const heal = isHealing(name, text);
-	const level = Number.isFinite(Number(spell.level)) ? Number(spell.level) : (extras.cantrip.length ? 0 : null);
-	const shape = diceShape(firstDiceText(extras.text) || firstDiceText(spell?.snippet) || "");
+	const castLevel = Number.isFinite(Number(level)) ? Number(level) : (extras.cantrip.length ? 0 : null);
+	const shape = diceShape(firstDiceText(extras.text) || firstDiceText(snippet) || "");
+	const smite = /^divine smite\b/i.test(name);
 	const row = {
-		id: `spell:${spell.name || name}`,
+		id: `spell:${idName}`,
 		name,
 		spell: true,
-		activation: spell.castingTime || "",
-		slot: economySlot(spell.castingTime),
-		level,
+		activation: castingTime || "",
+		slot: economySlot(castingTime),
+		level: castLevel,
 		scale: extras.scale,
 		cantrip: extras.cantrip,
-		kind: heal ? "heal" : (spell.attack ? "attack" : (spell.save ? "save" : "auto")),
-		bonus: Number(line?.attack) || 0,
-		dc: parseDc(spell.save) ?? (Number(line?.dc) || 0),
+		kind: heal ? "heal" : (attack ? "attack" : (save ? "save" : "auto")),
+		bonus: Number(hit) || 0,
+		dc: parseDc(save) ?? (Number(dc) || 0),
 		dice: parts.dice,
 		flat: parts.flat,
-		count: shape?.count || (/^divine smite\b/i.test(name) ? 2 : 0),
-		faces: shape?.faces || (/^divine smite\b/i.test(name) ? 8 : 0),
+		count: shape?.count || (smite ? 2 : 0),
+		faces: shape?.faces || (smite ? 8 : 0),
 		baseDice: parts.dice,
 		baseFlat: parts.flat,
-		baseCount: shape?.count || (/^divine smite\b/i.test(name) ? 2 : 0),
-		baseFaces: shape?.faces || (/^divine smite\b/i.test(name) ? 8 : 0),
-		damage: damageTypeOf(ent, text) || (/^divine smite\b/i.test(name) ? "radiant" : ""),
-		range: spell.range || "",
+		baseCount: shape?.count || (smite ? 2 : 0),
+		baseFaces: shape?.faces || (smite ? 8 : 0),
+		damage: damageTypeOf(ent, text) || (smite ? "radiant" : ""),
+		range: range || "",
 		blurb: text.slice(0, 240),
 		...(riderFields(name, text, ent)),
-		...(/^divine smite\b/i.test(name) && !extras.scale ? {scale: {from: 1, every: 1, dice: 4.5, flat: 0, count: 1, faces: 8}} : {}),
+		...(smite && !extras.scale ? {scale: {from: 1, every: 1, dice: 4.5, flat: 0, count: 1, faces: 8}} : {}),
+		...(usesMax > 0 ? {uses, usesMax} : {}),
+		...(atWill ? {atWill: true} : {}),
 	};
-	const shown = spellAtSlot(row, level > 0 ? level : 0, characterLevel);
-	const baseText = firstDiceText(extras.text) || firstDiceText(spell?.snippet) || diceLabel(parts, spell?.snippet);
+	const shown = spellAtSlot(row, castLevel > 0 ? castLevel : 0, characterLevel);
+	const baseText = firstDiceText(extras.text) || firstDiceText(snippet) || diceLabel(parts, snippet);
 	const cantripLabel = (shown.cantrip || []).filter(it => it.level <= characterLevel).pop()?.label;
 	return {
 		...row,

@@ -776,6 +776,14 @@ function isCantrip (source) {
 	return !!(source?.spell && !(source.level > 0));
 }
 
+/** Leveled spells spend a slot unless the stat block gives them their own uses. */
+export function canCastOption (actor, option) {
+	if (option?.atWill) return true;
+	if (option?.usesMax > 0) return option.uses > 0;
+	if (option?.spell && option.level > 0) return (actor?.pool || []).some(slot => (slot.level || 0) >= option.level);
+	return true;
+}
+
 function isLeveled (source) {
 	return !!(source?.spell && source.level > 0);
 }
