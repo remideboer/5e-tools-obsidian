@@ -1,4 +1,4 @@
-import {Notice} from "obsidian";
+import {Notice, setIcon} from "obsidian";
 import {
 	activePlaylist,
 	addClip,
@@ -47,6 +47,45 @@ export function teardownSoundTool () {
 	stopTool = null;
 }
 
+function transportButton (row, icon, title) {
+	const button = row.createEl("button", {
+		cls: "fiveetools-iconbtn",
+		attr: {type: "button", title, "aria-label": title},
+	});
+	setIcon(button, icon);
+	return button;
+}
+
+/** Icon controls. Playback starts in the click, before any await. */
+function mountTransport (row, plugin) {
+	const prev = transportButton(row, "skip-back", "Previous");
+	const play = transportButton(row, "play", "Play");
+	const stop = transportButton(row, "square", "Stop the bed and the effect");
+	const next = transportButton(row, "skip-forward", "Next");
+	const loop = transportButton(row, "repeat", "Repeat the current clip");
+	prev.addEventListener("click", () => stepBed(plugin, -1));
+	next.addEventListener("click", () => stepBed(plugin, 1));
+	play.addEventListener("click", () => {
+		if (getSoundPlayback().playing) {
+			pauseBed();
+			return;
+		}
+		if (playBed(plugin) === "empty") new Notice("Nothing to play.");
+	});
+	stop.addEventListener("click", () => stopSound());
+	loop.addEventListener("click", () => toggleLoop());
+	const sync = () => {
+		const playback = getSoundPlayback();
+		const label = playback.playing ? "Pause" : "Play";
+		setIcon(play, playback.playing ? "pause" : "play");
+		play.title = label;
+		play.setAttribute("aria-label", label);
+		loop.classList.toggle("is-selected", playback.loop);
+	};
+	sync();
+	return {sync};
+}
+
 /**
  * Tools → Sounds. A row plays that clip. Enter on a link or a vault file adds it.
  * @param {HTMLElement} listEl
@@ -70,32 +109,8 @@ export function renderSoundTool (listEl, readerEl, {plugin} = {}) {
 	listEl.createEl("h3", {text: "Sounds"});
 	listEl.createEl("p", {cls: "fiveetools-view__meta", text: "Click a clip to play it. Sounds from a chosen folder are listed here."});
 	const nowEl = listEl.createEl("p", {cls: "fiveetools-view__meta"});
-	const transport = listEl.createDiv({cls: "fiveetools-sound__row"});
-	const prevBtn = transport.createEl("button", {
-		text: "Prev",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button"},
-	});
-	const playBtn = transport.createEl("button", {
-		text: "Play",
-		cls: "fiveetools-btn",
-		attr: {type: "button"},
-	});
-	const stopBtn = transport.createEl("button", {
-		text: "Stop",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Stop the bed and the effect"},
-	});
-	const nextBtn = transport.createEl("button", {
-		text: "Next",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button"},
-	});
-	const loopBtn = transport.createEl("button", {
-		text: "Loop",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Repeat the current clip"},
-	});
+	const transport = listEl.createDiv({cls: "fiveetools-sound__row fiveetools-sound__transport"});
+	const controls = mountTransport(transport, plugin);
 	const volumeEl = listEl.createEl("input", {
 		cls: "fiveetools-sound__volume",
 		attr: {type: "range", min: "0", max: "100", value: String(Math.round(getSoundPlayback().volume * 100))},
@@ -224,8 +239,7 @@ export function renderSoundTool (listEl, readerEl, {plugin} = {}) {
 		else if (clip) nowEl.setText(clip.name);
 		else if (list) nowEl.setText(list.name);
 		else nowEl.setText("Nothing playing");
-		playBtn.setText(playback.playing ? "Pause" : "Play");
-		loopBtn.classList.toggle("is-selected", playback.loop);
+		controls.sync();
 		for (const row of clipsEl.querySelectorAll("[data-clip]")) {
 			row.classList.toggle("is-selected", row.getAttribute("data-clip") === id);
 		}
@@ -235,17 +249,6 @@ export function renderSoundTool (listEl, readerEl, {plugin} = {}) {
 		}
 	};
 
-	prevBtn.addEventListener("click", () => stepBed(plugin, -1));
-	nextBtn.addEventListener("click", () => stepBed(plugin, 1));
-	playBtn.addEventListener("click", () => {
-		if (getSoundPlayback().playing) {
-			pauseBed();
-			return;
-		}
-		if (playBed(plugin) === "empty") new Notice("Nothing to play.");
-	});
-	stopBtn.addEventListener("click", () => stopSound());
-	loopBtn.addEventListener("click", () => toggleLoop());
 	volumeEl.addEventListener("input", () => setVolume(Number(volumeEl.value) / 100));
 
 	const paintPlaylists = () => {
@@ -569,32 +572,21 @@ export function renderSoundWidget (host, {plugin} = {}) {
 	host.addClass("fiveetools-sound-widget");
 
 	const now = host.createEl("p", {cls: "fiveetools-view__meta"});
-	const row = host.createDiv({cls: "fiveetools-sound__row"});
-	const prev = row.createEl("button", {
-		text: "Prev",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button"},
+	const listRow = host.createDiv({cls: "fiveetools-sound__row"});
+	const playlistSel = listRow.createEl("select", {
+		cls: "fiveetools-sound__grow",
+		attr: {title: "Active playlist"},
 	});
-	const play = row.createEl("button", {
-		text: "Play",
-		cls: "fiveetools-btn",
-		attr: {type: "button"},
+	const pickRow = host.createDiv({cls: "fiveetools-sound__row"});
+	const pickSearch = pickRow.createEl("input", {
+		cls: "fiveetools-sound__grow",
+		attr: {type: "search", placeholder: "Play a sound", title: "Search the sound library"},
 	});
-	const stop = row.createEl("button", {
-		text: "Stop",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Stop the bed and the effect"},
-	});
-	const next = row.createEl("button", {
-		text: "Next",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button"},
-	});
-	const loop = row.createEl("button", {
-		text: "Loop",
-		cls: "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button", title: "Repeat the current clip"},
-	});
+	const pickHits = host.createDiv({cls: "fiveetools-sound__files"});
+	let pickDocs = [];
+	let pickIndex = 0;
+	const row = host.createDiv({cls: "fiveetools-sound__row fiveetools-sound__transport"});
+	const controls = mountTransport(row, plugin);
 	const volume = host.createEl("input", {
 		attr: {type: "range", min: "0", max: "100", value: String(Math.round(getSoundPlayback().volume * 100))},
 	});
@@ -602,15 +594,66 @@ export function renderSoundWidget (host, {plugin} = {}) {
 	const effects = host.createDiv({cls: "fiveetools-sound-widget__effects"});
 
 	const paintStatus = () => {
-		const playback = getSoundPlayback();
 		const clip = currentBedClip();
 		const list = activePlaylist();
 		if (clip && list) now.setText(`${list.name} · ${clip.name}`);
 		else if (clip) now.setText(clip.name);
 		else if (list) now.setText(list.name);
 		else now.setText("No playlist");
-		play.setText(playback.playing ? "Pause" : "Play");
-		loop.classList.toggle("is-selected", playback.loop);
+		controls.sync();
+	};
+
+	const paintPlaylist = () => {
+		const lib = getSoundLibrary();
+		const current = lib.activePlaylistId || "";
+		playlistSel.empty();
+		playlistSel.createEl("option", {attr: {value: ""}, text: "No playlist"});
+		for (const list of lib.playlists) {
+			playlistSel.createEl("option", {attr: {value: list.id}, text: list.name});
+		}
+		playlistSel.value = current;
+	};
+
+	const matchClips = (term) => {
+		const q = String(term || "").trim().toLowerCase();
+		if (!q) return [];
+		return listSelectableClips(plugin).filter(clip => {
+			return clip.name.toLowerCase().includes(q)
+				|| clip.path.toLowerCase().includes(q)
+				|| clip.url.toLowerCase().includes(q);
+		}).slice(0, 8);
+	};
+
+	const paintPick = () => {
+		pickHits.empty();
+		pickDocs.forEach((clip, index) => {
+			const hit = pickHits.createDiv({cls: "fiveetools-sound__file"});
+			if (index === pickIndex) hit.addClass("is-selected");
+			hit.createEl("span", {cls: "fiveetools-sound__kind", text: clip.kind});
+			hit.createEl("span", {cls: "fiveetools-sound__name", text: clip.name});
+			hit.addEventListener("click", () => playPicked(clip));
+		});
+	};
+
+	const markPick = () => {
+		[...pickHits.children].forEach((hit, index) => hit.classList.toggle("is-selected", index === pickIndex));
+	};
+
+	const playPicked = (clip) => {
+		if (!clip) return;
+		playClip(plugin, clip.id);
+		pickSearch.value = "";
+		pickDocs = [];
+		pickIndex = 0;
+		paintPick();
+		pickSearch.focus();
+	};
+
+	const refreshPick = () => {
+		if (!pickSearch.value.trim()) return;
+		pickDocs = matchClips(pickSearch.value);
+		pickIndex = pickDocs.length ? Math.min(pickIndex, pickDocs.length - 1) : 0;
+		paintPick();
 	};
 
 	const paintEffects = () => {
@@ -630,17 +673,28 @@ export function renderSoundWidget (host, {plugin} = {}) {
 		}
 	};
 
-	prev.addEventListener("click", () => stepBed(plugin, -1));
-	next.addEventListener("click", () => stepBed(plugin, 1));
-	play.addEventListener("click", () => {
-		if (getSoundPlayback().playing) {
-			pauseBed();
+	playlistSel.addEventListener("change", () => {
+		setActivePlaylist(plugin, playlistSel.value || "");
+	});
+	pickSearch.addEventListener("input", () => {
+		pickDocs = matchClips(pickSearch.value);
+		pickIndex = 0;
+		paintPick();
+	});
+	pickSearch.addEventListener("keydown", (evt) => {
+		if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {
+			if (!pickDocs.length) return;
+			evt.preventDefault();
+			pickIndex = evt.key === "ArrowDown"
+				? Math.min(pickDocs.length - 1, pickIndex + 1)
+				: Math.max(0, pickIndex - 1);
+			markPick();
 			return;
 		}
-		if (playBed(plugin) === "empty") new Notice("Nothing to play.");
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		playPicked(pickDocs[pickIndex]);
 	});
-	stop.addEventListener("click", () => stopSound());
-	loop.addEventListener("click", () => toggleLoop());
 	volume.addEventListener("input", () => setVolume(Number(volume.value) / 100));
 
 	const offPlay = onSoundPlayback(() => {
@@ -656,7 +710,9 @@ export function renderSoundWidget (host, {plugin} = {}) {
 			return;
 		}
 		paintStatus();
+		paintPlaylist();
 		paintEffects();
+		refreshPick();
 	});
 	const widgetVault = plugin?.app?.vault;
 	const onWidgetVault = () => {
@@ -665,6 +721,7 @@ export function renderSoundWidget (host, {plugin} = {}) {
 			return;
 		}
 		paintEffects();
+		refreshPick();
 	};
 	const widgetRefs = widgetVault?.on
 		? ["create", "delete", "rename"].map(eventName => widgetVault.on(eventName, onWidgetVault))
@@ -677,11 +734,17 @@ export function renderSoundWidget (host, {plugin} = {}) {
 		}
 	};
 
+	playlistSel.disabled = true;
+	pickSearch.disabled = true;
 	paintStatus();
+	paintPlaylist();
 	paintEffects();
 	void loadSoundLibrary(plugin).then(() => {
 		if (!host.isConnected) return;
+		playlistSel.disabled = false;
+		pickSearch.disabled = false;
 		paintStatus();
+		paintPlaylist();
 		paintEffects();
 	});
 }
