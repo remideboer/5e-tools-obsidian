@@ -1,4 +1,4 @@
-import {MarkdownRenderer, Menu, Notice} from "obsidian";
+import {MarkdownRenderer, Menu, Notice, setIcon} from "obsidian";
 import {fileStem, listCampaigns, listEntries, parseCampaignMarkdown} from "./campaign-store.js";
 import {characterName, listCharacters, saveCharacterPlay} from "./character-store.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
@@ -375,10 +375,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			});
 			const grip = el.createDiv({cls: "fiveetools-dmscreen__colgrip"});
 			const colFold = grip.createEl("button", {
-				text: "‹",
 				cls: "fiveetools-dmscreen__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
 				attr: {type: "button", title: "Collapse column"},
 			});
+			setIcon(colFold, "chevron-left");
 			colFold.addEventListener("click", (evt) => {
 				evt.preventDefault();
 				evt.stopPropagation();
@@ -831,14 +831,14 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		});
 		head.addEventListener("dragend", endDrag);
 		const fold = head.createEl("button", {
-			text: panel.collapsed ? "▾" : "▴",
 			cls: "fiveetools-dmscreen__fold fiveetools-iconbtn fiveetools-iconbtn--collapse",
 			attr: {type: "button", title: panel.collapsed ? "Expand" : "Collapse"},
 		});
+		setIcon(fold, panel.collapsed ? "chevron-down" : "chevron-up");
 		const setCardCollapsed = (collapsed) => {
 			panel.collapsed = !!collapsed;
 			card.toggleClass("is-collapsed", panel.collapsed);
-			fold.setText(panel.collapsed ? "▾" : "▴");
+			setIcon(fold, panel.collapsed ? "chevron-down" : "chevron-up");
 			fold.setAttr("title", panel.collapsed ? "Expand" : "Collapse");
 			emit();
 		};

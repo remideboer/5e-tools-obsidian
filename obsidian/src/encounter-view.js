@@ -1,4 +1,4 @@
-import {Modal, Notice} from "obsidian";
+import {Modal, Notice, setIcon} from "obsidian";
 import {searchEntities, brewDocFromEntity, indexHomebrewDocs} from "./search-index.js";
 import {createSearchInput} from "./search-field.js";
 import {loadEntity} from "./entity-loader.js";
@@ -541,7 +541,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 		composerFold.setAttr("aria-expanded", composerCollapsed ? "false" : "true");
 		composerFold.setAttr("title", action);
 		composerFold.setAttr("aria-label", action);
-		composerFold.setText(composerCollapsed ? "›" : "‹");
+		setIcon(composerFold, composerCollapsed ? "chevron-right" : "chevron-left");
 	};
 	composerFold.addEventListener("click", (evt) => {
 		evt.preventDefault();

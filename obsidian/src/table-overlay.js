@@ -166,16 +166,9 @@ function textMark (svg, mark) {
 }
 
 function iconMark (svg, mark) {
-	if (mark.icon === "x" || mark.icon === "question" || mark.icon === "skull") {
-		const el = textMark(svg, {
-			...mark,
-			text: mark.icon === "x" ? "×" : mark.icon === "question" ? "?" : "☠",
-		});
-		el.setAttribute("text-anchor", "middle");
-		el.setAttribute("dominant-baseline", "middle");
-		el.setAttribute("font-size", "72");
-		return el;
-	}
+	if (mark.icon === "x") return strokeGlyph(svg, mark, "M-26 -26 L26 26 M-26 26 L26 -26");
+	if (mark.icon === "question") return strokeGlyph(svg, mark, "M-14 -8 C-14 -24 16 -24 16 -6 C16 6 2 8 2 16 M2 24 v3");
+	if (mark.icon === "skull") return skullMark(svg, mark);
 	if (mark.icon === "circle") {
 		const el = make(svg, "circle");
 		el.setAttribute("cx", mark.x * 1000);
@@ -264,6 +257,35 @@ function coneMark (svg, mark) {
 	el.setAttribute("points", `${x},${y} ${x + dx + px},${y + dy + py} ${x + dx - px},${y + dy - py}`);
 	areaStyle(el, mark.color);
 	return el;
+}
+
+function strokeGlyph (svg, mark, d) {
+	const el = make(svg, "path");
+	el.setAttribute("d", d);
+	el.setAttribute("transform", `translate(${mark.x * 1000} ${mark.y * 1000})`);
+	stroke(el, mark.color);
+	el.setAttribute("fill", "none");
+	return el;
+}
+
+function skullMark (svg, mark) {
+	const g = make(svg, "g");
+	g.setAttribute("transform", `translate(${mark.x * 1000} ${mark.y * 1000})`);
+	const head = make(g, "path");
+	head.setAttribute("d", "M0 -28 C18 -28 28 -14 28 0 C28 12 18 22 8 24 L8 30 H-8 L-8 24 C-18 22 -28 12 -28 0 C-28 -14 -18 -28 0 -28 Z");
+	stroke(head, mark.color);
+	head.setAttribute("fill", "none");
+	for (const cx of [-10, 10]) {
+		const eye = make(g, "circle");
+		eye.setAttribute("cx", String(cx));
+		eye.setAttribute("cy", "-4");
+		eye.setAttribute("r", "5");
+		eye.setAttribute("fill", mark.color || "#ff3b30");
+	}
+	const nose = make(g, "path");
+	nose.setAttribute("d", "M0 4 L-5 12 H5 Z");
+	nose.setAttribute("fill", mark.color || "#ff3b30");
+	return g;
 }
 
 function svgIcon (parent, key, x, y, color, size) {

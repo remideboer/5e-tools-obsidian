@@ -9,7 +9,7 @@ const ICONS = {
 	10: `<svg ${SVG_ATTR}><polygon points="32,4 54,20 54,44 32,60 10,44 10,20"/><line x1="32" y1="4" x2="32" y2="60"/><line x1="10" y1="20" x2="54" y2="44"/><line x1="54" y1="20" x2="10" y2="44"/><polygon points="32,16 42,28 32,36 22,28" fill="none"/></svg>`,
 	12: `<svg ${SVG_ATTR}><polygon points="32,5 48,12 58,26 55,42 42,55 22,55 9,42 6,26 16,12"/><polygon points="32,18 42,24 42,36 32,42 22,36 22,24"/></svg>`,
 	20: `<svg ${SVG_ATTR}><polygon points="32,4 56,18 56,46 32,60 8,46 8,18"/><polygon points="32,14 46,22 46,38 32,46 18,38 18,22"/><line x1="32" y1="4" x2="32" y2="14"/><line x1="56" y1="18" x2="46" y2="22"/><line x1="56" y1="46" x2="46" y2="38"/><line x1="32" y1="60" x2="32" y2="46"/><line x1="8" y1="46" x2="18" y2="38"/><line x1="8" y1="18" x2="18" y2="22"/></svg>`,
-	100: `<svg ${SVG_ATTR}><ellipse cx="32" cy="34" rx="24" ry="18"/><ellipse cx="32" cy="34" rx="12" ry="18"/><path d="M14 26c6-4 30-4 36 0"/><path d="M14 42c6 4 30 4 36 0"/><text x="32" y="16" text-anchor="middle" fill="currentColor" stroke="none" font-size="11" font-family="system-ui,sans-serif" font-weight="700">00</text></svg>`,
+	100: `<svg ${SVG_ATTR}><ellipse cx="32" cy="34" rx="24" ry="18"/><ellipse cx="32" cy="34" rx="12" ry="18"/><path d="M14 26c6-4 30-4 36 0"/><path d="M14 42c6 4 30 4 36 0"/><ellipse cx="27.2" cy="10.5" rx="3.1" ry="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/><ellipse cx="35.4" cy="10.5" rx="3.1" ry="4.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`,
 };
 
 export const DIE_FACES = [4, 6, 8, 10, 12, 20, 100];

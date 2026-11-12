@@ -269,7 +269,7 @@ export class FiveEToolsLibraryView extends ItemView {
 		button.setAttr("aria-expanded", collapsed ? "false" : "true");
 		button.setAttr("title", action);
 		button.setAttr("aria-label", action);
-		button.setText(collapsed ? "›" : "‹");
+		setIcon(button, collapsed ? "chevron-right" : "chevron-left");
 	}
 
 	focusGlobalSearch () {

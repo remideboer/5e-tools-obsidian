@@ -1,4 +1,4 @@
-import {MarkdownRenderer, Notice, Platform} from "obsidian";
+import {MarkdownRenderer, Notice, Platform, setIcon} from "obsidian";
 import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, rosterName, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
 import {renderCharacterCreator} from "./character-creator-view.js";
 import {openManageSpells} from "./character-spell-modal.js";
@@ -147,7 +147,7 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {edit
 		fold.setAttr("aria-expanded", open ? "true" : "false");
 		fold.setAttr("title", action);
 		fold.setAttr("aria-label", action);
-		fold.setText(open ? "▴" : "▾");
+		setIcon(fold, open ? "chevron-up" : "chevron-down");
 	};
 	paintFold(identityIsOpen(characterId));
 	fold?.addEventListener("click", (evt) => {
