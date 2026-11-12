@@ -63,6 +63,7 @@ export const LIBRARY_NAV = [
 			{id: "table", label: "Table", tool: "table"},
 			{id: "map", label: "Map", tool: "map"},
 			{id: "dice", label: "Dice roller", tool: "dice"},
+			{id: "sounds", label: "Sounds", tool: "sounds"},
 			{id: "dpr", label: "DPR", tool: "dpr"},
 			{id: "homebrew", label: "Homebrew", tool: "homebrew"},
 			{id: "loot", label: "Loot Generator", tool: "loot"},

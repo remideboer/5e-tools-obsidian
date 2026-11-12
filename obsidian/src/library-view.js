@@ -15,6 +15,7 @@ import {
 } from "./library-row.js";
 import {ensureLootData, renderLootGenerator} from "./loot-view.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
+import {renderSoundTool, teardownSoundTool} from "./sound-view.js";
 import {bindTableImageMenu, renderTableTool} from "./table-view.js";
 import {renderRollTablesTool} from "./roll-tables/roll-tables-view.js";
 import {renderEncounterComposer} from "./encounter-view.js";
@@ -514,6 +515,13 @@ export class FiveEToolsLibraryView extends ItemView {
 			teardownMapView(this.plugin);
 			this.readerEl?.removeClass("fiveetools-map-stage");
 		}
+		if (item?.tool !== "sounds") {
+			teardownSoundTool();
+			if (this.readerEl?.hasClass("fiveetools-sound-reader")) {
+				this.readerEl.empty();
+				this.readerEl.removeClass("fiveetools-sound-reader");
+			}
+		}
 		this.paintSortToolbar();
 		if (globalTerm.length >= 2) {
 			this.searchRowEl.style.display = "none";
@@ -541,6 +549,14 @@ export class FiveEToolsLibraryView extends ItemView {
 				session,
 				onSessionChange: (next) => { this.plugin._diceSession = next; },
 			});
+			this.docs = [];
+			return;
+		}
+
+		if (item?.tool === "sounds") {
+			this.searchRowEl.style.display = "none";
+			if (this.filterEl) this.filterEl.style.display = "none";
+			renderSoundTool(this.listEl, this.readerEl, {plugin: this.plugin});
 			this.docs = [];
 			return;
 		}
@@ -994,6 +1010,7 @@ function clearListToolClasses (el) {
 	el?.classList.remove(
 		"fiveetools-loot",
 		"fiveetools-dice-roller",
+		"fiveetools-sound",
 		"fiveetools-rolltables",
 		"fiveetools-encounter",
 		"fiveetools-dpr",

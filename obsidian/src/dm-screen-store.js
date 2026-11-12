@@ -98,7 +98,7 @@ function normalizeColumn (raw) {
 	};
 }
 
-const PANEL_TYPES = new Set(["entity", "corpus", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "refTable", "initiative", "players", "time", "dice", "rollHistory"]);
+const PANEL_TYPES = new Set(["entity", "corpus", "counter", "campaignNote", "note", "encounter", "reference", "rollTable", "refTable", "initiative", "players", "time", "dice", "rollHistory", "sound"]);
 const REFERENCE_IDS = new Set(["conditions", "cover", "exhaustion", "concentration"]);
 
 function normalizePanel (raw) {
@@ -185,6 +185,7 @@ function defaultTitle (type, doc, ref) {
 	if (type === "players") return "Players";
 	if (type === "time") return "Time";
 	if (type === "dice") return "Dice";
+	if (type === "sound") return "Sound";
 	if (type === "rollHistory") return "Roll history";
 	if (type === "reference") return ref ? ref.charAt(0).toUpperCase() + ref.slice(1) : "Reference";
 	if (type === "rollTable") return "Roll table";

@@ -13,6 +13,7 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 	display () {
 		const {containerEl} = this;
 		containerEl.empty();
+		containerEl.addClass("fiveetools-settings");
 		containerEl.createEl("h2", {text: "5etools"});
 
 		new Setting(containerEl)

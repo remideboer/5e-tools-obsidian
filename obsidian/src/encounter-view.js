@@ -21,6 +21,7 @@ import {
 	setEncounterInstance,
 	upsertSavedEncounter,
 } from "./encounter-store.js";
+import {getSoundLibrary, loadSoundLibrary, setActivePlaylist} from "./sound-store.js";
 import {returnRolledToList, syncTableFromRoll} from "./table-session.js";
 import {encounterDifficulty, normalizeParty} from "./encounter-difficulty.js";
 import {
@@ -432,6 +433,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 	let initOrderBaseline = Array.isArray(session?.initOrderBaseline)
 		? session.initOrderBaseline.map(String)
 		: null;
+	let playlistId = session?.playlistId || null;
 	let composerCollapsed = !!session?.composerCollapsed;
 	bumpIdCounter(combatants);
 
@@ -463,6 +465,24 @@ export function renderEncounterComposer (formEl, resultEl, {
 	const nameEl = nameRow.createEl("input", {
 		cls: "fiveetools-encounter__name",
 		attr: {type: "text", placeholder: "Encounter name", value: name},
+	});
+	const soundRow = composerEl.createDiv({cls: "fiveetools-encounter__row"});
+	const soundSel = soundRow.createEl("select", {
+		cls: "fiveetools-encounter__sounds",
+		attr: {title: "Playlist for this encounter"},
+	});
+	const paintSoundOptions = () => {
+		const current = playlistId || "";
+		soundSel.empty();
+		soundSel.createEl("option", {attr: {value: ""}, text: "No sounds"});
+		for (const list of getSoundLibrary().playlists) {
+			soundSel.createEl("option", {attr: {value: list.id}, text: list.name});
+		}
+		soundSel.value = current;
+	};
+	paintSoundOptions();
+	void loadSoundLibrary(plugin).then(() => {
+		if (soundSel.isConnected) paintSoundOptions();
 	});
 	const savesEl = composerEl.createDiv({cls: "fiveetools-encounter__saves"});
 	const saveActions = composerEl.createDiv({cls: "fiveetools-encounter__row"});
@@ -549,6 +569,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 			blankDraft: normalizeMonsterForm(blankDraft),
 			saveToHomebrew,
 			initOrderBaseline: initOrderBaseline ? [...initOrderBaseline] : null,
+			playlistId,
 			composerCollapsed,
 		};
 		onSessionChange?.(next);
@@ -567,9 +588,26 @@ export function renderEncounterComposer (formEl, resultEl, {
 			selectedId,
 			party,
 			initOrderBaseline,
+			playlistId,
 		});
 		void saveSavedEncounter(plugin, written);
 	};
+
+	soundSel.addEventListener("change", () => {
+		playlistId = soundSel.value || null;
+		emit();
+		persistNamed();
+		if (!playlistId) return;
+		const linked = playlistId;
+		void loadSoundLibrary(plugin).then(() => {
+			if (playlistId === linked) setActivePlaylist(plugin, linked);
+		});
+	});
+	soundSel.addEventListener("focus", () => {
+		void loadSoundLibrary(plugin).then(() => {
+			if (soundSel.isConnected) paintSoundOptions();
+		});
+	});
 
 	const paintDifficulty = () => {
 		const info = encounterDifficulty({combatants, party});
@@ -863,6 +901,14 @@ export function renderEncounterComposer (formEl, resultEl, {
 		initOrderBaseline = Array.isArray(saved.initOrderBaseline)
 			? saved.initOrderBaseline.map(String)
 			: null;
+		playlistId = saved.playlistId || null;
+		paintSoundOptions();
+		if (playlistId) {
+			const linked = playlistId;
+			void loadSoundLibrary(plugin).then(() => {
+				if (playlistId === linked) setActivePlaylist(plugin, linked);
+			});
+		}
 		nameEl.value = name;
 		playersEl.value = String(party.count);
 		levelEl.value = String(party.level);
@@ -1053,6 +1099,8 @@ export function renderEncounterComposer (formEl, resultEl, {
 		blankDraft = emptyForm("monster");
 		saveToHomebrew = false;
 		initOrderBaseline = null;
+		playlistId = null;
+		paintSoundOptions();
 		cancelBlankPreview();
 		nameEl.value = "";
 		emit();
@@ -1071,6 +1119,7 @@ export function renderEncounterComposer (formEl, resultEl, {
 				selectedId,
 				party,
 				initOrderBaseline,
+				playlistId,
 			});
 			await saveSavedEncounter(plugin, saved);
 			savedId = saved.id;

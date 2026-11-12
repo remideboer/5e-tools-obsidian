@@ -16,6 +16,7 @@ import {registerFiveETagPostProcessor} from "./src/fivee-tag.js";
 import {FiveEToolsMapPlayerView, teardownMapView, toggleMapPlayerZoomFreeze} from "./src/map-view.js";
 import {FiveEToolsTableView} from "./src/table-view.js";
 import {registerHeicImport} from "./src/heic-import.js";
+import {installInputClears} from "./src/search-field.js";
 
 export default class FiveEToolsPlugin extends Plugin {
 	async onload () {
@@ -30,6 +31,7 @@ export default class FiveEToolsPlugin extends Plugin {
 		setStyleHint(this.settings.style);
 		registerFiveEToolsIcon();
 		registerHeicImport(this);
+		this.register(installInputClears());
 
 		this.registerView(
 			VIEW_TYPE_FIVEETOOLS,

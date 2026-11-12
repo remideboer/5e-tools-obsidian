@@ -20,6 +20,7 @@ export function emptyInstance () {
 		blankDraft: null,
 		saveToHomebrew: false,
 		initOrderBaseline: null,
+		playlistId: null,
 	};
 }
 
@@ -170,7 +171,7 @@ export function getSavedEncounter (id) {
 	return hit ? copyJson(hit) : null;
 }
 
-export function upsertSavedEncounter ({id, name, combatants, selectedId, party, initOrderBaseline} = {}) {
+export function upsertSavedEncounter ({id, name, combatants, selectedId, party, initOrderBaseline, playlistId} = {}) {
 	const trimmed = String(name || "").trim();
 	if (!trimmed) throw new Error("Name is required.");
 	const catalog = normalizeCatalog(catalogJson);
@@ -186,6 +187,9 @@ export function upsertSavedEncounter ({id, name, combatants, selectedId, party, 
 		party: normalizeParty(party),
 		combatants: cloneCombatants(combatants),
 		initOrderBaseline: Array.isArray(initOrderBaseline) ? initOrderBaseline.map(String) : null,
+		playlistId: playlistId !== undefined
+			? (String(playlistId || "").trim() || null)
+			: (ix >= 0 ? catalog.encounters[ix].playlistId || null : null),
 	};
 	if (ix >= 0) catalog.encounters[ix] = saved;
 	else catalog.encounters.push(saved);
@@ -229,6 +233,7 @@ function normalizeEncounter (raw) {
 		party: normalizeParty(raw.party),
 		combatants: cloneCombatants(raw.combatants),
 		initOrderBaseline: Array.isArray(raw.initOrderBaseline) ? raw.initOrderBaseline.map(String) : null,
+		playlistId: String(raw.playlistId || "").trim() || null,
 	};
 }
 
@@ -245,6 +250,7 @@ function normalizeInstance (raw) {
 		blankDraft: raw.blankDraft ? copyJson(raw.blankDraft) : null,
 		saveToHomebrew: !!raw.saveToHomebrew,
 		initOrderBaseline: Array.isArray(raw.initOrderBaseline) ? raw.initOrderBaseline.map(String) : null,
+		playlistId: String(raw.playlistId || "").trim() || null,
 	};
 }
 

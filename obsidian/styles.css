@@ -47,6 +47,54 @@
 	display: none;
 }
 
+.fiveetools-clearable {
+	position: relative;
+	display: inline-block;
+	max-width: 100%;
+	vertical-align: middle;
+	box-sizing: border-box;
+}
+
+.fiveetools-clearable > input,
+.fiveetools-clearable > textarea {
+	box-sizing: border-box;
+	padding-right: 1.35em;
+}
+
+.fiveetools-clearable > input[type="search"]::-webkit-search-cancel-button,
+.fiveetools-clearable > input[type="search"]::-webkit-search-decoration {
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.fiveetools-input-clear {
+	position: absolute;
+	right: 2px;
+	top: 50%;
+	transform: translateY(-50%);
+	z-index: 2;
+	padding: 0 4px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small, 0.85rem);
+	line-height: 1;
+	cursor: pointer;
+}
+
+.fiveetools-clearable:has(textarea) .fiveetools-input-clear {
+	top: 6px;
+	transform: none;
+}
+
+.fiveetools-input-clear:hover {
+	color: var(--text-normal);
+}
+
+.fiveetools-input-clear.is-hidden {
+	display: none;
+}
+
 body.fiveetools-token-dragging .modal-container {
 	pointer-events: none;
 }
@@ -5859,4 +5907,108 @@ body.fiveetools-map-player-window .mod-top-right-space {
 	font-size: 12px;
 	cursor: pointer;
 	user-select: none;
+}
+
+.fiveetools-sound {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
+	padding: 4px 2px 16px;
+}
+
+.fiveetools-sound__clips {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+}
+
+.fiveetools-sound__volume {
+	width: 100%;
+}
+
+.fiveetools-sound__row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.fiveetools-sound__grow {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.fiveetools-sound__clip,
+.fiveetools-sound__track,
+.fiveetools-sound__file {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 6px;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.fiveetools-sound__clip:hover,
+.fiveetools-sound__track:hover,
+.fiveetools-sound__file:hover,
+.fiveetools-sound__clip.is-selected,
+.fiveetools-sound__track.is-selected,
+.fiveetools-sound__file.is-selected {
+	background: var(--background-modifier-hover);
+}
+
+.fiveetools-sound__name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.fiveetools-sound__kind,
+.fiveetools-sound__tag {
+	flex: 0 0 auto;
+	color: var(--text-muted);
+	font-size: 11px;
+}
+
+.fiveetools-sound__icon {
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	line-height: 20px;
+}
+
+.fiveetools-sound-widget {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.fiveetools-sound-widget__row,
+.fiveetools-sound-widget .fiveetools-sound__row {
+	flex-wrap: wrap;
+}
+
+.fiveetools-sound-widget input[type="range"] {
+	width: 100%;
+}
+
+.fiveetools-sound-widget__effects {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.fiveetools-sound-widget__effects .fiveetools-btn {
+	max-width: 100%;
+}
+
+.fiveetools-encounter__sounds {
+	flex: 1 1 auto;
+	min-width: 0;
 }

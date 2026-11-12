@@ -6,6 +6,8 @@ import {CONDITIONS} from "./creature-form.js";
 import {appendCreatureStatFooter} from "./creature-stat-footer.js";
 import {appendTextWithDiceRollers, bindDiceRollers} from "./dice-roll.js";
 import {emptyDiceSession, renderDiceRoller} from "./dice-roller-view.js";
+import {renderSoundWidget} from "./sound-view.js";
+import {loadSoundLibrary, setActivePlaylist, getSoundLibrary} from "./sound-store.js";
 import {renderRollHistoryWidget} from "./roll-history.js";
 import {getBundledScreenTable, listBundledScreenTables} from "./roll-tables/bundled-screen-tables.js";
 import {listRollTables, readRollTableNote} from "./roll-tables/roll-table-store.js";
@@ -302,6 +304,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		cls: "fiveetools-btn fiveetools-btn--ghost",
 		attr: {type: "button", title: "Add the dice roller"},
 	});
+	const addSoundBtn = bar.createEl("button", {
+		text: "Sound",
+		cls: "fiveetools-btn fiveetools-btn--ghost",
+		attr: {type: "button", title: "Add the sound player"},
+	});
 	const addRollHistBtn = bar.createEl("button", {
 		text: "Roll log",
 		cls: "fiveetools-btn fiveetools-btn--ghost",
@@ -325,6 +332,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		addPlayersBtn.toggleAttribute("disabled", items().some(panel => panel.type === "players"));
 		addTimeBtn.toggleAttribute("disabled", items().some(panel => panel.type === "time"));
 		addDiceBtn.toggleAttribute("disabled", items().some(panel => panel.type === "dice"));
+		addSoundBtn.toggleAttribute("disabled", items().some(panel => panel.type === "sound"));
 		addRollHistBtn.toggleAttribute("disabled", items().some(panel => panel.type === "rollHistory"));
 	};
 
@@ -787,6 +795,10 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		if (items().some(panel => panel.type === "dice")) return;
 		addColumn(blankPanel("dice", "Dice"));
 	});
+	addSoundBtn.addEventListener("click", () => {
+		if (items().some(panel => panel.type === "sound")) return;
+		addColumn(blankPanel("sound", "Sound"));
+	});
 	addRollHistBtn.addEventListener("click", () => {
 		if (items().some(panel => panel.type === "rollHistory")) return;
 		addColumn(blankPanel("rollHistory", "Roll history"));
@@ -885,7 +897,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 				}
 				onOpenEncounter?.();
 			});
-		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "refTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice" || panel.type === "rollHistory") {
+		} else if (panel.type === "entity" || panel.type === "campaignNote" || panel.type === "reference" || panel.type === "rollTable" || panel.type === "refTable" || panel.type === "initiative" || panel.type === "time" || panel.type === "dice" || panel.type === "sound" || panel.type === "rollHistory") {
 			head.createEl("div", {cls: "fiveetools-dmscreen__title", text: panel.title || panel.doc?.n || "Entry"});
 		} else {
 			const title = head.createEl("input", {
@@ -928,6 +940,7 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 		else if (panel.type === "players") void paintPlayers(body, panel);
 		else if (panel.type === "time") paintTime(body, panel);
 		else if (panel.type === "dice") paintDice(body, panel);
+		else if (panel.type === "sound") renderSoundWidget(body, {plugin});
 		else if (panel.type === "rollHistory") paintRollHistory(body);
 		else if (panel.type === "initiative") {
 			body.addClass("fiveetools-dmscreen__init");
@@ -1404,6 +1417,11 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			attr: {title: "Add a saved encounter"},
 		});
 		savedSel.createEl("option", {attr: {value: ""}, text: "Saved encounter"});
+		const soundsBtn = tools.createEl("button", {
+			text: "Sounds",
+			cls: "fiveetools-btn fiveetools-btn--ghost",
+			attr: {type: "button", title: "Load this encounter's playlist into Sound"},
+		});
 		const hits = body.createDiv({cls: "fiveetools-dmscreen__enchits"});
 		const roster = body.createDiv({cls: "fiveetools-dmscreen__encroster"});
 		let hitDocs = [];
@@ -1559,18 +1577,36 @@ export function renderDmScreen (listEl, readerEl, {plugin, board, onBoardChange,
 			void addCreature(hitDocs[hitIndex]);
 		});
 
+		let linkedPlaylistId = session?.playlistId || null;
 		savedSel.addEventListener("change", () => {
 			const id = savedSel.value;
 			savedSel.value = "";
 			if (!id) return;
 			const saved = getSavedEncounter(id);
-			if (!saved?.combatants?.length) {
+			if (!saved) return;
+			linkedPlaylistId = saved.playlistId || null;
+			session = {...session, savedId: saved.id, playlistId: linkedPlaylistId};
+			if (!saved.combatants?.length) {
+				commitEncounter(session);
 				new Notice("That encounter has no creatures.");
 				return;
 			}
 			session = appendSavedCombatants(session, saved);
+			session = {...session, savedId: saved.id, playlistId: linkedPlaylistId};
 			commitEncounter(session);
 			paintRoster();
+		});
+		soundsBtn.addEventListener("click", () => {
+			const id = linkedPlaylistId || session?.playlistId;
+			if (!id) {
+				new Notice("This encounter has no playlist.");
+				return;
+			}
+			void loadSoundLibrary(plugin).then(() => {
+				setActivePlaylist(plugin, id);
+				if (getSoundLibrary().activePlaylistId === id) new Notice("Playlist ready. Press play on Sound.");
+				else new Notice("That playlist is not in Sounds.");
+			});
 		});
 		void loadEncountersFromVault(plugin).then(() => {
 			if (!savedSel.isConnected) return;
