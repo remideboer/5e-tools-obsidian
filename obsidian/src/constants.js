@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS = {
 	convertHeicOnPaste: true,
 	focusListOnNav: true,
 	dmScreenOnStart: true,
+	dmScreenShortcut: {ctrl: true, shift: false, alt: false, meta: false, key: "d"},
+	tableShortcut: {ctrl: true, shift: true, alt: false, meta: false, key: "d"},
 	tableInitBackground: "#000000",
 	tableInitText: "#ffffff",
 	fulltextSearch: false,

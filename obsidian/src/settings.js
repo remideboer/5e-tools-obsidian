@@ -3,11 +3,16 @@ import {DEFAULT_SETTINGS} from "./constants.js";
 import {setStyleHint} from "./fiveetools-host.js";
 import {clearMediaCache} from "./media-cache.js";
 import {refreshTable} from "./table-session.js";
+import {addShortcutSetting} from "./shortcuts.js";
 
 export class FiveEToolsSettingTab extends PluginSettingTab {
 	constructor (app, plugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	hide () {
+		this.plugin._stopShortcutCapture?.();
 	}
 
 	display () {
@@ -113,6 +118,19 @@ export class FiveEToolsSettingTab extends PluginSettingTab {
 					this.plugin.settings.dmScreenOnStart = !!value;
 					await this.plugin.saveSettings();
 				}));
+
+		addShortcutSetting(containerEl, this.plugin, {
+			name: "DM screen shortcut",
+			desc: "Opens the DM screen. Click, then press the keys. Backspace clears it.",
+			settingKey: "dmScreenShortcut",
+			otherKey: "tableShortcut",
+		});
+		addShortcutSetting(containerEl, this.plugin, {
+			name: "Table shortcut",
+			desc: "Opens Table. Click, then press the keys. Backspace clears it.",
+			settingKey: "tableShortcut",
+			otherKey: "dmScreenShortcut",
+		});
 
 		new Setting(containerEl)
 			.setName("Focus the list after choosing a section")

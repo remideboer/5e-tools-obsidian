@@ -17,6 +17,7 @@ import {FiveEToolsMapPlayerView, teardownMapView, toggleMapPlayerZoomFreeze} fro
 import {FiveEToolsTableView} from "./src/table-view.js";
 import {registerHeicImport} from "./src/heic-import.js";
 import {installInputClears} from "./src/search-field.js";
+import {sameShortcut, shortcutFromEvent} from "./src/shortcuts.js";
 
 export default class FiveEToolsPlugin extends Plugin {
 	async onload () {
@@ -55,6 +56,17 @@ export default class FiveEToolsPlugin extends Plugin {
 			name: "Open library",
 			callback: () => this.openLibrary(),
 		});
+		this.addCommand({
+			id: "open-dm-screen",
+			name: "Open DM screen",
+			callback: () => this.openLibrarySection("dmscreen"),
+		});
+		this.addCommand({
+			id: "open-table",
+			name: "Open Table",
+			callback: () => this.openLibrarySection("table"),
+		});
+		this.registerDomEvent(window, "keydown", (evt) => this.onAppShortcut(evt), {capture: true});
 		this.addCommand({
 			id: "search",
 			name: "Search",
@@ -121,6 +133,43 @@ export default class FiveEToolsPlugin extends Plugin {
 		const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_LIBRARY)[0];
 		const view = leaf?.view;
 		if (view instanceof FiveEToolsLibraryView) view.focusGlobalSearch();
+	}
+
+	onAppShortcut (evt) {
+		if (evt.repeat) return;
+		const pressed = shortcutFromEvent(evt);
+		if (!pressed) return;
+		if (this._capturingShortcut) {
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+			const take = this._capturingShortcut;
+			this._capturingShortcut = null;
+			void take(pressed);
+			return;
+		}
+		const table = this.settings.tableShortcut;
+		const dm = this.settings.dmScreenShortcut;
+		if (sameShortcut(pressed, table)) {
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+			void this.openLibrarySection("table");
+			return;
+		}
+		if (sameShortcut(pressed, dm)) {
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+			void this.openLibrarySection("dmscreen");
+		}
+	}
+
+	async openLibrarySection (navId) {
+		const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_FIVEETOOLS_LIBRARY)[0];
+		const view = leaf?.view;
+		if (view instanceof FiveEToolsLibraryView && view.navId === navId) {
+			this.app.workspace.revealLeaf(leaf);
+			return;
+		}
+		await this.openLibrary({navId});
 	}
 
 	async openLibrary (opts = {}) {

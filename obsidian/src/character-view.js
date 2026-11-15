@@ -216,29 +216,28 @@ function paintAbilityColumn (col, snapshot) {
 	paintLabeledList(col, "Proficiencies", snapshot.proficiencies);
 }
 
-async function paintSpellColumn (col, plugin, record, edition, {editing = false, onRecordChange} = {}) {
+async function paintSpellColumn (col, plugin, record, edition, {onRecordChange} = {}) {
 	const spells = (record.snapshot?.refs || []).filter(ref => ref.kind === "spell");
 	paintSlots(col, plugin, record);
 	paintSpellcasting(col, record.snapshot?.spellcasting);
-	if (editing) {
-		const profile = await loadCasterProfile(plugin, record).catch(() => null);
-		if (profile || spells.length) {
-			const manage = col.createEl("button", {
-				text: "Manage Spells",
-				cls: "fiveetools-btn",
-				attr: {type: "button"},
+	const profile = await loadCasterProfile(plugin, record).catch(() => null);
+	const canManage = !!(profile || spells.length);
+	if (canManage) {
+		const manage = col.createEl("button", {
+			text: "Manage Spells",
+			cls: "fiveetools-btn",
+			attr: {type: "button"},
+		});
+		manage.addEventListener("click", () => {
+			void openManageSpells(plugin, record, async () => {
+				const id = String(record.fields?.ddb_id || "");
+				const fresh = id ? await readCharacter(plugin, id) : null;
+				onRecordChange?.(fresh || record);
 			});
-			manage.addEventListener("click", () => {
-				void openManageSpells(plugin, record, async () => {
-					const id = String(record.fields?.ddb_id || "");
-					const fresh = id ? await readCharacter(plugin, id) : null;
-					onRecordChange?.(fresh || record);
-				});
-			});
-		}
+		});
 	}
 	if (!spells.length) {
-		if (editing) col.createEl("p", {cls: "fiveetools-view__meta", text: "No spells yet. Use Manage Spells to add some."});
+		if (canManage) col.createEl("p", {cls: "fiveetools-view__meta", text: "No spells yet. Use Manage Spells to add some."});
 		return;
 	}
 	const play = playState(record);

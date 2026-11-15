@@ -6,7 +6,7 @@ The plugin is mostly **ESM functions**, not a class hierarchy. Views subclass Ob
 
 | Symbol | File | Role |
 |--------|------|------|
-| `FiveEToolsPlugin` | `obsidian/main.js` | Lifecycle, settings, `ensureReady`, open library |
+| `FiveEToolsPlugin` | `obsidian/main.js` | Lifecycle, settings, `ensureReady`, open library. Plugin settings hold the DM screen and Table shortcuts (default Ctrl+D and Ctrl+Shift+D). |
 | `FiveEToolsLibraryView` | `library-view.js` | Main UI: nav, list, tools (map, loot, …). Opens on the DM screen unless that setting is off, which restores the last section. |
 | `FiveEToolsView` | `entity-view.js` | Entity preview leaf |
 | `FiveEToolsMapPlayerView` | `map-view.js` | Player popout; owns `frame` canvas |
@@ -83,7 +83,7 @@ flowchart TB
 |------|-----------|
 | Campaigns | `campaign-view.js`, `campaign-store.js`, `campaign-editor.js` |
 | Notes | `notes-view.js`, `quick-note-store.js` — Tools → Notes lists `{notesFolder}/notes/`; nav **+** (under Search) creates Untitled and switches into Notes with the embedded editor (`campaign-editor.js`); also reachable from library Search and DM Entry/note hits |
-| Characters | `character-view.js`, `character-store.js`, `ddb-import.js`, `character-creator-*.js`, `character-spells.js`, `character-spell-modal.js` (D&D Beyond/PDF import; level-1 2024 Create wizard; Edit mode for local name + Manage Spells with 2024 cantrip/prepared/known caps; cards in `{notesFolder}/_characters/{id}.md`; `local-…` ids; `snapshot.play` display name for initiative; campaigns link with `character: id`) |
+| Characters | `character-view.js`, `character-store.js`, `ddb-import.js`, `character-creator-*.js`, `character-spells.js`, `character-spell-modal.js` (D&D Beyond/PDF import; level-1 2024 Create wizard; Edit mode for the local name; Manage Spells sits in the Spells column with 2024 cantrip/prepared/known caps; cards in `{notesFolder}/_characters/{id}.md`; `local-…` ids; `snapshot.play` display name for initiative; campaigns link with `character: id`) |
 | Encounters | `encounter-view.js`, `encounter-store.js`, `encounter-difficulty.js`, `encounter-random.js` (Random encounter; roster kind groups + shared initiative / roll-all / reset order; a scaled or edited group stores that stat block on its copies; each saved encounter is `{notesFolder}/_encounters/{id}.json`, composer state `_instance.json`; a saved encounter may store `playlistId`, and loading it in the composer sets the Sounds playlist without pressing play; [ADR 0010](adr/0010-per-entity-homebrew.md), [ADR 0012](adr/0012-sound-library.md)) |
 | Encounter size | `encounter-size.js`, `encounter-size-view.js` (level-by-CR monster counts from the XP budget; attack actions set the classic multiplier; Players first discounts the attacks the party spends first) |
 | DPR | `dpr-view.js`, `dpr-calc.js` (expected damage charts; spell and attack checkboxes) |
