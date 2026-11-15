@@ -8,6 +8,7 @@ import {cachedMediaSrc} from "./media-cache.js";
 import {enrichCreatureSpellcasting} from "./spell-roll-enrich.js";
 
 const SHOW_DELAY = 350;
+const NESTED_SHOW_DELAY = 700;
 const HIDE_DELAY = 150;
 const HOLD_MS = 450;
 
@@ -56,6 +57,10 @@ function ensureBound (el, plugin, getDoc) {
 	});
 	el.addEventListener("mouseleave", (leaveEvt) => {
 		if (el.contains(leaveEvt.relatedTarget)) return;
+		if (showTimer && anchor === el) {
+			window.clearTimeout(showTimer);
+			showTimer = null;
+		}
 		scheduleHide(el);
 	});
 }
@@ -148,13 +153,15 @@ function readTarget (getDoc) {
 }
 
 function scheduleShow (el, plugin, doc, x, y, ent) {
+	const nested = !!(card && card.contains(el));
+	if (showTimer && anchor === el) return;
 	clearTimers();
 	anchor = el;
 	const id = ++token;
 	showTimer = window.setTimeout(() => {
 		showTimer = null;
 		void showCard(id, plugin, doc, x, y, ent);
-	}, SHOW_DELAY);
+	}, nested ? NESTED_SHOW_DELAY : SHOW_DELAY);
 }
 
 function scheduleHide (el) {
@@ -198,6 +205,7 @@ async function showCard (id, plugin, doc, x, y, ent) {
 	if (id !== token) return;
 	const images = isBestiary(creature, doc) ? await hoverImages(plugin, creature) : [];
 	if (id !== token) return;
+	const stay = card && anchor && card.contains(anchor) ? cardOrigin(card) : null;
 	card?.remove();
 	const docEl = anchor?.ownerDocument || document;
 	const panel = docEl.createElement("div");
@@ -225,7 +233,7 @@ async function showCard (id, plugin, doc, x, y, ent) {
 		closeCard();
 	}, true);
 	docEl.body.appendChild(panel);
-	placeCard(panel, x, y);
+	placeCard(panel, x, y, stay);
 	panel.addEventListener("mouseenter", () => {
 		if (hideTimer) {
 			window.clearTimeout(hideTimer);
@@ -253,16 +261,26 @@ async function hoverImages (plugin, ent) {
 	}
 }
 
-function placeCard (panel, x, y) {
+function cardOrigin (panel) {
+	const rect = panel.getBoundingClientRect();
+	return {left: rect.left, top: rect.top};
+}
+
+function placeCard (panel, x, y, origin) {
 	const margin = 12;
 	const win = panel.ownerDocument.defaultView || window;
 	panel.style.left = "0px";
 	panel.style.top = "0px";
 	const rect = panel.getBoundingClientRect();
-	let left = x + 16;
-	let top = y + 16;
-	if (left + rect.width > win.innerWidth - margin) left = Math.max(margin, x - rect.width - 16);
-	if (top + rect.height > win.innerHeight - margin) top = Math.max(margin, win.innerHeight - rect.height - margin);
+	let left = origin ? origin.left : x + 16;
+	let top = origin ? origin.top : y + 16;
+	if (origin) {
+		if (left + rect.width > win.innerWidth - margin) left = Math.max(margin, win.innerWidth - rect.width - margin);
+		if (top + rect.height > win.innerHeight - margin) top = Math.max(margin, win.innerHeight - rect.height - margin);
+	} else {
+		if (left + rect.width > win.innerWidth - margin) left = Math.max(margin, x - rect.width - 16);
+		if (top + rect.height > win.innerHeight - margin) top = Math.max(margin, win.innerHeight - rect.height - margin);
+	}
 	panel.style.left = `${left}px`;
 	panel.style.top = `${top}px`;
 }
