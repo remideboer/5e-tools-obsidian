@@ -59,6 +59,45 @@ export function exactTitlePath (vault, folder, title, excludePath = "") {
 	return {path, title: base};
 }
 
+export function characterNotesFileName (name) {
+	const slug = String(name || "")
+		.trim()
+		.replace(/[\\/:*?"<>|#]/g, "")
+		.replace(/\s+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		|| "Character";
+	return `${slug}-notes.md`;
+}
+
+export function characterNotesPath (plugin, name) {
+	return `${quickNotesFolder(plugin)}/${characterNotesFileName(name)}`;
+}
+
+export async function readCharacterNotes (plugin, name) {
+	const vault = plugin?.app?.vault;
+	if (!vault) return "";
+	const file = vault.getAbstractFileByPath(characterNotesPath(plugin, name));
+	if (!file || file.children) return "";
+	return vault.read(file);
+}
+
+export async function writeCharacterNotes (plugin, name, text) {
+	const vault = plugin?.app?.vault;
+	if (!vault) throw new Error("Vault is unavailable.");
+	const folder = quickNotesFolder(plugin);
+	await ensureFolder(plugin.app, folder);
+	const path = `${folder}/${characterNotesFileName(name)}`;
+	const body = String(text ?? "");
+	const file = vault.getAbstractFileByPath(path);
+	if (file && !file.children) {
+		if (await vault.read(file) === body) return file;
+		await vault.modify(file, body);
+		return file;
+	}
+	return vault.create(path, body);
+}
+
 function withHeading (text, title) {
 	const body = String(text || "");
 	if (/^#\s+.+/m.test(body)) return body.replace(/^#\s+.+/m, `# ${title}`);

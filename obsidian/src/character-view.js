@@ -13,6 +13,7 @@ import {paintPackedLibraryRow} from "./library-row.js";
 import {attachHoverCard} from "./hover-card.js";
 import {getSpellMeta} from "./spell-meta.js";
 import {renameTableCharacter} from "./table-view.js";
+import {readCharacterNotes, writeCharacterNotes} from "./quick-note-store.js";
 import {spellDamageLine} from "./spell-damage-line.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
@@ -57,7 +58,7 @@ async function paintLinkedCard (host, plugin, record, {editing = false, onRecord
 	const headerHp = paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange, onSheetMenu});
 	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
 	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record, headerHp, {onRecordChange});
-	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
+	paintAbilityColumn(makeColumn(columns, "Abilities"), plugin, record);
 	await paintSpellColumn(makeColumn(columns, "Spells"), plugin, record, edition, {editing, onRecordChange});
 	if (snapshot.actions?.length) {
 		paintActions(makeColumn(columns, "Actions"), plugin, snapshot.actions, {
@@ -285,10 +286,52 @@ function paintCombatColumn (col, plugin, record, headerHp, {onRecordChange} = {}
 	paintXp(col, plugin, record);
 }
 
-function paintAbilityColumn (col, snapshot) {
+function paintAbilityColumn (col, plugin, record) {
+	const snapshot = record?.snapshot || {};
 	paintAbilities(col, snapshot.abilities, snapshot.rolls);
 	if (snapshot.rolls?.skills?.length) paintSkills(col, snapshot.rolls);
 	paintLabeledList(col, "Proficiencies", snapshot.proficiencies);
+	paintCharacterNotes(col, plugin, record);
+}
+
+function paintCharacterNotes (col, plugin, record) {
+	col.createEl("h3", {text: "Notes"});
+	const area = col.createEl("textarea", {
+		cls: "fiveetools-character-card__notes fiveetools-no-clear",
+		attr: {rows: "8"},
+	});
+	const name = characterName(record);
+	let minHeight = 0;
+	const fit = () => {
+		area.style.height = "auto";
+		if (!minHeight && area.scrollHeight) minHeight = area.scrollHeight;
+		area.style.height = `${Math.max(area.scrollHeight, minHeight)}px`;
+	};
+	fit();
+	let dirty = false;
+	let timer = 0;
+	const save = () => {
+		dirty = true;
+		void writeCharacterNotes(plugin, name, area.value).catch((e) => {
+			new Notice(e.message || "Could not save the notes.");
+		});
+	};
+	area.addEventListener("input", () => {
+		dirty = true;
+		fit();
+		window.clearTimeout(timer);
+		timer = window.setTimeout(save, 400);
+	});
+	area.addEventListener("blur", () => {
+		if (!dirty) return;
+		window.clearTimeout(timer);
+		save();
+	});
+	void readCharacterNotes(plugin, name).then((text) => {
+		if (!area.isConnected || dirty) return;
+		area.value = text || "";
+		fit();
+	}).catch(() => {});
 }
 
 async function paintSpellColumn (col, plugin, record, edition, {onRecordChange} = {}) {

@@ -805,6 +805,8 @@ a.fiveetools-inline-link {
 	display: flex;
 	flex-direction: column;
 	flex: 0 0 auto;
+	align-self: stretch;
+	width: 100%;
 	min-width: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-left: 3px solid var(--interactive-accent);
@@ -861,7 +863,9 @@ a.fiveetools-inline-link {
 
 .fiveetools-dmscreen__titleinput {
 	flex: 1 1 auto;
+	width: 100%;
 	min-width: 0;
+	box-sizing: border-box;
 	font: inherit;
 	font-weight: 600;
 	border: 0;
@@ -869,6 +873,13 @@ a.fiveetools-inline-link {
 	color: var(--text-normal);
 	padding: 0;
 	cursor: text;
+}
+
+.fiveetools-dmscreen__head > .fiveetools-clearable {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: auto;
+	max-width: none;
 }
 
 .fiveetools-dmscreen__remove {
@@ -1110,8 +1121,16 @@ a.fiveetools-inline-link {
 	margin-top: 0;
 }
 
-.fiveetools-dmscreen__note {
+.fiveetools-dmscreen__body > .fiveetools-clearable {
+	display: block;
 	width: 100%;
+	max-width: none;
+}
+
+.fiveetools-dmscreen__note {
+	display: block;
+	width: 100%;
+	max-width: none;
 	min-height: 0;
 	resize: none;
 	overflow: hidden;
@@ -1750,6 +1769,17 @@ body.is-mobile .fiveetools-character-card .fiveetools-library__row-sub {
 
 .fiveetools-character-card h2 {
 	margin-top: 0.2em;
+}
+
+.fiveetools-character-card__notes {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	resize: none;
+	overflow: hidden;
+	min-height: calc(8 * 1.4em);
 }
 
 .fiveetools-character-card__display {
