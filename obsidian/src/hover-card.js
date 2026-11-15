@@ -2,6 +2,7 @@ import {Platform} from "obsidian";
 import {loadEntity} from "./entity-loader.js";
 import {loadPageForDoc, renderCompactHtml} from "./compact-render.js";
 import {bindDiceRollers} from "./dice-roll.js";
+import {bindInternalLinks} from "./entity-reader.js";
 import {resolveEntityImages, toPreviewSrc} from "./image-resolver.js";
 import {cachedMediaSrc} from "./media-cache.js";
 import {enrichCreatureSpellcasting} from "./spell-roll-enrich.js";
@@ -215,6 +216,14 @@ async function showCard (id, plugin, doc, x, y, ent) {
 		panel.insertBefore(wrap, panel.firstChild);
 	}
 	bindDiceRollers(panel, plugin);
+	bindInternalLinks(panel, plugin);
+	panel.addEventListener("click", (evt) => {
+		const a = evt.target.closest?.("a, [data-vet-page]");
+		if (!a || !panel.contains(a)) return;
+		const href = a.getAttribute("href") || "";
+		if (/^https?:\/\//i.test(href) && !a.hasAttribute("data-vet-page")) return;
+		closeCard();
+	}, true);
 	docEl.body.appendChild(panel);
 	placeCard(panel, x, y);
 	panel.addEventListener("mouseenter", () => {
