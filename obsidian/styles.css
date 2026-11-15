@@ -1460,6 +1460,23 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	line-height: 1.35;
 }
 
+.fiveetools-character-card button.fiveetools-character-card__link,
+body.is-mobile .fiveetools-character-card button.fiveetools-character-card__link,
+.fiveetools-character-card .fiveetools-library__row,
+.fiveetools-character-card .fiveetools-library__row-name,
+.fiveetools-character-card .fiveetools-library__row-sub,
+.fiveetools-character-card .fiveetools-library__row-badge,
+body.is-mobile .fiveetools-character-card .fiveetools-library__row,
+body.is-mobile .fiveetools-character-card .fiveetools-library__row-name,
+body.is-mobile .fiveetools-character-card .fiveetools-library__row-sub {
+	white-space: normal;
+	overflow: visible;
+	text-overflow: unset;
+	overflow-wrap: anywhere;
+	max-width: 100%;
+	height: auto;
+}
+
 .fiveetools-character-card__check {
 	margin: 0 4px 0 0;
 	vertical-align: middle;
@@ -1573,10 +1590,6 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	display: none;
 }
 
-.fiveetools-character-card__gearline {
-	flex-wrap: nowrap;
-}
-
 .fiveetools-character-card__coin {
 	display: flex;
 	align-items: center;
@@ -1593,9 +1606,9 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 .fiveetools-character-card__gearname {
 	flex: 1 1 auto;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow: visible;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 
 .fiveetools-character-card__gearflag {

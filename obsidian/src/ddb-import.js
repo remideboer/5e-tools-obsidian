@@ -965,6 +965,20 @@ const LIFESTYLE = {
 
 const DEFENSE_KIND = {1: "Resistance", 2: "Immunity", 3: "Vulnerability"};
 
+const SPEED_MOD_LABEL = {
+	walk: "Walk",
+	speed: "Walk",
+	"innate-speed-walking": "Walk",
+	burrow: "Burrow",
+	"innate-speed-burrowing": "Burrow",
+	climb: "Climb",
+	"innate-speed-climbing": "Climb",
+	fly: "Fly",
+	"innate-speed-flying": "Fly",
+	swim: "Swim",
+	"innate-speed-swimming": "Swim",
+};
+
 function characterSpeeds (char) {
 	const normal = char.race?.weightSpeeds?.normal || {};
 	const out = [];
@@ -972,15 +986,29 @@ function characterSpeeds (char) {
 		const n = Number(normal[key]);
 		if (n > 0) out.push({label, value: n});
 	}
-	for (const mod of modifierLists(char)) {
-		if (mod?.type !== "bonus" || mod.value == null) continue;
-		const label = SPEED_LABELS.find(([key]) => key === mod.subType)?.[1];
-		if (!label) continue;
-		const add = Number(mod.value) || 0;
-		if (!add) continue;
-		const hit = out.find(it => it.label === label);
-		if (hit) hit.value += add;
-		else out.push({label, value: add});
+	const mods = modifierLists(char);
+	const race = new Map(out.map(it => [it.label, it.value]));
+	const speedMod = (mod) => {
+		const label = SPEED_MOD_LABEL[String(mod?.subType || "").toLowerCase()];
+		const value = Number(mod?.value);
+		if (!label || !Number.isFinite(value) || !value) return null;
+		return {label, value};
+	};
+	for (const mod of mods) {
+		if (mod?.type !== "set") continue;
+		const parsed = speedMod(mod);
+		if (!parsed || parsed.value <= (race.get(parsed.label) || 0)) continue;
+		const hit = out.find(it => it.label === parsed.label);
+		if (hit) hit.value = parsed.value;
+		else out.push({label: parsed.label, value: parsed.value});
+	}
+	for (const mod of mods) {
+		if (mod?.type !== "bonus") continue;
+		const parsed = speedMod(mod);
+		if (!parsed) continue;
+		const hit = out.find(it => it.label === parsed.label);
+		if (hit) hit.value += parsed.value;
+		else out.push({label: parsed.label, value: parsed.value});
 	}
 	for (const custom of char.customSpeeds || []) {
 		const label = String(custom?.name || SPEED_BY_ID[custom?.movementId] || "Speed").trim();
