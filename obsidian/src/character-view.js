@@ -49,9 +49,9 @@ async function paintLinkedCard (host, plugin, record, {editing = false, onRecord
 	const refs = snapshot.refs || [];
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
-	paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange});
+	const headerHp = paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange});
 	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
-	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record);
+	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record, headerHp);
 	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
 	await paintSpellColumn(makeColumn(columns, "Spells"), plugin, record, edition, {editing, onRecordChange});
 	if (snapshot.actions?.length) {
@@ -150,13 +150,34 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {edit
 		setIcon(fold, open ? "chevron-up" : "chevron-down");
 	};
 	paintFold(identityIsOpen(characterId));
+	const snapshot = record.snapshot || {};
+	const vitals = header.createDiv({cls: "fiveetools-character-card__header-vitals"});
+	paintHeaderStats(vitals, fields, snapshot.rolls);
+	const hpSlot = vitals.createDiv({cls: "fiveetools-character-card__hp-slot"});
+	const hp = hpSlot.createDiv({cls: "fiveetools-character-card__vital fiveetools-character-card__vital--hp"});
+	hp.createSpan({cls: "fiveetools-character-card__vital-label", text: "HP"});
+	paintHpEditor(hp, plugin, record);
+	let columnHpSlot = null;
+	const placeHp = () => {
+		const collapsed = !fold || header.classList.contains("is-collapsed");
+		const home = collapsed || !columnHpSlot ? hpSlot : columnHpSlot;
+		home.append(hp);
+		columnHpSlot?.classList.toggle("is-hidden", !columnHpSlot.contains(hp));
+	};
 	fold?.addEventListener("click", (evt) => {
 		evt.preventDefault();
 		evt.stopPropagation();
 		const open = !identityIsOpen(characterId);
 		identityExpanded.set(characterId, open);
 		paintFold(open);
+		placeHp();
 	});
+	return {
+		setColumnHpSlot (slot) {
+			columnHpSlot = slot;
+			placeHp();
+		},
+	};
 }
 
 function paintPortraitButton (header, cardHost, plugin, record) {
@@ -194,14 +215,14 @@ function portraitExt (name) {
 	return match[1] === "jpeg" ? ".jpg" : `.${match[1]}`;
 }
 
-function paintCombatColumn (col, plugin, record) {
+function paintCombatColumn (col, plugin, record, headerHp) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
 	const vitals = col.createDiv({cls: "fiveetools-character-card__vitals"});
-	paintCombatStats(vitals, fields, snapshot.rolls, snapshot.speeds);
-	const hp = vitals.createDiv({cls: "fiveetools-character-card__vital fiveetools-character-card__vital--hp"});
-	hp.createSpan({cls: "fiveetools-character-card__vital-label", text: "HP"});
-	paintHpEditor(hp, plugin, record);
+	paintSpeedStats(vitals, fields, snapshot.speeds);
+	if (!vitals.childElementCount) vitals.remove();
+	const hpSlot = col.createDiv({cls: "fiveetools-character-card__hp-slot"});
+	headerHp?.setColumnHpSlot(hpSlot);
 	paintLabeledList(col, "Senses", snapshot.senses);
 	paintLabeledList(col, "Defenses", snapshot.defenses);
 	paintConditions(col, plugin, record);
@@ -442,7 +463,7 @@ function paintCoinFields (col, plugin, record, play) {
 		const field = row.createEl("label", {cls: "fiveetools-character-card__coin"});
 		field.createSpan({text: label});
 		const input = field.createEl("input", {
-			cls: "fiveetools-encounter__hpinput",
+			cls: "fiveetools-encounter__hpinput fiveetools-no-clear",
 			attr: {type: "number", min: "0", value: String(play.coins[key] || 0), title: label},
 		});
 		input.addEventListener("change", () => {
@@ -669,17 +690,17 @@ function paintHpEditor (host, plugin, record) {
 	const hp = controls.createDiv({cls: "fiveetools-encounter__hp"});
 	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
 	const input = hp.createEl("input", {
-		cls: "fiveetools-encounter__hpinput",
+		cls: "fiveetools-encounter__hpinput fiveetools-no-clear",
 		attr: {type: "number", value: String(play.hpCurrent ?? 0), title: "Current HP"},
 	});
 	hp.createSpan({cls: "fiveetools-encounter__hpmax", text: "/"});
 	const max = hp.createEl("input", {
-		cls: "fiveetools-encounter__hpinput",
+		cls: "fiveetools-encounter__hpinput fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: String(play.hpMax ?? 0), title: "Max HP"},
 	});
 	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 HP"}});
 	const temp = controls.createEl("input", {
-		cls: "fiveetools-encounter__tempinput",
+		cls: "fiveetools-encounter__tempinput fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: String(play.tempHp ?? 0), title: "Temporary HP", placeholder: "Temp"},
 	});
 	const writeCurrent = (value) => {
@@ -706,26 +727,30 @@ function paintHpEditor (host, plugin, record) {
 	});
 }
 
-function paintCombatStats (host, fields, rolls, speeds) {
-	const tile = (label) => {
-		const box = host.createDiv({cls: "fiveetools-character-card__vital"});
-		box.createSpan({cls: "fiveetools-character-card__vital-label", text: label});
-		return box.createSpan({cls: "fiveetools-character-card__vital-value"});
-	};
-	if (fields.ac != null && fields.ac !== "") tile("AC").setText(String(fields.ac));
-	const listed = (speeds || []).filter(speed => Number(speed?.value) > 0);
-	if (listed.length) {
-		for (const speed of listed) tile(speed.label || "Speed").setText(String(speed.value));
-	} else if (fields.speed != null && fields.speed !== "") {
-		tile("Speed").setText(String(fields.speed));
-	}
+function vitalTile (host, label) {
+	const box = host.createDiv({cls: "fiveetools-character-card__vital"});
+	box.createSpan({cls: "fiveetools-character-card__vital-label", text: label});
+	return box.createSpan({cls: "fiveetools-character-card__vital-value"});
+}
+
+function paintHeaderStats (host, fields, rolls) {
 	if (rolls && rolls.initiative != null) {
-		const value = tile("Initiative");
+		const value = vitalTile(host, "Initiative");
 		paintRoll(value, "Initiative", rolls.initiative);
 		if (rolls.initiativeEdge) value.createSpan({cls: "fiveetools-character-card__source", text: rolls.initiativeEdge === "adv" ? " adv" : " dis"});
 	}
-	if (rolls?.proficiency != null) tile("PB").setText(signed(rolls.proficiency));
-	if (rolls?.passivePerception != null) tile("Passive Perception").setText(String(rolls.passivePerception));
+	if (fields.ac != null && fields.ac !== "") vitalTile(host, "AC").setText(String(fields.ac));
+	if (rolls?.passivePerception != null) vitalTile(host, "Passive Perception").setText(String(rolls.passivePerception));
+	if (rolls?.proficiency != null) vitalTile(host, "PB").setText(signed(rolls.proficiency));
+}
+
+function paintSpeedStats (host, fields, speeds) {
+	const listed = (speeds || []).filter(speed => Number(speed?.value) > 0);
+	if (listed.length) {
+		for (const speed of listed) vitalTile(host, speed.label || "Speed").setText(String(speed.value));
+	} else if (fields.speed != null && fields.speed !== "") {
+		vitalTile(host, "Speed").setText(String(fields.speed));
+	}
 }
 
 function paintLabeledList (host, title, values) {
@@ -828,17 +853,27 @@ function paintXp (host, plugin, record) {
 	host.createEl("h3", {text: "Experience"});
 	const row = host.createDiv({cls: "fiveetools-character-card__xp"});
 	row.createSpan({text: "XP "});
+	const minus = row.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 XP"}});
 	const input = row.createEl("input", {
-		cls: "fiveetools-encounter__hpinput fiveetools-character-card__xp-input",
+		cls: "fiveetools-encounter__hpinput fiveetools-character-card__xp-input fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: play.xp == null ? "" : String(play.xp), title: "Current XP"},
 	});
+	const plus = row.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 XP"}});
 	if (adjustment) row.createSpan({cls: "fiveetools-character-card__source", text: ` adjustment ${adjustment > 0 ? "+" : ""}${adjustment}`});
-	input.addEventListener("change", () => {
-		const next = Math.max(0, Math.floor(Number(input.value) || 0));
+	const write = (value) => {
+		const next = Math.max(0, Math.floor(Number(value) || 0));
 		play.xp = next;
 		input.value = String(next);
 		persistPlay(plugin, record);
+	};
+	minus.addEventListener("click", () => write((Number(play.xp) || 0) - 1));
+	plus.addEventListener("click", () => write((Number(play.xp) || 0) + 1));
+	input.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		write(input.value);
 	});
+	input.addEventListener("change", () => write(input.value));
 }
 
 function paintSpellcasting (host, lines) {
@@ -858,16 +893,17 @@ function paintHitDice (host, plugin, record) {
 	for (const die of dice) {
 		const row = host.createDiv({cls: "fiveetools-character-card__hitdie"});
 		row.createSpan({text: `${die.className} d${die.die} `});
-		const spent = Math.max(0, Math.min(die.count, Number(play.hitDiceSpent[die.className] ?? die.spent) || 0));
-		const input = row.createEl("input", {
-			cls: "fiveetools-encounter__hpinput",
-			attr: {type: "number", min: "0", max: String(die.count), value: String(spent), title: "Spent hit dice"},
+		const max = Math.max(0, Number(die.count) || 0);
+		const spent = Math.max(0, Math.min(max, Number(play.hitDiceSpent[die.className] ?? die.spent) || 0));
+		const select = row.createEl("select", {
+			cls: "fiveetools-character-card__hitdie-select",
+			attr: {title: "Spent hit dice"},
 		});
+		for (let n = 0; n <= max; n++) select.createEl("option", {attr: {value: String(n)}, text: String(n)});
+		select.value = String(Math.min(spent, max));
 		row.createSpan({text: ` / ${die.count}`});
-		input.addEventListener("change", () => {
-			const next = Math.max(0, Math.min(die.count, Math.floor(Number(input.value) || 0)));
-			input.value = String(next);
-			play.hitDiceSpent[die.className] = next;
+		select.addEventListener("change", () => {
+			play.hitDiceSpent[die.className] = Math.max(0, Math.min(max, Math.floor(Number(select.value) || 0)));
 			persistPlay(plugin, record);
 		});
 	}

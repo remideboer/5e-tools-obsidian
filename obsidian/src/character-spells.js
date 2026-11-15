@@ -102,30 +102,65 @@ const PACT_SLOTS = [
 const PACT_LEVEL = [0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5];
 
 /**
- * Primary casting class from a character record (first class token).
+ * Every class on the card. Class refs win; otherwise `Wizard 5 / Cleric 3`.
+ * @returns {{name: string, level: number, edition: string}[]}
  */
-export function castingClassFromRecord (record) {
+export function castingClassesFromRecord (record) {
 	const edition = record?.snapshot?.edition === "one" ? "one" : "classic";
-	const level = Math.max(1, Number(record?.fields?.level) || 1);
-	const fromRef = (record?.snapshot?.refs || []).find(ref => ref?.kind === "class");
-	const raw = String(record?.fields?.classes || fromRef?.name || "").trim();
-	const match = raw.match(/^([^(]+?)(?:\s+(\d+))?(?:\s*\(|$)/);
-	const name = String(match?.[1] || fromRef?.name || "").trim();
-	const classLevel = Number(match?.[2]) || level;
-	if (!name) return null;
-	return {name, level: classLevel, edition};
+	const fallbackLevel = Math.max(1, Number(record?.fields?.level) || 1);
+	const refs = (record?.snapshot?.refs || []).filter(ref => ref?.kind === "class");
+	const tokens = refs.length
+		? refs.map(ref => ({raw: ref.label || ref.name, edition: ref.edition === "one" || ref.edition === "classic" ? ref.edition : edition}))
+		: String(record?.fields?.classes || "").split(/\s*\/\s*/).filter(Boolean).map(raw => ({raw, edition}));
+	const out = [];
+	const seen = new Set();
+	for (const token of tokens) {
+		const info = parseClassToken(token.raw, fallbackLevel);
+		if (!info) continue;
+		const key = info.name.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push({...info, edition: token.edition});
+	}
+	return out;
 }
 
-export async function loadCasterProfile (plugin, record) {
+/** First class token. Callers that need every caster use `loadCasterProfiles`. */
+export function castingClassFromRecord (record) {
+	return castingClassesFromRecord(record)[0] || null;
+}
+
+function parseClassToken (raw, fallbackLevel) {
+	const text = String(raw || "").trim();
+	if (!text) return null;
+	const leveled = text.match(/^(.+?)\s+(\d+)(?:\s*\(.*\))?$/);
+	if (leveled) return {name: leveled[1].trim(), level: Number(leveled[2]) || fallbackLevel};
+	const name = text.replace(/\s*\(.*\)$/, "").trim();
+	if (!name) return null;
+	return {name, level: fallbackLevel};
+}
+
+export async function loadCasterProfiles (plugin, record) {
 	await ensureSearchIndex(plugin);
-	const info = castingClassFromRecord(record);
-	if (!info) return null;
+	const profiles = [];
+	for (const info of castingClassesFromRecord(record)) {
+		const profile = await profileFromClass(info);
+		if (profile) profiles.push(profile);
+	}
+	return profiles;
+}
+
+/** First casting class, so a Fighter / Wizard still counts as a caster. */
+export async function loadCasterProfile (plugin, record) {
+	const profiles = await loadCasterProfiles(plugin, record);
+	return profiles[0] || null;
+}
+
+async function profileFromClass (info) {
 	const doc = findEditionDoc(info.name, {categoriesExact: ["class"], edition: info.edition});
 	if (!doc) return null;
 	const {ent} = await loadEntity(doc);
-	if (!ent || !ent.casterProgression && !ent.spellcastingAbility && !ent.cantripProgression) {
-		return null;
-	}
+	if (!ent || !ent.casterProgression && !ent.spellcastingAbility && !ent.cantripProgression) return null;
 	const level = Math.min(20, Math.max(1, info.level));
 	const cantripsMax = Number(ent.cantripProgression?.[level - 1]) || 0;
 	const preparedMax = Array.isArray(ent.preparedSpellsProgression)
@@ -138,7 +173,6 @@ export async function loadCasterProfile (plugin, record) {
 	if (!mode && !cantripsMax) return null;
 	const progression = String(ent.casterProgression || "").toLowerCase();
 	const slots = slotRowsFor(progression, level);
-	const maxLevel = maxSlotLevel(slots);
 	return {
 		className: ent.name || info.name,
 		classSource: ent.source || doc.s,
@@ -148,10 +182,10 @@ export async function loadCasterProfile (plugin, record) {
 		mode: mode || "prepared",
 		cantripsMax,
 		preparedMax,
-		knownMax: mode === "known" ? knownMax : 0,
+		knownMax,
 		progression,
 		slots,
-		maxLevel,
+		maxLevel: maxSlotLevel(slots),
 		ent,
 	};
 }
@@ -214,11 +248,9 @@ export function capsSummary (profile, counts) {
 	if (!profile) return "";
 	const parts = [];
 	if (profile.cantripsMax) parts.push(`Cantrips ${counts.cantrips}/${profile.cantripsMax}`);
+	if (profile.knownMax) parts.push(`Learned ${counts.knownLeveled}/${profile.knownMax}`);
 	if (profile.mode === "prepared" && profile.preparedMax) {
 		parts.push(`Prepared ${counts.prepared}/${profile.preparedMax}`);
-		parts.push(`In list ${counts.knownLeveled}`);
-	} else if (profile.mode === "known" && profile.knownMax) {
-		parts.push(`Known ${counts.knownLeveled}/${profile.knownMax}`);
 	}
 	return parts.join(" · ");
 }
@@ -259,6 +291,56 @@ export async function listClassSpellDocs (plugin, profile, {query = ""} = {}) {
 		const lb = getSpellMeta(b)?.level ?? 99;
 		return la - lb || String(a.n || "").localeCompare(String(b.n || ""));
 	});
+}
+
+/** One row per class list. The same spell can appear twice when two classes know it. */
+export async function listCasterSpellRows (plugin, profiles, {query = ""} = {}) {
+	const rows = [];
+	for (const profile of profiles || []) {
+		const docs = await listClassSpellDocs(plugin, profile, {query});
+		for (const doc of docs) rows.push({doc, className: profile.className, profile});
+	}
+	return rows;
+}
+
+export function listNames (ref) {
+	return String(ref?.list || "").split(",").map(part => part.trim()).filter(Boolean);
+}
+
+export function spellOnClassList (record, spellName, className, primaryName) {
+	const needle = String(spellName || "").trim().toLowerCase();
+	const ref = (record?.snapshot?.refs || []).find(it => it?.kind === "spell" && String(it.name || it.label || "").trim().toLowerCase() === needle);
+	if (!ref) return false;
+	const names = listNames(ref);
+	if (!names.length) return String(className || "").toLowerCase() === String(primaryName || "").toLowerCase();
+	const key = String(className || "").toLowerCase();
+	return names.some(name => name.toLowerCase() === key);
+}
+
+/** Spells tagged with this class. Untagged spells count toward the first casting class. */
+export function spellCountsForClass (record, className, {primary = false} = {}) {
+	const refs = (record?.snapshot?.refs || []).filter(ref => ref?.kind === "spell");
+	const preparedSet = new Set(record?.snapshot?.play?.prepared || []);
+	const key = String(className || "").toLowerCase();
+	let cantrips = 0;
+	let knownLeveled = 0;
+	let prepared = 0;
+	for (const ref of refs) {
+		const names = listNames(ref);
+		const mine = names.length
+			? names.some(name => name.toLowerCase() === key)
+			: primary;
+		if (!mine) continue;
+		const level = Number(ref.level);
+		const name = String(ref.name || ref.label || "").trim();
+		if (level === 0) {
+			cantrips += 1;
+			continue;
+		}
+		knownLeveled += 1;
+		if (ref.alwaysPrepared || preparedSet.has(name)) prepared += 1;
+	}
+	return {cantrips, knownLeveled, prepared, total: cantrips + knownLeveled};
 }
 
 export async function spellRefFromDoc (doc, {listName = "", edition = "one"} = {}) {
@@ -373,8 +455,8 @@ export function canLearnSpell (profile, counts, level) {
 	if (!profile) return false;
 	const lvl = Number(level) || 0;
 	if (lvl === 0) return counts.cantrips < (profile.cantripsMax || 0);
-	if (profile.mode === "known") return counts.knownLeveled < (profile.knownMax || 0);
-	// prepared casters: spellbook/list size is soft; allow adds (prepare cap is separate)
+	if (profile.knownMax) return counts.knownLeveled < profile.knownMax;
+	if (profile.mode === "known") return false;
 	return true;
 }
 

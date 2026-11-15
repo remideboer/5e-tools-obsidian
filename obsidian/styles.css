@@ -1333,6 +1333,7 @@ a.fiveetools-inline-link {
 
 .fiveetools-character-card__header {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 10px;
 	align-items: flex-start;
 	flex: 0 0 auto;
@@ -1341,8 +1342,27 @@ a.fiveetools-inline-link {
 
 .fiveetools-character-card__header-text {
 	position: relative;
+	flex: 1 1 16em;
 	min-width: 0;
 	padding-right: 2.4em;
+}
+
+.fiveetools-character-card__header-vitals {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 8px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.fiveetools-character-card__header-vitals:not(:has(.fiveetools-character-card__vital)) {
+	display: none;
+}
+
+.fiveetools-character-card__hp-slot:empty,
+.fiveetools-character-card__hp-slot.is-hidden {
+	display: none;
 }
 
 .fiveetools-character-card__name {
@@ -1433,9 +1453,9 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 }
 
 .fiveetools-character-card__twoline-line {
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	overflow: visible;
 	min-width: 0;
 	line-height: 1.35;
 }
@@ -1518,8 +1538,12 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	cursor: pointer;
 }
 
-.fiveetools-character-card__xp-input {
-	width: 5em;
+.fiveetools-character-card__xp .fiveetools-character-card__xp-input {
+	width: 8em;
+}
+
+.fiveetools-character-card__hitdie-select {
+	width: 3.5em;
 }
 
 .fiveetools-character-card__coins {

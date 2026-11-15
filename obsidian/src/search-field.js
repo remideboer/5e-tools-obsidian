@@ -50,6 +50,7 @@ export function enableInputClear (input) {
 	const isArea = String(input.tagName || "").toUpperCase() === "TEXTAREA";
 	const type = isArea ? "text" : String(input.type || "text").toLowerCase();
 	if (!isArea && !CLEAR_TYPES.has(type)) return input;
+	if (input.classList.contains("fiveetools-no-clear")) return input;
 	if (input.closest(".fiveetools-search, .fiveetools-clearable")) return input;
 	if (input.closest(".cm-editor, .metadata-container, .workspace-leaf-content:not([data-type^='fiveetools'])")) return input;
 	if (!input.closest("[class*='fiveetools-']")) return input;

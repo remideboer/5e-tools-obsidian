@@ -5,11 +5,13 @@ import {
 	canPrepareSpell,
 	capsSummary,
 	levelLabel,
-	listClassSpellDocs,
-	loadCasterProfile,
+	listCasterSpellRows,
+	listNames,
+	loadCasterProfiles,
 	mergeSlotSpent,
 	recordToCard,
-	spellCounts,
+	spellCountsForClass,
+	spellOnClassList,
 	spellRefFromDoc,
 } from "./character-spells.js";
 import {attachHoverCard} from "./hover-card.js";
@@ -22,14 +24,14 @@ import {getSpellMeta} from "./spell-meta.js";
  * onChanged() is called after each successful save so the sheet can refresh.
  */
 export class ManageSpellsModal extends Modal {
-	constructor (app, {plugin, record, profile, onChanged} = {}) {
+	constructor (app, {plugin, record, profiles, onChanged} = {}) {
 		super(app);
 		this.plugin = plugin;
 		this.record = record;
-		this.profile = profile;
+		this.profiles = profiles || [];
 		this.onChanged = onChanged;
 		this.query = "";
-		this.docs = [];
+		this.rows = [];
 		this.busy = false;
 	}
 
@@ -75,7 +77,7 @@ export class ManageSpellsModal extends Modal {
 		this.listEl.empty();
 		this.listEl.createEl("p", {cls: "fiveetools-view__meta", text: "Loading…"});
 		try {
-			this.docs = await listClassSpellDocs(this.plugin, this.profile, {query: this.query});
+			this.rows = await listCasterSpellRows(this.plugin, this.profiles, {query: this.query});
 		} catch (e) {
 			this.listEl.empty();
 			this.listEl.createEl("p", {cls: "fiveetools-view__meta", text: e.message || "Could not load spells."});
@@ -85,51 +87,56 @@ export class ManageSpellsModal extends Modal {
 	}
 
 	paintMeta () {
-		const counts = spellCounts(this.record);
-		const title = this.profile
-			? `${this.profile.className} ${this.profile.level} · ${capsSummary(this.profile, counts)}`
-			: capsSummary(this.profile, counts);
-		this.metaEl.setText(title || "Spells");
+		const primary = this.profiles[0]?.className || "";
+		const parts = this.profiles.map(profile => {
+			const counts = spellCountsForClass(this.record, profile.className, {
+				primary: profile.className === primary,
+			});
+			const caps = capsSummary(profile, counts);
+			return caps ? `${profile.className} ${profile.level} · ${caps}` : `${profile.className} ${profile.level}`;
+		});
+		this.metaEl.setText(parts.join(" · ") || "Spells");
 	}
 
 	paintList () {
 		const scrollTop = this.listEl.scrollTop || 0;
 		this.listEl.empty();
-		if (!this.docs.length) {
+		if (!this.rows.length) {
 			this.listEl.createEl("p", {cls: "fiveetools-view__meta", text: "No spells match."});
 			return;
 		}
-		const known = knownSpellNames(this.record);
 		const prepared = new Set(this.record?.snapshot?.play?.prepared || []);
-		const counts = spellCounts(this.record);
+		const primary = this.profiles[0]?.className || "";
 		const byLevel = new Map();
-		for (const doc of this.docs) {
-			const level = getSpellMeta(doc)?.level ?? 99;
+		for (const entry of this.rows) {
+			const level = getSpellMeta(entry.doc)?.level ?? 99;
 			if (!byLevel.has(level)) byLevel.set(level, []);
-			byLevel.get(level).push(doc);
+			byLevel.get(level).push(entry);
 		}
 		const levels = [...byLevel.keys()].sort((a, b) => a - b);
 		for (const level of levels) {
 			const group = this.listEl.createDiv({cls: "fiveetools-spell-manage__group"});
 			group.createEl("h3", {text: levelLabel(level)});
-			for (const doc of byLevel.get(level)) {
-				this.paintRow(group, doc, known, prepared, counts, level);
+			for (const entry of byLevel.get(level)) {
+				this.paintRow(group, entry, prepared, primary, level);
 			}
 		}
 		this.listEl.scrollTop = scrollTop;
 	}
 
-	paintRow (parent, doc, known, prepared, counts, level) {
+	paintRow (parent, entry, prepared, primary, level) {
+		const {doc, className, profile} = entry;
 		const name = String(doc.n || "").trim();
+		const counts = spellCountsForClass(this.record, className, {primary: className === primary});
 		const row = parent.createDiv({cls: "fiveetools-spell-manage__row"});
 		const learn = row.createEl("input", {
 			attr: {type: "checkbox", title: level === 0 ? "Known cantrip" : "On spell list"},
 		});
-		learn.checked = known.has(name.toLowerCase());
-		const atLearnCap = !learn.checked && !canLearnSpell(this.profile, counts, level);
+		learn.checked = spellOnClassList(this.record, name, className, primary);
+		const atLearnCap = !learn.checked && !canLearnSpell(profile, counts, level);
 		learn.disabled = this.busy || atLearnCap;
 		learn.addEventListener("change", () => {
-			void this.toggleLearn(doc, learn.checked);
+			void this.toggleLearn(doc, learn.checked, profile);
 		});
 
 		const label = row.createEl("button", {
@@ -137,6 +144,7 @@ export class ManageSpellsModal extends Modal {
 			attr: {type: "button"},
 		});
 		label.createSpan({text: name});
+		label.createSpan({cls: "fiveetools-character-card__source", text: ` · ${className}`});
 		if (doc.s) label.createSpan({cls: "fiveetools-character-card__source", text: ` · ${doc.s}`});
 		attachHoverCard(label, this.plugin, () => findEntityDoc(name, {
 			categoriesExact: ["spell"],
@@ -147,22 +155,22 @@ export class ManageSpellsModal extends Modal {
 			void this.plugin.openPreview?.(doc);
 		});
 
-		if (this.profile?.mode === "prepared" && level > 0) {
+		if (profile?.mode === "prepared" && level > 0) {
 			const prepWrap = row.createEl("label", {cls: "fiveetools-spell-manage__prep"});
 			const prep = prepWrap.createEl("input", {
 				attr: {type: "checkbox", title: "Prepared"},
 			});
-			prep.checked = prepared.has(name);
-			const canPrep = learn.checked && (prep.checked || canPrepareSpell(this.profile, counts));
+			prep.checked = learn.checked && prepared.has(name);
+			const canPrep = learn.checked && (prep.checked || canPrepareSpell(profile, counts));
 			prep.disabled = this.busy || !learn.checked || (!prep.checked && !canPrep);
 			prepWrap.createSpan({text: "Prep"});
 			prep.addEventListener("change", () => {
-				void this.togglePrepared(name, prep.checked);
+				void this.togglePrepared(name, prep.checked, profile);
 			});
 		}
 	}
 
-	async toggleLearn (doc, learn) {
+	async toggleLearn (doc, learn, profile) {
 		if (this.busy) return;
 		this.busy = true;
 		try {
@@ -172,32 +180,50 @@ export class ManageSpellsModal extends Modal {
 			const play = this.record.snapshot?.play || {prepared: []};
 			const nonSpells = (card.refs || []).filter(ref => ref.kind !== "spell");
 			let spells = (card.refs || []).filter(ref => ref.kind === "spell");
+			const primary = this.profiles[0]?.className || profile.className;
 			if (learn) {
 				const level = getSpellMeta(doc)?.level ?? 0;
-				const counts = spellCounts(this.record);
-				if (!canLearnSpell(this.profile, counts, level)) {
+				const counts = spellCountsForClass(this.record, profile.className, {
+					primary: profile.className === primary,
+				});
+				if (!canLearnSpell(profile, counts, level)) {
 					new Notice("That would exceed the spell cap.");
 					return;
 				}
-				if (!spells.some(ref => String(ref.name || ref.label || "").toLowerCase() === needle)) {
-					const ref = await spellRefFromDoc(doc, {
-						listName: this.profile.className,
-						edition: this.profile.edition,
+				let ref = spells.find(it => String(it.name || it.label || "").toLowerCase() === needle);
+				if (!ref) {
+					ref = await spellRefFromDoc(doc, {
+						listName: profile.className,
+						edition: profile.edition,
 					});
 					if (!ref) throw new Error("Could not load that spell.");
 					spells.push(ref);
+				} else {
+					const names = listNames(ref);
+					if (!names.length && primary && profile.className !== primary) names.push(primary);
+					names.push(profile.className);
+					assignList(ref, names);
 				}
-				if (this.profile.mode === "known" && level > 0) {
+				if (profile.mode === "known" && level > 0) {
 					const set = new Set(play.prepared || []);
 					set.add(name);
 					play.prepared = [...set];
 				}
-				if (!card.slots?.length && this.profile.slots?.length) {
-					card.slots = mergeSlotSpent(this.profile.slots, card.slots || []);
+				if (!card.slots?.length && profile.slots?.length) {
+					card.slots = mergeSlotSpent(profile.slots, card.slots || []);
 				}
 			} else {
-				spells = spells.filter(ref => String(ref.name || ref.label || "").toLowerCase() !== needle);
-				play.prepared = (play.prepared || []).filter(it => String(it).toLowerCase() !== needle);
+				const ref = spells.find(it => String(it.name || it.label || "").toLowerCase() === needle);
+				if (ref) {
+					let names = listNames(ref);
+					if (!names.length) names = primary ? [primary] : [];
+					names = names.filter(it => it.toLowerCase() !== profile.className.toLowerCase());
+					if (names.length) assignList(ref, names);
+					else {
+						spells = spells.filter(it => it !== ref);
+						play.prepared = (play.prepared || []).filter(it => String(it).toLowerCase() !== needle);
+					}
+				}
 			}
 			card.refs = [...nonSpells, ...sortSpellRefs(spells)];
 			const saved = await saveCharacter(this.plugin, card);
@@ -214,15 +240,18 @@ export class ManageSpellsModal extends Modal {
 		}
 	}
 
-	async togglePrepared (name, on) {
+	async togglePrepared (name, on, profile) {
 		if (this.busy) return;
 		this.busy = true;
 		try {
 			const play = this.record.snapshot.play || {prepared: []};
 			const set = new Set(play.prepared || []);
 			if (on) {
-				const counts = spellCounts(this.record);
-				if (!canPrepareSpell(this.profile, counts)) {
+				const primary = this.profiles[0]?.className || profile.className;
+				const counts = spellCountsForClass(this.record, profile.className, {
+					primary: profile.className === primary,
+				});
+				if (!canPrepareSpell(profile, counts)) {
 					new Notice("Prepared spell limit reached.");
 					return;
 				}
@@ -247,16 +276,16 @@ export class ManageSpellsModal extends Modal {
 }
 
 export async function openManageSpells (plugin, record, onChanged) {
-	const profile = await loadCasterProfile(plugin, record);
+	const profiles = await loadCasterProfiles(plugin, record);
 	const hasSpells = (record?.snapshot?.refs || []).some(ref => ref?.kind === "spell");
-	if (!profile && !hasSpells) {
+	if (!profiles.length && !hasSpells) {
 		new Notice("This character has no casting class.");
 		return null;
 	}
 	const modal = new ManageSpellsModal(plugin.app, {
 		plugin,
 		record,
-		profile: profile || {
+		profiles: profiles.length ? profiles : [{
 			className: "Spells",
 			level: Number(record?.fields?.level) || 1,
 			edition: record?.snapshot?.edition === "one" ? "one" : "classic",
@@ -266,20 +295,22 @@ export async function openManageSpells (plugin, record, onChanged) {
 			knownMax: 0,
 			slots: record?.snapshot?.slots || [],
 			maxLevel: 9,
-		},
+		}],
 		onChanged,
 	});
 	modal.open();
 	return modal;
 }
 
-function knownSpellNames (record) {
-	const set = new Set();
-	for (const ref of record?.snapshot?.refs || []) {
-		if (ref?.kind !== "spell") continue;
-		set.add(String(ref.name || ref.label || "").trim().toLowerCase());
+function assignList (ref, names) {
+	const unique = [];
+	for (const name of names) {
+		const text = String(name || "").trim();
+		if (!text || unique.some(it => it.toLowerCase() === text.toLowerCase())) continue;
+		unique.push(text);
 	}
-	return set;
+	if (unique.length) ref.list = unique.join(", ");
+	else delete ref.list;
 }
 
 function sortSpellRefs (refs) {
