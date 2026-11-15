@@ -68,6 +68,7 @@ export async function saveCharacter (plugin, card) {
 	const avatarPath = card.avatar ? await writeAvatar(plugin, id, card.avatar) : existingAvatarPath(plugin, id);
 	const filePath = characterFilePath(plugin, id);
 	const refs = resolveRefs(card.refs || []);
+	play.prepared = mergePrepared(play.prepared, refs);
 	const actions = resolveActions(card.actions || [], card.edition === "one" ? "one" : "classic", preferNames(card.refs));
 	const shown = {
 		...card,
@@ -118,10 +119,11 @@ export async function saveCharacter (plugin, card) {
 	return readCharacter(plugin, id);
 }
 
-export async function saveCharacterPlay (plugin, ddbId, play) {
+export async function saveCharacterPlay (plugin, ddbId, play, refs) {
 	const record = await readCharacter(plugin, ddbId);
 	if (!record?.snapshot) return null;
 	record.snapshot.play = play;
+	if (Array.isArray(refs)) record.snapshot.refs = refs;
 	if (play?.hpCurrent != null) record.fields.hp_current = play.hpCurrent;
 	if (play?.hpMax != null) record.fields.hp_max = play.hpMax;
 	await writeFile(plugin, record.path, serializeCampaignMarkdown({
@@ -260,6 +262,24 @@ export function characterName (record) {
 export function rosterName (record) {
 	const display = String(record?.snapshot?.play?.displayName || "").trim();
 	return display || characterName(record);
+}
+
+function mergePrepared (current, refs) {
+	const out = [];
+	const seen = new Set();
+	const add = (name) => {
+		const text = String(name || "").trim();
+		const key = text.toLowerCase();
+		if (!text || seen.has(key)) return;
+		seen.add(key);
+		out.push(text);
+	};
+	for (const name of current || []) add(name);
+	for (const ref of refs || []) {
+		if (ref?.kind !== "spell" || ref.alwaysPrepared || !ref.prepared) continue;
+		add(ref.name || ref.label);
+	}
+	return out;
 }
 
 function resolveRefs (refs) {

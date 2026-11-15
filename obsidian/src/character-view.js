@@ -1,4 +1,4 @@
-import {MarkdownRenderer, Notice, Platform, setIcon} from "obsidian";
+import {MarkdownRenderer, Menu, Notice, Platform, setIcon} from "obsidian";
 import {characterName, coinBag, deleteCharacter, fillGearAttunable, gearFromRefs, listCharacters, readCharacter, REF_CATEGORIES, rosterName, saveCharacter, saveCharacterPlay, saveCharacterSlots, setCharacterPortrait} from "./character-store.js";
 import {renderCharacterCreator} from "./character-creator-view.js";
 import {openManageSpells} from "./character-spell-modal.js";
@@ -13,17 +13,19 @@ import {paintPackedLibraryRow} from "./library-row.js";
 import {attachHoverCard} from "./hover-card.js";
 import {getSpellMeta} from "./spell-meta.js";
 import {renameTableCharacter} from "./table-view.js";
+import {spellDamageLine} from "./spell-damage-line.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 const identityExpanded = new Map();
 const headerWidthWatch = new WeakMap();
+const spellDamageCache = new Map();
 
 function identityIsOpen (id) {
 	if (identityExpanded.has(id)) return identityExpanded.get(id);
 	return !Platform.isMobile;
 }
 
-export async function renderCharacterCard (host, plugin, ddbId, {editing = false, onRecordChange} = {}) {
+export async function renderCharacterCard (host, plugin, ddbId, {editing = false, onRecordChange, onSheetMenu} = {}) {
 	headerWidthWatch.get(host)?.disconnect();
 	headerWidthWatch.delete(host);
 	host.empty();
@@ -42,17 +44,17 @@ export async function renderCharacterCard (host, plugin, ddbId, {editing = false
 		return record;
 	}
 	await ensureSearchIndex(plugin);
-	await paintLinkedCard(host, plugin, record, {editing, onRecordChange});
+	await paintLinkedCard(host, plugin, record, {editing, onRecordChange, onSheetMenu});
 	return record;
 }
 
-async function paintLinkedCard (host, plugin, record, {editing = false, onRecordChange} = {}) {
+async function paintLinkedCard (host, plugin, record, {editing = false, onRecordChange, onSheetMenu} = {}) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
 	const refs = snapshot.refs || [];
 	const edition = snapshot.edition === "one" ? "one" : "classic";
 	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
-	const headerHp = paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange});
+	const headerHp = paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange, onSheetMenu});
 	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
 	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record, headerHp, {onRecordChange});
 	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
@@ -75,7 +77,7 @@ function makeColumn (parent, title) {
 	return col;
 }
 
-function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {editing = false, onRecordChange} = {}) {
+function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {editing = false, onRecordChange, onSheetMenu} = {}) {
 	const fields = record.fields || {};
 	const header = sheet.createDiv({cls: "fiveetools-character-card__header"});
 	const src = avatarSrc(plugin, record.body);
@@ -116,6 +118,19 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {edit
 			attr: {type: "button"},
 		})
 		: null;
+	if (onSheetMenu && fold) text.addClass("has-sheet-menu");
+	if (onSheetMenu) {
+		const more = nameRow.createEl("button", {
+			cls: "fiveetools-character-card__more fiveetools-iconbtn",
+			attr: {type: "button", title: "Character actions", "aria-label": "Character actions"},
+		});
+		setIcon(more, "more-horizontal");
+		more.addEventListener("click", (evt) => {
+			evt.preventDefault();
+			evt.stopPropagation();
+			onSheetMenu(evt);
+		});
+	}
 	const display = text.createEl("input", {
 		cls: "fiveetools-character-card__display",
 		attr: {type: "text", placeholder: "Display name", title: "Name on the initiative roster"},
@@ -309,8 +324,14 @@ async function paintSpellColumn (col, plugin, record, edition, {onRecordChange} 
 		levelLists.set(level, frame.createDiv({cls: "fiveetools-character-card__rows"}));
 	}
 	const ordered = spells.slice().sort((a, b) => spellLevel(a, edition) - spellLevel(b, edition) || String(a.label || a.name).localeCompare(String(b.label || b.name)));
+	const caps = casterCaps(record);
+	const damageLines = new Map();
+	await Promise.all(ordered.map(async (spell) => {
+		const line = await spellDamageText(spell, edition, caps);
+		if (line) damageLines.set(spell, line);
+	}));
 	for (const spell of ordered) {
-		const row = paintSpellRow(levelLists.get(spellLevel(spell, edition)), plugin, spell, edition, play);
+		const row = paintSpellRow(levelLists.get(spellLevel(spell, edition)), plugin, spell, edition, play, damageLines.get(spell) || "");
 		const box = row.querySelector("input");
 		if (box && !spell.alwaysPrepared) {
 			box.addEventListener("change", () => {
@@ -319,13 +340,47 @@ async function paintSpellColumn (col, plugin, record, edition, {onRecordChange} 
 				if (box.checked) set.add(name);
 				else set.delete(name);
 				play.prepared = [...set];
-				persistPlay(plugin, record);
+				spell.prepared = box.checked;
+				persistPlay(plugin, record, {refs: true});
 			});
 		}
 	}
 }
 
-function paintSpellRow (parent, plugin, spell, edition, play) {
+function casterCaps (record) {
+	const levels = (record?.snapshot?.slots || [])
+		.map(slot => Number(slot?.level) || 0)
+		.filter(level => level > 0);
+	return {
+		slotLevel: levels.length ? Math.max(...levels) : 0,
+		characterLevel: Number(record?.fields?.level) || 0,
+	};
+}
+
+async function spellDamageText (spell, edition, caps = {}) {
+	const name = String(spell?.name || spell?.label || "").trim();
+	if (!name) return "";
+	const bookEdition = spell?.edition === "one" || edition === "one" ? "one" : "classic";
+	const slotLevel = Number(caps.slotLevel) || 0;
+	const characterLevel = Number(caps.characterLevel) || 0;
+	const key = `${name}|${spell?.source || ""}|${bookEdition}|${slotLevel}|${characterLevel}`.toLowerCase();
+	if (spellDamageCache.has(key)) return spellDamageCache.get(key);
+	let doc = spell?.source ? findEntityDoc(name, {categoriesExact: ["spell"], source: spell.source}) : null;
+	if (!doc) doc = findEditionDoc(name, {categoriesExact: ["spell"], edition: bookEdition});
+	let line = "";
+	if (doc) {
+		try {
+			const loaded = await loadEntity(doc);
+			line = spellDamageLine(loaded?.ent, {slotLevel, characterLevel});
+		} catch {
+			line = "";
+		}
+	}
+	spellDamageCache.set(key, line);
+	return line;
+}
+
+function paintSpellRow (parent, plugin, spell, edition, play, damageLine = "") {
 	const row = parent.createDiv({cls: "fiveetools-character-card__twoline"});
 	const line = row.createDiv({cls: "fiveetools-character-card__twoline-line"});
 	const box = line.createEl("input", {
@@ -343,6 +398,12 @@ function paintSpellRow (parent, plugin, spell, edition, play) {
 		row.createDiv({
 			cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source",
 			text: detail.join(" · "),
+		});
+	}
+	if (damageLine) {
+		row.createDiv({
+			cls: "fiveetools-character-card__twoline-line fiveetools-character-card__source",
+			text: damageLine,
 		});
 	}
 	setRowTip(row, [
@@ -918,7 +979,11 @@ function paintXp (host, plugin, record) {
 		cls: "fiveetools-encounter__hpinput fiveetools-character-card__xp-input fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: play.xp == null ? "0" : String(play.xp), title: "Current XP"},
 	});
-	const plus = row.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 XP"}});
+	const gain = row.createEl("input", {
+		cls: "fiveetools-encounter__hpinput fiveetools-character-card__xp-add fiveetools-no-clear",
+		attr: {type: "number", min: "0", placeholder: "Add", title: "XP to add"},
+	});
+	const plus = row.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "Add XP"}});
 	if (adjustment) row.createSpan({cls: "fiveetools-character-card__source", text: ` adjustment ${adjustment > 0 ? "+" : ""}${adjustment}`});
 	const note = host.createDiv({cls: "fiveetools-view__meta"});
 	const showProgress = () => {
@@ -940,8 +1005,20 @@ function paintXp (host, plugin, record) {
 		showProgress();
 		persistPlay(plugin, record);
 	};
+	const addGain = () => {
+		const amount = Math.floor(Number(gain.value));
+		if (!Number.isFinite(amount) || amount <= 0) return;
+		write((Number(play.xp) || 0) + amount);
+		gain.value = "";
+		gain.focus();
+	};
 	minus.addEventListener("click", () => write((Number(play.xp) || 0) - 1));
-	plus.addEventListener("click", () => write((Number(play.xp) || 0) + 1));
+	plus.addEventListener("click", addGain);
+	gain.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		addGain();
+	});
 	input.addEventListener("keydown", (evt) => {
 		if (evt.key !== "Enter") return;
 		evt.preventDefault();
@@ -1048,10 +1125,10 @@ function playState (record) {
 	return snap.play;
 }
 
-function persistPlay (plugin, record) {
+function persistPlay (plugin, record, {refs = false} = {}) {
 	const id = String(record.fields?.ddb_id || "");
 	if (!id || !record.snapshot?.play) return;
-	void saveCharacterPlay(plugin, id, record.snapshot.play).catch((e) => {
+	void saveCharacterPlay(plugin, id, record.snapshot.play, refs ? record.snapshot.refs : undefined).catch((e) => {
 		new Notice(e.message || "Could not save the character.");
 	});
 }
@@ -1063,7 +1140,7 @@ async function saveCharacterName (plugin, record, name) {
 }
 
 function spellIsPrepared (spell, play) {
-	if (spell?.alwaysPrepared) return true;
+	if (spell?.alwaysPrepared || spell?.prepared) return true;
 	const name = spell?.name || spell?.label;
 	return (play?.prepared || []).includes(name);
 }
@@ -1460,26 +1537,12 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 	const pdfBtn = importRow.createEl("button", {text: "Import PDF", cls: "fiveetools-btn"});
 	const listEl = catalog.createDiv({cls: "fiveetools-homebrew__list"});
 
-	const actions = resultEl.createDiv({cls: "fiveetools-characters__actions"});
-	const editBtn = actions.createEl("button", {
-		text: editing ? "Done" : "Edit",
-		cls: editing ? "fiveetools-btn" : "fiveetools-btn fiveetools-btn--ghost",
-		attr: {type: "button"},
-	});
-	const refreshBtn = actions.createEl("button", {text: "Refresh", cls: "fiveetools-btn fiveetools-btn--ghost"});
-	const deleteBtn = actions.createEl("button", {text: "Delete", cls: "fiveetools-btn fiveetools-btn--ghost"});
 	const cardEl = resultEl.createDiv({cls: "fiveetools-characters__card"});
 
 	const syncSelection = () => {
 		listEl.querySelectorAll(".fiveetools-library__row").forEach((el) => {
 			el.classList.toggle("is-selected", el.dataset.id === selectedId);
 		});
-		const has = characters.some(it => characterId(it) === selectedId);
-		editBtn.disabled = busy || !has;
-		editBtn.setText(editing ? "Done" : "Edit");
-		editBtn.className = editing ? "fiveetools-btn" : "fiveetools-btn fiveetools-btn--ghost";
-		refreshBtn.disabled = busy || !has;
-		deleteBtn.disabled = busy || !has;
 	};
 
 	const togglePin = async (id) => {
@@ -1567,6 +1630,7 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		}
 		await renderCharacterCard(cardEl, plugin, selectedId, {
 			editing,
+			onSheetMenu: openSheetMenu,
 			onRecordChange: async () => {
 				characters = await listCharacters(plugin);
 				paintList();
@@ -1640,13 +1704,48 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 			onSessionChange,
 		});
 	});
-	editBtn.addEventListener("click", () => {
+	const openSheetMenu = (evt) => {
 		if (!selectedId || busy) return;
-		editing = !editing;
-		emit();
-		syncSelection();
-		void paintCard();
-	});
+		const menu = new Menu();
+		menu.addItem((item) => item.setTitle(editing ? "Done" : "Edit").setIcon(editing ? "check" : "pencil").onClick(() => {
+			editing = !editing;
+			emit();
+			syncSelection();
+			void paintCard();
+		}));
+		menu.addItem((item) => item.setTitle("Refresh").setIcon("refresh-cw").onClick(() => {
+			if (selectedId.startsWith("pdf-")) {
+				new Notice("This character came from a PDF. Import the file again to update it.");
+				return;
+			}
+			if (selectedId.startsWith("local-")) {
+				new Notice("This character was created here. Edit the card or create a new one.");
+				return;
+			}
+			void runImport(selectedId);
+		}));
+		menu.addItem((item) => item.setTitle("Delete").setIcon("trash").onClick(async () => {
+			if (!selectedId || busy) return;
+			const label = characterName(characters.find(it => characterId(it) === selectedId));
+			if (typeof window !== "undefined" && !window.confirm(`Delete ${label}?`)) return;
+			try {
+				const removed = selectedId;
+				await deleteCharacter(plugin, removed);
+				const pins = pinnedCharacterIds(plugin).filter(id => id !== removed);
+				if (pins.length !== pinnedCharacterIds(plugin).length) {
+					plugin.settings.pinnedCharacterIds = pins;
+					await plugin.saveSettings();
+				}
+				selectedId = "";
+				editing = false;
+				emit();
+				await reload();
+			} catch (e) {
+				new Notice(e.message || "Could not delete that character.");
+			}
+		}));
+		menu.showAtMouseEvent(evt);
+	};
 	importBtn.addEventListener("click", () => { void runImport(importInput.value); });
 	pdfBtn.addEventListener("click", () => fileInput.click());
 	fileInput.addEventListener("change", () => {
@@ -1658,38 +1757,6 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		if (evt.key === "Enter") {
 			evt.preventDefault();
 			void runImport(importInput.value);
-		}
-	});
-	refreshBtn.addEventListener("click", () => {
-		if (!selectedId) return;
-		if (selectedId.startsWith("pdf-")) {
-			new Notice("This character came from a PDF. Import the file again to update it.");
-			return;
-		}
-		if (selectedId.startsWith("local-")) {
-			new Notice("This character was created here. Edit the card or create a new one.");
-			return;
-		}
-		void runImport(selectedId);
-	});
-	deleteBtn.addEventListener("click", async () => {
-		if (!selectedId || busy) return;
-		const label = characterName(characters.find(it => characterId(it) === selectedId));
-		if (typeof window !== "undefined" && !window.confirm(`Delete ${label}?`)) return;
-		try {
-			const removed = selectedId;
-			await deleteCharacter(plugin, removed);
-			const pins = pinnedCharacterIds(plugin).filter(id => id !== removed);
-			if (pins.length !== pinnedCharacterIds(plugin).length) {
-				plugin.settings.pinnedCharacterIds = pins;
-				await plugin.saveSettings();
-			}
-			selectedId = "";
-			editing = false;
-			emit();
-			await reload();
-		} catch (e) {
-			new Notice(e.message || "Could not delete that character.");
 		}
 	});
 
