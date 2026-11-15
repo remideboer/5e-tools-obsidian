@@ -771,7 +771,7 @@ function paintHpEditor (host, plugin, record) {
 	const play = playState(record);
 	const controls = host.createDiv({cls: "fiveetools-character-card__hp"});
 	const hp = controls.createDiv({cls: "fiveetools-encounter__hp"});
-	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "−1 HP"}});
+	const minus = hp.createEl("button", {text: "−", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "Subtract HP"}});
 	const input = hp.createEl("input", {
 		cls: "fiveetools-encounter__hpinput fiveetools-no-clear",
 		attr: {type: "number", value: String(play.hpCurrent ?? 0), title: "Current HP"},
@@ -781,7 +781,11 @@ function paintHpEditor (host, plugin, record) {
 		cls: "fiveetools-encounter__hpinput fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: String(play.hpMax ?? 0), title: "Max HP"},
 	});
-	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 HP"}});
+	const delta = hp.createEl("input", {
+		cls: "fiveetools-encounter__hpinput fiveetools-character-card__hp-delta fiveetools-no-clear",
+		attr: {type: "number", min: "0", title: "HP to add or subtract"},
+	});
+	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "Add HP"}});
 	const temp = controls.createEl("input", {
 		cls: "fiveetools-encounter__tempinput fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: String(play.tempHp ?? 0), title: "Temporary HP", placeholder: "Temp"},
@@ -794,17 +798,42 @@ function paintHpEditor (host, plugin, record) {
 		input.value = String(play.hpCurrent);
 		persistPlay(plugin, record);
 	};
-	minus.addEventListener("click", () => {
+	const readAmount = () => {
+		if (!String(delta.value ?? "").trim()) return 1;
+		const amount = Math.floor(Number(delta.value));
+		return Number.isFinite(amount) && amount > 0 ? amount : 0;
+	};
+	const finishDelta = () => {
+		delta.value = "";
+		delta.focus();
+	};
+	const addAmount = () => {
+		const amount = readAmount();
+		if (!amount) return;
+		writeCurrent((Number(play.hpCurrent) || 0) + amount);
+		finishDelta();
+	};
+	const subtractAmount = () => {
+		const amount = readAmount();
+		if (!amount) return;
 		const tempHp = Math.max(0, Math.floor(Number(play.tempHp) || 0));
-		if (tempHp > 0) {
-			play.tempHp = tempHp - 1;
+		const fromTemp = Math.min(tempHp, amount);
+		if (fromTemp) {
+			play.tempHp = tempHp - fromTemp;
 			temp.value = String(play.tempHp);
-			persistPlay(plugin, record);
-			return;
 		}
-		writeCurrent((Number(play.hpCurrent) || 0) - 1);
+		const rest = amount - fromTemp;
+		if (rest) writeCurrent((Number(play.hpCurrent) || 0) - rest);
+		else persistPlay(plugin, record);
+		finishDelta();
+	};
+	minus.addEventListener("click", subtractAmount);
+	plus.addEventListener("click", addAmount);
+	delta.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		addAmount();
 	});
-	plus.addEventListener("click", () => writeCurrent((Number(play.hpCurrent) || 0) + 1));
 	input.addEventListener("change", () => writeCurrent(input.value));
 	max.addEventListener("change", () => {
 		play.hpMax = Math.max(0, Math.floor(Number(max.value) || 0));
@@ -1646,7 +1675,10 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 			selectedId = "";
 			editing = false;
 		}
-		if (!selectedId && characters[0]) selectedId = characterId(characters[0]);
+		if (!selectedId) {
+			const top = charactersForList(characters, plugin)[0];
+			if (top) selectedId = characterId(top);
+		}
 		if (!selectedId) editing = false;
 		paintList();
 		await paintCard();

@@ -717,7 +717,7 @@ export class FiveEToolsLibraryView extends ItemView {
 			const session = this.plugin._characterSession || {selectedId: ""};
 			renderCharacterManager(this.listEl, this.readerEl, {
 				plugin: this.plugin,
-				session,
+				session: session.creator ? session : {selectedId: "", creator: null, editing: false},
 				onSessionChange: (next) => { this.plugin._characterSession = next; },
 			});
 			this.docs = [];
