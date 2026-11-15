@@ -62,6 +62,7 @@ export async function saveCharacter (plugin, card) {
 	await ensureSearchIndex(plugin);
 	const previous = await readCharacter(plugin, id);
 	const play = previous?.snapshot?.play || seedPlay(card);
+	if (Number.isFinite(card.xp)) play.xp = card.xp;
 	if (Array.isArray(play.gear)) fillGearAttunable(play.gear, card.refs);
 	const slots = mergeSlotSpent(card.slots || [], previous?.snapshot?.slots);
 	const avatarPath = card.avatar ? await writeAvatar(plugin, id, card.avatar) : existingAvatarPath(plugin, id);

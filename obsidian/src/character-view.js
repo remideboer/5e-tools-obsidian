@@ -54,7 +54,7 @@ async function paintLinkedCard (host, plugin, record, {editing = false, onRecord
 	const sheet = host.createDiv({cls: "fiveetools-character-card__sheet"});
 	const headerHp = paintSheetHeader(sheet, plugin, record, refs, edition, host, {editing, onRecordChange});
 	const columns = sheet.createDiv({cls: "fiveetools-character-card__columns"});
-	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record, headerHp);
+	paintCombatColumn(makeColumn(columns, "Combat"), plugin, record, headerHp, {onRecordChange});
 	paintAbilityColumn(makeColumn(columns, "Abilities"), snapshot);
 	await paintSpellColumn(makeColumn(columns, "Spells"), plugin, record, edition, {editing, onRecordChange});
 	if (snapshot.actions?.length) {
@@ -248,7 +248,7 @@ function portraitExt (name) {
 	return match[1] === "jpeg" ? ".jpg" : `.${match[1]}`;
 }
 
-function paintCombatColumn (col, plugin, record, headerHp) {
+function paintCombatColumn (col, plugin, record, headerHp, {onRecordChange} = {}) {
 	const fields = record.fields || {};
 	const snapshot = record.snapshot || {};
 	const vitals = col.createDiv({cls: "fiveetools-character-card__vitals"});
@@ -256,6 +256,12 @@ function paintCombatColumn (col, plugin, record, headerHp) {
 	if (!vitals.childElementCount) vitals.remove();
 	const hpSlot = col.createDiv({cls: "fiveetools-character-card__hp-slot"});
 	headerHp?.setColumnHpSlot(hpSlot);
+	const rest = col.createEl("button", {
+		text: "Long rest",
+		cls: "fiveetools-btn fiveetools-btn--ghost fiveetools-character-card__rest",
+		attr: {type: "button"},
+	});
+	rest.addEventListener("click", () => { void takeLongRest(plugin, record, onRecordChange, rest); });
 	paintLabeledList(col, "Senses", snapshot.senses);
 	paintLabeledList(col, "Defenses", snapshot.defenses);
 	paintConditions(col, plugin, record);
@@ -295,31 +301,16 @@ async function paintSpellColumn (col, plugin, record, edition, {onRecordChange} 
 		return;
 	}
 	const play = playState(record);
-	const preparedBox = col.createDiv();
-	const preparedTitle = preparedBox.createEl("h3", {text: "Prepared"});
-	const preparedList = preparedBox.createDiv({cls: "fiveetools-character-card__rows"});
-	const restBox = col.createDiv();
 	const levelLists = new Map();
 	const levels = [...new Set(spells.map(spell => spellLevel(spell, edition)))].sort((a, b) => a - b);
 	for (const level of levels) {
-		const frame = restBox.createDiv({cls: "fiveetools-character-card__spell-level"});
+		const frame = col.createDiv({cls: "fiveetools-character-card__spell-level"});
 		frame.createDiv({cls: "fiveetools-character-card__spell-level-label", text: spellLevelLabel(level)});
-		const list = frame.createDiv({cls: "fiveetools-character-card__rows"});
-		levelLists.set(level, {frame, list});
+		levelLists.set(level, frame.createDiv({cls: "fiveetools-character-card__rows"}));
 	}
-	const syncGroups = () => {
-		preparedTitle.style.display = preparedList.childElementCount ? "" : "none";
-		preparedBox.style.display = preparedList.childElementCount ? "" : "none";
-		for (const {frame, list} of levelLists.values()) frame.style.display = list.childElementCount ? "" : "none";
-	};
-	const place = (spell, row) => {
-		if (spellIsPrepared(spell, play)) preparedList.append(row);
-		else levelLists.get(spellLevel(spell, edition)).list.append(row);
-		syncGroups();
-	};
 	const ordered = spells.slice().sort((a, b) => spellLevel(a, edition) - spellLevel(b, edition) || String(a.label || a.name).localeCompare(String(b.label || b.name)));
 	for (const spell of ordered) {
-		const row = paintSpellRow(preparedList, plugin, spell, edition, play);
+		const row = paintSpellRow(levelLists.get(spellLevel(spell, edition)), plugin, spell, edition, play);
 		const box = row.querySelector("input");
 		if (box && !spell.alwaysPrepared) {
 			box.addEventListener("change", () => {
@@ -328,11 +319,9 @@ async function paintSpellColumn (col, plugin, record, edition, {onRecordChange} 
 				if (box.checked) set.add(name);
 				else set.delete(name);
 				play.prepared = [...set];
-				place(spell, row);
 				persistPlay(plugin, record);
 			});
 		}
-		place(spell, row);
 	}
 }
 
@@ -920,6 +909,7 @@ function paintInspiration (host, plugin, record) {
 function paintXp (host, plugin, record) {
 	const play = playState(record);
 	const adjustment = Number(record.snapshot?.xpAdjustment);
+	const level = record.fields?.level;
 	host.createEl("h3", {text: "Experience"});
 	const row = host.createDiv({cls: "fiveetools-character-card__xp"});
 	row.createSpan({text: "XP "});
@@ -930,10 +920,24 @@ function paintXp (host, plugin, record) {
 	});
 	const plus = row.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "+1 XP"}});
 	if (adjustment) row.createSpan({cls: "fiveetools-character-card__source", text: ` adjustment ${adjustment > 0 ? "+" : ""}${adjustment}`});
+	const note = host.createDiv({cls: "fiveetools-view__meta"});
+	const showProgress = () => {
+		const total = (Number(play.xp) || 0) + (Number.isFinite(adjustment) ? adjustment : 0);
+		const band = xpBand(level, total);
+		if (!band) {
+			note.setText("");
+			note.style.display = "none";
+			return;
+		}
+		note.style.display = "";
+		note.setText(`to next ${band.toNext.toLocaleString()} · 10% ${band.tenth.toLocaleString()}`);
+		note.setAttr("title", "10% of the XP from this level to the next");
+	};
 	const write = (value) => {
 		const next = Math.max(0, Math.floor(Number(value) || 0));
 		play.xp = next;
 		input.value = String(next);
+		showProgress();
 		persistPlay(plugin, record);
 	};
 	minus.addEventListener("click", () => write((Number(play.xp) || 0) - 1));
@@ -944,6 +948,42 @@ function paintXp (host, plugin, record) {
 		write(input.value);
 	});
 	input.addEventListener("change", () => write(input.value));
+	showProgress();
+}
+
+const XP_LEVELS = [0, 0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+
+function xpBand (level, xp) {
+	const current = Math.floor(Number(level));
+	if (!Number.isFinite(current) || current < 1 || current >= 20) return null;
+	const prev = XP_LEVELS[current];
+	const next = XP_LEVELS[current + 1];
+	if (prev == null || next == null) return null;
+	const total = Math.max(0, Math.floor(Number(xp) || 0));
+	return {
+		toNext: Math.max(0, next - total),
+		tenth: Math.floor((next - prev) * 0.1),
+	};
+}
+
+async function takeLongRest (plugin, record, onRecordChange, button) {
+	const play = playState(record);
+	const id = String(record.fields?.ddb_id || "");
+	if (!id || !play) return;
+	button.disabled = true;
+	try {
+		play.hpCurrent = Math.max(0, Math.floor(Number(play.hpMax) || 0));
+		let saved = await saveCharacterPlay(plugin, id, play);
+		const slots = record.snapshot?.slots;
+		if (slots?.length) {
+			for (const slot of slots) slot.spent = 0;
+			saved = await saveCharacterSlots(plugin, id, slots);
+		}
+		onRecordChange?.(saved || record);
+	} catch (e) {
+		new Notice(e.message || "Could not take a long rest.");
+		button.disabled = false;
+	}
 }
 
 function paintSpellcasting (host, lines) {

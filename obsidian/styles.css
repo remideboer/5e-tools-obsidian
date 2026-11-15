@@ -1565,6 +1565,11 @@ body.is-mobile .fiveetools-character-card .fiveetools-library__row-sub {
 	width: 8em;
 }
 
+.fiveetools-character-card__rest {
+	align-self: flex-start;
+	margin: 0 0 8px;
+}
+
 .fiveetools-character-card__hitdie-select {
 	width: 3.5em;
 }
