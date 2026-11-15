@@ -16,6 +16,7 @@ import {renameTableCharacter} from "./table-view.js";
 
 const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"];
 const identityExpanded = new Map();
+const headerWidthWatch = new WeakMap();
 
 function identityIsOpen (id) {
 	if (identityExpanded.has(id)) return identityExpanded.get(id);
@@ -23,6 +24,8 @@ function identityIsOpen (id) {
 }
 
 export async function renderCharacterCard (host, plugin, ddbId, {editing = false, onRecordChange} = {}) {
+	headerWidthWatch.get(host)?.disconnect();
+	headerWidthWatch.delete(host);
 	host.empty();
 	host.addClass("fiveetools-character-card");
 	if (editing) host.addClass("is-editing");
@@ -158,12 +161,42 @@ function paintSheetHeader (sheet, plugin, record, refs, edition, cardHost, {edit
 	hp.createSpan({cls: "fiveetools-character-card__vital-label", text: "HP"});
 	paintHpEditor(hp, plugin, record);
 	let columnHpSlot = null;
+	const headerRowFitsWithHp = () => {
+		if (!header.clientWidth) return true;
+		const gap = parseFloat(getComputedStyle(header).columnGap) || 0;
+		let used = 0;
+		let count = 0;
+		for (const child of header.children) {
+			if (child === vitals) continue;
+			const width = child.getBoundingClientRect().width;
+			if (width <= 0) continue;
+			used += width;
+			count += 1;
+		}
+		const tiles = [...vitals.querySelectorAll(":scope > .fiveetools-character-card__vital")];
+		let stats = hp.getBoundingClientRect().width;
+		for (const tile of tiles) stats += tile.getBoundingClientRect().width;
+		const vitalGap = parseFloat(getComputedStyle(vitals).columnGap) || 0;
+		const vitalCount = tiles.length + 1;
+		used += stats + vitalGap * Math.max(0, vitalCount - 1);
+		count += 1;
+		used += gap * Math.max(0, count - 1);
+		return used <= header.clientWidth + 1;
+	};
 	const placeHp = () => {
 		const collapsed = !fold || header.classList.contains("is-collapsed");
-		const home = collapsed || !columnHpSlot ? hpSlot : columnHpSlot;
-		home.append(hp);
-		columnHpSlot?.classList.toggle("is-hidden", !columnHpSlot.contains(hp));
+		const useHeader = collapsed && (!columnHpSlot || headerRowFitsWithHp());
+		const home = useHeader || !columnHpSlot ? hpSlot : columnHpSlot;
+		if (hp.parentElement !== home) home.append(hp);
+		columnHpSlot?.classList.toggle("is-hidden", columnHpSlot !== home);
+		hpSlot.classList.toggle("is-hidden", hpSlot !== home);
 	};
+	headerWidthWatch.get(cardHost)?.disconnect();
+	if (typeof ResizeObserver !== "undefined") {
+		const observer = new ResizeObserver(() => placeHp());
+		observer.observe(header);
+		headerWidthWatch.set(cardHost, observer);
+	}
 	fold?.addEventListener("click", (evt) => {
 		evt.preventDefault();
 		evt.stopPropagation();
@@ -711,7 +744,16 @@ function paintHpEditor (host, plugin, record) {
 		input.value = String(play.hpCurrent);
 		persistPlay(plugin, record);
 	};
-	minus.addEventListener("click", () => writeCurrent((Number(play.hpCurrent) || 0) - 1));
+	minus.addEventListener("click", () => {
+		const tempHp = Math.max(0, Math.floor(Number(play.tempHp) || 0));
+		if (tempHp > 0) {
+			play.tempHp = tempHp - 1;
+			temp.value = String(play.tempHp);
+			persistPlay(plugin, record);
+			return;
+		}
+		writeCurrent((Number(play.hpCurrent) || 0) - 1);
+	});
 	plus.addEventListener("click", () => writeCurrent((Number(play.hpCurrent) || 0) + 1));
 	input.addEventListener("change", () => writeCurrent(input.value));
 	max.addEventListener("change", () => {
@@ -727,8 +769,9 @@ function paintHpEditor (host, plugin, record) {
 	});
 }
 
-function vitalTile (host, label) {
+function vitalTile (host, label, title) {
 	const box = host.createDiv({cls: "fiveetools-character-card__vital"});
+	if (title) box.setAttr("title", title);
 	box.createSpan({cls: "fiveetools-character-card__vital-label", text: label});
 	return box.createSpan({cls: "fiveetools-character-card__vital-value"});
 }
@@ -741,7 +784,7 @@ function paintHeaderStats (host, fields, rolls, {editing = false, plugin, record
 	}
 	if (editing) paintAcEditor(host, plugin, record, onRecordChange);
 	else if (fields.ac != null && fields.ac !== "") vitalTile(host, "AC").setText(String(fields.ac));
-	if (rolls?.passivePerception != null) vitalTile(host, "Passive Perception").setText(String(rolls.passivePerception));
+	if (rolls?.passivePerception != null) vitalTile(host, "PP", "Passive Perception").setText(String(rolls.passivePerception));
 	if (rolls?.proficiency != null) vitalTile(host, "PB").setText(signed(rolls.proficiency));
 }
 
@@ -1399,20 +1442,37 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		deleteBtn.disabled = busy || !has;
 	};
 
+	const togglePin = async (id) => {
+		const current = pinnedCharacterIds(plugin);
+		const pins = current.filter(pinnedId => pinnedId !== id);
+		if (!current.includes(id)) pins.unshift(id);
+		plugin.settings.pinnedCharacterIds = pins;
+		try {
+			await plugin.saveSettings();
+		} catch (e) {
+			new Notice(e.message || "Could not save the pin.");
+			return;
+		}
+		paintList();
+	};
+
 	const paintList = () => {
 		const scrollTop = listEl.scrollTop || 0;
 		listEl.empty();
-		if (!characters.length) {
+		const shown = charactersForList(characters, plugin);
+		if (!shown.length) {
 			listEl.createEl("div", {cls: "fiveetools-modal__empty", text: "No characters yet."});
 			syncSelection();
 			return;
 		}
-		for (const it of characters) {
+		const pins = new Set(pinnedCharacterIds(plugin));
+		for (const it of shown) {
 			const id = characterId(it);
 			const level = it.fields?.level != null && it.fields.level !== "" ? String(it.fields.level) : "";
 			const classes = String(it.fields?.classes || "").trim();
 			const species = String(it.fields?.species || "").trim();
 			const sub = [species, classes].filter(Boolean).join(" · ");
+			const pinned = pins.has(id);
 			const row = listEl.createEl("button", {
 				cls: `fiveetools-library__row${id === selectedId ? " is-selected" : ""}`,
 				attr: {"data-id": id, type: "button"},
@@ -1422,6 +1482,29 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 				badge: level,
 				sub,
 				tooltip: [characterName(it), sub, level ? `Level ${level}` : ""].filter(Boolean).join(" · "),
+			});
+			const top = row.querySelector(".fiveetools-library__row-top");
+			const pin = top.createSpan({
+				cls: `fiveetools-characters__pin${pinned ? " is-pinned" : ""}`,
+				attr: {
+					role: "button",
+					tabindex: "0",
+					"aria-pressed": pinned ? "true" : "false",
+					title: pinned ? "Unpin" : "Pin",
+					"aria-label": pinned ? "Unpin" : "Pin",
+				},
+			});
+			setIcon(pin, "pin");
+			top.insertBefore(pin, top.firstChild);
+			const onPin = (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				void togglePin(id);
+			};
+			pin.addEventListener("click", onPin);
+			pin.addEventListener("keydown", (evt) => {
+				if (evt.key !== "Enter" && evt.key !== " ") return;
+				onPin(evt);
 			});
 			row.addEventListener("click", () => {
 				if (selectedId === id) return;
@@ -1554,7 +1637,13 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 		const label = characterName(characters.find(it => characterId(it) === selectedId));
 		if (typeof window !== "undefined" && !window.confirm(`Delete ${label}?`)) return;
 		try {
-			await deleteCharacter(plugin, selectedId);
+			const removed = selectedId;
+			await deleteCharacter(plugin, removed);
+			const pins = pinnedCharacterIds(plugin).filter(id => id !== removed);
+			if (pins.length !== pinnedCharacterIds(plugin).length) {
+				plugin.settings.pinnedCharacterIds = pins;
+				await plugin.saveSettings();
+			}
 			selectedId = "";
 			editing = false;
 			emit();
@@ -1572,4 +1661,23 @@ export function renderCharacterManager (formEl, resultEl, {plugin, session, onSe
 
 function characterId (record) {
 	return String(record?.fields?.ddb_id || "").trim();
+}
+
+function pinnedCharacterIds (plugin) {
+	const raw = plugin?.settings?.pinnedCharacterIds;
+	if (!Array.isArray(raw)) return [];
+	return raw.map(id => String(id || "").trim()).filter(Boolean);
+}
+
+function charactersForList (characters, plugin) {
+	const rank = new Map(pinnedCharacterIds(plugin).map((id, index) => [id, index]));
+	return characters.slice().sort((a, b) => {
+		const aRank = rank.get(characterId(a));
+		const bRank = rank.get(characterId(b));
+		const aPinned = aRank != null;
+		const bPinned = bRank != null;
+		if (aPinned !== bPinned) return aPinned ? -1 : 1;
+		if (aPinned && bPinned) return aRank - bRank;
+		return characterName(a).localeCompare(characterName(b));
+	});
 }

@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS = {
 	tableInitBackground: "#000000",
 	tableInitText: "#ffffff",
 	fulltextSearch: false,
+	pinnedCharacterIds: [],
 };
 
 /** Row height on the Table window, as a percentage of that window. Default is about twice the previous text size. */

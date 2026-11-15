@@ -1406,6 +1406,12 @@ body.is-mobile .fiveetools-character-card__name button.fiveetools-character-card
 	cursor: pointer;
 }
 
+.fiveetools-character-card__header.is-collapsed .fiveetools-character-card__header-text {
+	flex: 0 1 auto;
+	width: max-content;
+	max-width: 100%;
+}
+
 .fiveetools-character-card__header.is-collapsed .fiveetools-character-card__identity {
 	display: none;
 }
@@ -1725,8 +1731,8 @@ body.is-mobile .fiveetools-character-card .fiveetools-library__row-sub {
 
 .fiveetools-character-card__display {
 	display: block;
-	width: 100%;
-	max-width: 16em;
+	width: 12em;
+	max-width: 100%;
 	margin: 0 0 0.35em;
 }
 
@@ -1869,6 +1875,26 @@ body.is-mobile .fiveetools-character-card .fiveetools-library__row-sub {
 	white-space: normal;
 	overflow: visible;
 	text-overflow: unset;
+}
+
+.fiveetools-characters__catalog .fiveetools-characters__pin {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.4em;
+	height: 1.4em;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.fiveetools-characters__catalog .fiveetools-characters__pin.is-pinned {
+	color: var(--interactive-accent);
+}
+
+.fiveetools-characters__catalog .fiveetools-characters__pin svg {
+	width: 1em;
+	height: 1em;
 }
 
 .fiveetools-characters__catalog .fiveetools-homebrew__list {
