@@ -829,7 +829,9 @@ function paintHpEditor (host, plugin, record) {
 		attr: {type: "number", min: "0", title: "HP to add or subtract"},
 	});
 	const plus = hp.createEl("button", {text: "+", cls: "fiveetools-encounter__hpbtn", attr: {type: "button", title: "Add HP"}});
-	const temp = controls.createEl("input", {
+	const tempWrap = controls.createSpan({cls: "fiveetools-character-card__temp"});
+	tempWrap.createSpan({cls: "fiveetools-character-card__temp-label", text: "Temp"});
+	const temp = tempWrap.createEl("input", {
 		cls: "fiveetools-encounter__tempinput fiveetools-no-clear",
 		attr: {type: "number", min: "0", value: String(play.tempHp ?? 0), title: "Temporary HP", placeholder: "Temp"},
 	});

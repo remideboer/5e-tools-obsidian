@@ -1600,6 +1600,49 @@ body.is-mobile .fiveetools-character-card .fiveetools-library__row-sub {
 	width: 5em;
 }
 
+body.is-mobile .fiveetools-character-card__vital--hp,
+body.is-mobile .fiveetools-character-card__vital--hp .fiveetools-character-card__hp,
+body.is-mobile .fiveetools-character-card__vital--hp .fiveetools-encounter__hp {
+	max-width: 100%;
+	min-width: 0;
+}
+
+body.is-mobile .fiveetools-character-card__vital--hp .fiveetools-encounter__hp {
+	flex-wrap: wrap;
+}
+
+body.is-mobile .fiveetools-character-card__vital--hp .fiveetools-encounter__hpinput,
+body.is-mobile .fiveetools-character-card__vital--hp .fiveetools-encounter__tempinput {
+	min-width: 0;
+}
+
+body.is-mobile .fiveetools-character-card__hp .fiveetools-character-card__hp-delta {
+	order: 1;
+	flex: 1 0 100%;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.fiveetools-character-card__temp {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 100%;
+}
+
+.fiveetools-character-card__temp-label {
+	display: none;
+}
+
+.fiveetools-character-card__col .fiveetools-character-card__temp-label {
+	display: inline;
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
 .fiveetools-character-card__rest {
 	align-self: flex-start;
 	margin: 0 0 8px;
