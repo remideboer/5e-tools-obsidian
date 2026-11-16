@@ -1139,9 +1139,12 @@ async function takeLongRest (plugin, record, onRecordChange, button) {
 
 function paintSpellcasting (host, lines) {
 	if (!lines?.length) return;
-	host.createEl("p", {
-		cls: "fiveetools-character-card__combat",
-		text: lines.map(line => `${line.className} ${signed(line.attack)} / DC ${line.dc}`).join(" · "),
+	const p = host.createEl("p", {cls: "fiveetools-character-card__combat"});
+	lines.forEach((line, index) => {
+		if (index) p.appendText(" · ");
+		if (line.className) p.appendText(`${line.className} `);
+		paintRoll(p, "Spell Attack", line.attack);
+		p.appendText(` / DC ${line.dc}`);
 	});
 }
 
