@@ -35,7 +35,7 @@ export async function listCharacters (plugin) {
 	for (const child of folder.children) {
 		if (child.children || !String(child.path || "").endsWith(".md")) continue;
 		try {
-			const parsed = parseCampaignMarkdown(await vault.read(child));
+			const parsed = plainStoredSpells(parseCampaignMarkdown(await vault.read(child)));
 			out.push({path: child.path, ...parsed});
 		} catch (_) { /* skip */ }
 	}
@@ -49,7 +49,7 @@ export async function readCharacter (plugin, ddbId) {
 	if (!vault) return null;
 	const file = vault.getAbstractFileByPath(characterFilePath(plugin, id));
 	if (!file || file.children) return null;
-	const parsed = parseCampaignMarkdown(await vault.read(file));
+	const parsed = plainStoredSpells(parseCampaignMarkdown(await vault.read(file)));
 	return {path: file.path, ...parsed};
 }
 
@@ -318,12 +318,41 @@ function resolveActions (actions, edition, prefer) {
 	}).filter(action => action.name);
 }
 
+const SPELL_TEXT_KEYS = ["castingTime", "range", "duration", "components", "attack", "save", "snippet"];
+
+function plainInline (value) {
+	if (typeof value !== "string" || !value.includes("<")) return value;
+	return value
+		.replace(/<[^>]*>/g, "")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.replace(/&quot;/gi, "\"")
+		.replace(/&#39;/gi, "'")
+		.replace(/[ \t]*\n[ \t]*/g, " ")
+		.replace(/[ \t]{2,}/g, " ")
+		.trim();
+}
+
+function plainStoredSpells (parsed) {
+	const refs = parsed?.snapshot?.refs;
+	if (!Array.isArray(refs)) return parsed;
+	for (const ref of refs) {
+		if (ref?.kind !== "spell") continue;
+		for (const key of SPELL_TEXT_KEYS) {
+			if (typeof ref[key] === "string") ref[key] = plainInline(ref[key]);
+		}
+	}
+	return parsed;
+}
+
 function refDetails (ref) {
 	const out = {};
 	for (const key of ["level", "school", "castingTime", "range", "duration", "components", "concentration", "ritual", "attack", "save", "prepared", "alwaysPrepared", "list", "attuned", "attunable", "rarity", "weight", "charges", "snippet"]) {
 		const value = ref?.[key];
 		if (value == null || value === "" || value === false) continue;
-		out[key] = value;
+		out[key] = ref?.kind === "spell" && typeof value === "string" ? plainInline(value) : value;
 	}
 	return out;
 }

@@ -357,8 +357,8 @@ export function spellRefFromEntity (ent, {listName = "", edition = "one"} = {}) 
 		? ent.time.map(t => Parser.getTimeToFull?.(t) || `${t.number || ""} ${t.unit || ""}`.trim()).filter(Boolean).join(" or ")
 		: "";
 	const range = Parser.spRangeToFull?.(ent.range) || "";
-	const duration = Parser.spDurationToFull?.(ent.duration) || "";
-	const components = Parser.spComponentsToFull?.(ent.components, level) || componentsFallback(ent.components);
+	const duration = Parser.spDurationToFull?.(ent.duration, {isPlainText: true}) || "";
+	const components = Parser.spComponentsToFull?.(ent.components, level, {isPlainText: true}) || componentsFallback(ent.components);
 	const concentration = Array.isArray(ent.duration) && ent.duration.some(d => d?.concentration);
 	const ritual = !!(ent.meta?.ritual || ent.ritual);
 	const snippet = firstSnippet(ent);
