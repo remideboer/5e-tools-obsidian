@@ -792,11 +792,6 @@ export class FiveEToolsLibraryView extends ItemView {
 		if (item?.tool === "maps") {
 			this.searchRowEl.style.display = "none";
 			if (this.filterEl) this.filterEl.style.display = "none";
-			if (Platform.isMobile) {
-				this.renderMobileOnly("Maps are available in the desktop app.");
-				this.docs = [];
-				return;
-			}
 			const session = this.plugin._referenceMapSession || {};
 			renderReferenceMaps(this.listEl, this.readerEl, {
 				session,

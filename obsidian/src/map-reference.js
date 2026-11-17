@@ -1,12 +1,17 @@
-import {fs, path} from "./node-fs.js";
-import {getConfiguredAbsoluteRoot} from "./fiveetools-host.js";
-import {cachedMediaPath} from "./media-cache.js";
+import {cacheRemoteImage, cachedMediaPath} from "./media-cache.js";
 import {createSceneFromImage, writeScene} from "./map-scene.js";
+import {pluginVaultPath} from "./plugin-dir.js";
 
 let catalog = null;
+let catalogPromise = null;
+
+export async function ensureReferenceCatalog (plugin) {
+	return loadReferenceMaps(plugin);
+}
 
 export function listReferenceSources (query = "") {
-	const sources = loadReferenceMaps();
+	if (!catalog) throw new Error("Could not read the map index.");
+	const sources = catalog;
 	const terms = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
 	if (!terms.length) return sources;
 	const out = [];
@@ -29,9 +34,9 @@ export function referenceImageUrl (plugin, relPath) {
 
 export async function fetchReferenceMap (plugin, relPath) {
 	const url = referenceImageUrl(plugin, relPath);
-	const abs = await cachedMediaPath(plugin, url);
-	if (!abs) throw new Error("Could not download that map.");
-	return abs;
+	const cached = await cacheRemoteImage(plugin, url);
+	if (!cached?.vaultPath) throw new Error("Could not download that map.");
+	return cached.abs || cached.vaultPath;
 }
 
 export async function createReferenceScene (plugin, entry, absPath) {
@@ -56,8 +61,8 @@ export async function createReferenceScene (plugin, entry, absPath) {
 
 export function findReferenceMap (relPath) {
 	const wanted = String(relPath || "");
-	if (!wanted) return null;
-	for (const source of loadReferenceMaps()) {
+	if (!wanted || !catalog) return null;
+	for (const source of catalog) {
 		for (const chapter of source.chapters) {
 			const map = chapter.maps.find(it => it.path === wanted);
 			if (map) return map;
@@ -66,13 +71,39 @@ export function findReferenceMap (relPath) {
 	return null;
 }
 
-function loadReferenceMaps () {
+function loadReferenceMaps (plugin) {
 	if (catalog) return catalog;
-	const root = getConfiguredAbsoluteRoot();
-	if (!root) throw new Error("Maps are available in the desktop app.");
-	const file = path.join(root, "data", "generated", "gendata-maps.json");
-	if (!fs.existsSync(file)) throw new Error("Map index was not found.");
-	const data = JSON.parse(fs.readFileSync(file, "utf8"));
+	if (!plugin) throw new Error("Could not read the map index.");
+	if (!catalogPromise) {
+		catalogPromise = readReferenceCatalog(plugin).catch((error) => {
+			catalogPromise = null;
+			throw error;
+		});
+	}
+	return catalogPromise;
+}
+
+async function readReferenceCatalog (plugin) {
+	const adapter = plugin?.app?.vault?.adapter;
+	const vaultPath = pluginVaultPath(plugin, "data", "generated", "gendata-maps.json");
+	if (!adapter || !(await adapter.exists(vaultPath))) throw new Error("Map index was not found.");
+	let data;
+	try {
+		data = JSON.parse(await adapter.read(vaultPath));
+	} catch (error) {
+		throw new Error(error?.message || "Could not read the map index.");
+	}
+	catalog = buildReferenceCatalog(data);
+	return catalog;
+}
+
+function fileStem (rel) {
+	const base = String(rel || "").split(/[\\/]/).pop() || "";
+	const dot = base.lastIndexOf(".");
+	return dot > 0 ? base.slice(0, dot) : base;
+}
+
+function buildReferenceCatalog (data) {
 	const out = [];
 	for (const meta of Object.values(data || {})) {
 		const source = String(meta?.name || meta?.id || "");
@@ -85,7 +116,7 @@ function loadReferenceMaps () {
 				const rel = image?.href?.path;
 				if (!rel) continue;
 				const imageType = image.imageType === "mapPlayer" ? "mapPlayer" : "map";
-				const title = String(image.title || path.basename(rel, path.extname(rel)));
+				const title = String(image.title || fileStem(rel));
 				const rawGrid = image.grid;
 				const gridSize = Number(rawGrid?.size) || 0;
 				const grid = rawGrid && (gridSize > 0 || rawGrid.offsetX != null || rawGrid.offsetY != null)
@@ -119,6 +150,5 @@ function loadReferenceMaps () {
 			chapters,
 		});
 	}
-	catalog = out;
 	return out;
 }

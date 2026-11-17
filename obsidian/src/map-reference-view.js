@@ -1,7 +1,8 @@
-import {Notice} from "obsidian";
-import {cachedMediaFile, cachedMediaSrc} from "./media-cache.js";
+import {Notice, Platform} from "obsidian";
+import {cachedMediaExists, cachedMediaPath, cachedMediaSrc} from "./media-cache.js";
 import {
 	createReferenceScene,
+	ensureReferenceCatalog,
 	fetchReferenceMap,
 	listReferenceSources,
 	referenceImageUrl,
@@ -117,12 +118,14 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 		}
 		if (!state.fetched[map.path]) return;
 		const ready = row.createDiv({cls: "fiveetools-refmaps__ready"});
-		const use = ready.createEl("button", {
-			text: "Use as map",
-			cls: "fiveetools-btn fiveetools-btn--ghost",
-			attr: {type: "button"},
-		});
-		use.addEventListener("click", () => void useMap(map));
+		if (!Platform.isMobile) {
+			const use = ready.createEl("button", {
+				text: "Use as map",
+				cls: "fiveetools-btn fiveetools-btn--ghost",
+				attr: {type: "button"},
+			});
+			use.addEventListener("click", () => void useMap(map));
+		}
 		const img = ready.createEl("img", {
 			cls: "fiveetools-refmaps__image",
 			attr: {alt: map.title},
@@ -178,9 +181,9 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 		const missing = [];
 		for (const map of maps) {
 			if (state.fetched[map.path]) continue;
-			const abs = cachedMediaFile(plugin, referenceImageUrl(plugin, map.path));
-			if (abs) {
-				state.fetched[map.path] = abs;
+			const url = referenceImageUrl(plugin, map.path);
+			if (await cachedMediaExists(plugin, url)) {
+				state.fetched[map.path] = true;
 				delete state.errors[map.path];
 				continue;
 			}
@@ -196,9 +199,9 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 				if (gen !== loadGen || state.openSourceId !== sourceId) return;
 				const map = missing[cursor++];
 				try {
-					const abs = await fetchReferenceMap(plugin, map.path);
+					await fetchReferenceMap(plugin, map.path);
 					if (gen !== loadGen || state.openSourceId !== sourceId) return;
-					state.fetched[map.path] = abs;
+					state.fetched[map.path] = true;
 					delete state.errors[map.path];
 				} catch (e) {
 					if (gen !== loadGen || state.openSourceId !== sourceId) return;
@@ -215,9 +218,9 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 	};
 
 	const useMap = async (map) => {
-		const abs = state.fetched[map.path];
+		const abs = await cachedMediaPath(plugin, referenceImageUrl(plugin, map.path));
 		if (!abs) {
-			new Notice("That map is not ready.");
+			new Notice("Opening this map as a scene needs the desktop app.");
 			return;
 		}
 		try {
@@ -236,19 +239,31 @@ export function renderReferenceMaps (listEl, readerEl, {session, plugin, onSessi
 		}
 	};
 
+	let catalogReady = false;
 	searchEl.addEventListener("input", () => {
+		if (!catalogReady) return;
 		state.query = searchEl.value;
 		emit();
 		paintMenu();
 	});
 
-	paintMenu();
-	let openSource = null;
-	try {
-		openSource = findSource(state.openSourceId);
-	} catch (_) {
-		openSource = null;
-	}
-	if (openSource) void loadMaps(mapsForSelection(openSource), {scrollTo: state.openChapter ? "chapter" : ""});
-	else paintReader();
+	void (async () => {
+		try {
+			await ensureReferenceCatalog(plugin);
+		} catch (e) {
+			menuEl.createEl("p", {cls: "fiveetools-view__meta", text: e.message || "Could not read the map index."});
+			readerEl.createEl("p", {cls: "fiveetools-view__meta", text: e.message || "Could not read the map index."});
+			return;
+		}
+		catalogReady = true;
+		paintMenu();
+		let openSource = null;
+		try {
+			openSource = findSource(state.openSourceId);
+		} catch (_) {
+			openSource = null;
+		}
+		if (openSource) void loadMaps(mapsForSelection(openSource), {scrollTo: state.openChapter ? "chapter" : ""});
+		else paintReader();
+	})();
 }

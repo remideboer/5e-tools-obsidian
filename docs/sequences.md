@@ -80,4 +80,4 @@ sequenceDiagram
   RefV->>Map: onOpenMap_selectNav_map
 ```
 
-Index path is `getConfiguredAbsoluteRoot()/data/generated/gendata-maps.json` in the **installed** plugin, not the git tree. That absolute path exists on desktop only.
+Index path is `{plugin}/data/generated/gendata-maps.json` in the **installed** plugin, read through the vault adapter, not the git tree. That read works on desktop and iPad. "Use as map" still needs the desktop scene files.

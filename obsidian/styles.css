@@ -5439,6 +5439,12 @@ body.is-mobile [data-fiveetools-hover="1"] {
 	white-space: nowrap;
 }
 
+.fiveetools-map__url {
+	flex: 1 1 12em;
+	min-width: 8em;
+	max-width: 100%;
+}
+
 .fiveetools-map__num {
 	width: 5.5em;
 }

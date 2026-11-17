@@ -73,7 +73,7 @@ flowchart TB
 | `map-fog.js` | Fog mask canvas, brush/shapes, PNG save/load |
 | `map-tokens.js` | Size footprints, snap, hit-test, create token asset |
 | `map-token-picker.js` | Bestiary search modal, drag payload |
-| `map-reference.js` | Load `gendata-maps.json`, fetch/cache map images, create scenes |
+| `map-reference.js` | Load `gendata-maps.json` through the vault adapter, fetch/cache map images, create desktop scenes |
 | `map-reference-view.js` | References → Maps two-pane browser |
 | `map-scale.js` / `map-dpi.js` | Cell inches, DPI, actual-size player scale |
 
@@ -106,6 +106,6 @@ flowchart TB
 ## Import rules of thumb
 
 - Bundled JSON is read with `vault.adapter` from `plugin.manifest.dir` (ADR 0006). Do not statically import Node `fs` or `path`.
-- `map-reference` must not pull `fiveetools-host` in a way that runs before root configure. The desktop catalog uses `getConfiguredAbsoluteRoot()`.
+- `map-reference` must not pull `fiveetools-host` in a way that runs before root configure. The catalog is `data/generated/gendata-maps.json` read with the vault adapter, including on iPad. The map tool stays desktop-only.
 - Player popout cannot `drawImage` main-window `HTMLImageElement`s; use `ImageBitmap` (see ADR 0003).
 - Scene tokens live on `scene.tokens` (shared across layers); layer switches must not clear them.

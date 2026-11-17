@@ -83,6 +83,22 @@ async function ensureCachedFile (plugin, url) {
 	}
 }
 
+export async function cachedMediaExists (plugin, url) {
+	const cached = cachedFilePaths(plugin, url);
+	if (!cached) return false;
+	try {
+		return await vaultFileReady(plugin, cached.vaultPath);
+	} catch (_) {
+		return false;
+	}
+}
+
+export async function cacheRemoteImage (plugin, url) {
+	const cached = await ensureCachedFile(plugin, url);
+	if (!cached?.vaultPath) throw new Error("Could not download that image.");
+	return cached;
+}
+
 export async function cachedMediaPath (plugin, url) {
 	const cached = await ensureCachedFile(plugin, url);
 	return cached?.abs || "";

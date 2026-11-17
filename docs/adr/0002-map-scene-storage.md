@@ -20,3 +20,4 @@ Maps need persistent layers, fog, camera, and tokens across Obsidian sessions. D
 - Changing layers must not drop tokens or require re-place.
 - `writeScene` / `scheduleSceneSave` are the persistence path; avoid writing scene JSON on every pointermove (save on gesture end or debounced edits).
 - Scenes require `FileSystemAdapter`; fail clearly if not desktop.
+- A pasted http or https image URL is downloaded into the plugin cache and saved as a scene the same way as a chosen file.

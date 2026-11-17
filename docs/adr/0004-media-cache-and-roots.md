@@ -12,8 +12,8 @@ Entity fluff, tokens, and adventure maps are hosted remotely (`settings.imageBas
 
 - Cache downloads under the plugin install dir: `cache/img/…` for URLs on the image host whose path contains `/img/`.
 - ToV creature art is vault-local (`5etools/_homebrew/img/tov-*.png`), not bundled in the plugin or git repo.
-- `cachedMediaFile` checks disk without download; `cachedMediaPath` downloads if missing.
-- Reference catalog loads from `getConfiguredRoot()/data/generated/gendata-maps.json` (installed plugin).
+- `cachedMediaFile` checks disk without download on desktop; `cachedMediaExists` checks the vault cache on desktop and iPad. `cachedMediaPath` downloads if missing and still returns an absolute path for map scenes.
+- Reference catalog loads from `{plugin}/data/generated/gendata-maps.json` through the vault adapter. Images are cached the same way on desktop and iPad. "Use as map" still creates a desktop scene.
 - Adventure menu click loads maps with cache-first fetch and limited concurrency; abandon stale UI updates with a generation token.
 
 ## Consequences

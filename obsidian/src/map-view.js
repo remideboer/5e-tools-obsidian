@@ -1,5 +1,5 @@
 import {fs, path} from "./node-fs.js";
-import {ItemView, Menu, Notice} from "obsidian";
+import {ItemView, Menu, Notice, normalizePath, requestUrl} from "obsidian";
 import {VIEW_TYPE_FIVEETOOLS_MAP_PLAYER} from "./constants.js";
 import {ICON_ID} from "./icon.js";
 import {fillTableMenu} from "./table-view.js";
@@ -38,6 +38,7 @@ import {
 	screenPpiCss,
 } from "./map-scale.js";
 import {detectImageDpi} from "./map-dpi.js";
+import {desktopAbsolutePath, pluginVaultPath} from "./plugin-dir.js";
 import {listCampaigns} from "./campaign-store.js";
 import {createSceneToken, snapTokenCenter, tokenAtPoint, tokenRadius} from "./map-tokens.js";
 import {openTokenPicker, tokenDragDoc} from "./map-token-picker.js";
@@ -199,6 +200,10 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		cls: "fiveetools-map__path",
 		text: state.filePath ? path.basename(state.filePath) : "No file chosen",
 		attr: {title: state.filePath || ""},
+	});
+	const urlInput = fileRow.createEl("input", {
+		cls: "fiveetools-map__url fiveetools-no-clear",
+		attr: {type: "text", placeholder: "Image URL", title: "Paste an image link"},
 	});
 	const browseBtn = fileRow.createEl("button", {text: "Browse", cls: "fiveetools-btn", attr: {type: "button"}});
 	const layerRow = formEl.createDiv({cls: "fiveetools-map__row"});
@@ -1129,6 +1134,22 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 		}
 		void adoptFile(picked);
 	});
+	urlInput.addEventListener("keydown", (evt) => {
+		if (evt.key !== "Enter") return;
+		evt.preventDefault();
+		const raw = urlInput.value.trim();
+		if (!raw) return;
+		urlInput.value = "";
+		urlInput.focus();
+		void (async () => {
+			try {
+				const abs = await downloadMapUrl(plugin, raw);
+				await adoptFile(abs);
+			} catch (e) {
+				new Notice(e?.message || "Could not download that map.");
+			}
+		})();
+	});
 	prevLayerBtn.addEventListener("click", () => stepLayer(-1));
 	nextLayerBtn.addEventListener("click", () => stepLayer(1));
 	addLayerBtn.addEventListener("click", () => {
@@ -1399,6 +1420,90 @@ export function renderMapTool (formEl, resultEl, {session, plugin, app, onSessio
 	} else if (state.filePath) {
 		void adoptFile(state.filePath, {fromSession: true});
 	} else schedule();
+}
+
+const MAP_URL_MIME = {
+	"image/png": "png",
+	"image/jpeg": "jpg",
+	"image/jpg": "jpg",
+	"image/webp": "webp",
+	"image/gif": "gif",
+	"image/bmp": "bmp",
+	"image/x-ms-bmp": "bmp",
+};
+const MAP_URL_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "bmp"]);
+
+async function downloadMapUrl (plugin, raw) {
+	let parsed;
+	try {
+		parsed = new URL(String(raw || "").trim());
+	} catch (_) {
+		throw new Error("Paste an http or https image link.");
+	}
+	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+		throw new Error("Paste an http or https image link.");
+	}
+	const res = await requestUrl({url: parsed.href});
+	const bytes = new Uint8Array(res.arrayBuffer);
+	if (!bytes.byteLength) throw new Error("That image was empty.");
+	const header = contentType(res.headers);
+	const fromPath = pathExt(parsed.pathname);
+	const fromMime = MAP_URL_MIME[header] || "";
+	const ext = MAP_URL_EXTS.has(fromMime) ? fromMime : (MAP_URL_EXTS.has(fromPath) ? fromPath : "");
+	if (!ext) throw new Error("That link is not an image.");
+	const adapter = plugin?.app?.vault?.adapter;
+	if (!adapter || !desktopAbsolutePath(plugin, pluginVaultPath(plugin, "cache"))) {
+		throw new Error("Maps need the desktop app.");
+	}
+	const file = `${urlStem(parsed.pathname)}-${hashUrl(parsed.href)}.${ext === "jpeg" ? "jpg" : ext}`;
+	const vaultPath = pluginVaultPath(plugin, "cache", "img", "url", file);
+	await ensureCacheFolder(adapter, vaultPath);
+	await adapter.writeBinary(vaultPath, bytes.buffer);
+	const abs = desktopAbsolutePath(plugin, vaultPath);
+	if (!abs) throw new Error("Maps need the desktop app.");
+	return abs;
+}
+
+function contentType (headers) {
+	const raw = headers?.["content-type"] || headers?.["Content-Type"] || "";
+	return String(raw).split(";")[0].trim().toLowerCase();
+}
+
+function pathExt (pathname) {
+	const base = String(pathname || "").split("/").pop() || "";
+	const dot = base.lastIndexOf(".");
+	if (dot < 1) return "";
+	return base.slice(dot + 1).toLowerCase();
+}
+
+function urlStem (pathname) {
+	let base = "map";
+	try {
+		base = decodeURIComponent(String(pathname || "").split("/").pop() || "map");
+	} catch (_) { /* keep the fallback name */ }
+	const stem = base.replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "");
+	return (stem || "map").slice(0, 80);
+}
+
+function hashUrl (url) {
+	let hash = 2166136261;
+	for (let i = 0; i < url.length; i++) {
+		hash ^= url.charCodeAt(i);
+		hash = Math.imul(hash, 16777619);
+	}
+	return (hash >>> 0).toString(36);
+}
+
+async function ensureCacheFolder (adapter, vaultPath) {
+	const folder = normalizePath(vaultPath).split("/").slice(0, -1).join("/");
+	const parts = folder.split("/").filter(Boolean);
+	let acc = "";
+	for (const part of parts) {
+		acc = acc ? `${acc}/${part}` : part;
+		try {
+			if (!(await adapter.exists(acc))) await adapter.mkdir(acc);
+		} catch (_) { /* already there */ }
+	}
 }
 
 function pickMapFile (defaultPath) {
