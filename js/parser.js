@@ -3365,6 +3365,7 @@ Parser.SRC_WoW = "WoW";
 Parser.SRC_ICC = "ICC";
 Parser.SRC_ToV = "ToV";
 
+Parser.SRC_DDE = "DDE";
 Parser.SRC_PS_PREFIX = "PS";
 
 Parser.SRC_PSA = `${Parser.SRC_PS_PREFIX}A`;
@@ -3593,6 +3594,7 @@ Parser.SOURCE_JSON_TO_FULL[Parser.SRC_WoW] = "D&D: World of Warcraft";
 Parser.SOURCE_JSON_TO_FULL[Parser.SRC_ICC] = "World of Warcraft: Icecrown Citadel";
 Parser.SOURCE_JSON_TO_FULL[Parser.SRC_ToV] = "Tales of the Valiant";
 
+Parser.SOURCE_JSON_TO_FULL[Parser.SRC_DDE] = "World of Warcraft: Deadmines Dungeon";
 Parser.SOURCE_JSON_TO_ABV = {};
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_PHB] = "PHB'14";
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_DMG] = "DMG'14";
@@ -3785,6 +3787,7 @@ Parser.SOURCE_JSON_TO_ABV[Parser.SRC_WoW] = "WoW";
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_ICC] = "ICC";
 Parser.SOURCE_JSON_TO_ABV[Parser.SRC_ToV] = "ToV";
 
+Parser.SOURCE_JSON_TO_ABV[Parser.SRC_DDE] = "DDE";
 Parser.SOURCE_JSON_TO_DATE = {};
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_PHB] = "2014-08-19";
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_DMG] = "2014-12-09";
@@ -3976,6 +3979,7 @@ Parser.SOURCE_JSON_TO_DATE[Parser.SRC_WoW] = "2026-11-17";
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_ICC] = "2026-11-17";
 Parser.SOURCE_JSON_TO_DATE[Parser.SRC_ToV] = "2023-01-01";
 
+Parser.SOURCE_JSON_TO_DATE[Parser.SRC_DDE] = "2026-11-03";
 // region Source categories
 Parser.SOURCES_ADVENTURES = new Set([
 	Parser.SRC_LMoP,
@@ -4083,6 +4087,7 @@ Parser.SOURCES_ADVENTURES = new Set([
 	Parser.SRC_RWG,
 	Parser.SRC_PL,
 	Parser.SRC_ICC,
+	Parser.SRC_DDE,
 ]);
 Parser.SOURCES_CORE_SUPPLEMENTS = new Set(Object.keys(Parser.SOURCE_JSON_TO_FULL).filter(it => !Parser.SOURCES_ADVENTURES.has(it)));
 Parser.SOURCES_NON_STANDARD_WOTC = new Set([
@@ -4136,6 +4141,7 @@ Parser.SOURCES_NON_STANDARD_WOTC = new Set([
 	Parser.SRC_RWG,
 	Parser.SRC_PL,
 	Parser.SRC_ToV,
+	Parser.SRC_DDE,
 ]);
 Parser.SOURCES_PARTNERED_WOTC = new Set([
 	/*
@@ -4458,6 +4464,7 @@ Parser.SOURCES_AVAILABLE_DOCS_ADVENTURE = {};
 	Parser.SRC_RWG,
 	Parser.SRC_SoS,
 	Parser.SRC_ICC,
+	Parser.SRC_DDE,
 ].forEach(src => {
 	Parser.SOURCES_AVAILABLE_DOCS_ADVENTURE[src] = src;
 	Parser.SOURCES_AVAILABLE_DOCS_ADVENTURE[src.toLowerCase()] = src;
